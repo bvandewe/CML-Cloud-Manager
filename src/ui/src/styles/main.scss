@@ -1,0 +1,13 @@
+/* Main application styles */
+@import 'bootstrap/scss/bootstrap';
+
+/* Component styles */
+@import 'components/navbar';
+@import 'components/task-card';
+@import 'components/modals';
+@import 'components/dashboard';
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background-color: #f8f9fa;
+}

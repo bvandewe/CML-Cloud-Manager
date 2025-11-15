@@ -1,0 +1,36 @@
+/* Modal Component Styles */
+
+/* Modal improvements for better UX */
+.modal-dialog-scrollable {
+    max-height: calc(100vh - 3.5rem);
+
+    .modal-content {
+        max-height: calc(100vh - 3.5rem);
+    }
+
+    .modal-body {
+        overflow-y: auto;
+
+        form {
+            min-height: 100%;
+        }
+    }
+}
+
+/* Make description textarea grow with available space */
+#create-task-form,
+#edit-task-form {
+    .flex-grow-1 {
+        min-height: 200px; // Minimum height for description
+
+        textarea {
+            min-height: 200px;
+            resize: vertical;
+        }
+    }
+}
+
+/* Larger modal for better form visibility */
+.modal-lg {
+    max-width: 700px;
+}

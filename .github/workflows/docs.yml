@@ -1,0 +1,106 @@
+name: Deploy Documentation
+
+on:
+    push:
+        branches:
+            - main
+        paths:
+            - 'docs/**'
+            - 'mkdocs.yml'
+            - '.github/workflows/docs.yml'
+    pull_request:
+        branches:
+            - main
+        paths:
+            - 'docs/**'
+            - 'mkdocs.yml'
+    workflow_dispatch:
+
+permissions:
+    contents: write
+    pages: write
+    id-token: write
+
+# Allow one concurrent deployment
+concurrency:
+    group: 'pages'
+    cancel-in-progress: true
+
+jobs:
+    build:
+        name: Build Documentation
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0 # Fetch all history for git info
+                  lfs: true
+
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: '3.11'
+                  cache: 'pip'
+
+            - name: Install dependencies
+              run: |
+                  pip install --upgrade pip
+                  pip install mkdocs mkdocs-material mkdocs-mermaid2-plugin
+
+            - name: Build documentation
+              run: mkdocs build
+
+            - name: Upload artifact
+              uses: actions/upload-pages-artifact@v3
+              with:
+                  path: ./site
+
+    deploy:
+        name: Deploy to GitHub Pages
+        needs: build
+        runs-on: ubuntu-latest
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        environment:
+            name: github-pages
+            url: ${{ steps.deployment.outputs.page_url }}
+        steps:
+            - name: Deploy to GitHub Pages
+              id: deployment
+              uses: actions/deploy-pages@v4
+
+    # Build-only job for PRs (no deployment)
+    pr-check:
+        name: PR Documentation Check
+        runs-on: ubuntu-latest
+        if: github.event_name == 'pull_request'
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  lfs: true
+
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: '3.11'
+                  cache: 'pip'
+
+            - name: Install dependencies
+              run: |
+                  pip install --upgrade pip
+                  pip install mkdocs mkdocs-material mkdocs-mermaid2-plugin
+
+            - name: Check documentation build
+              run: mkdocs build --strict
+
+            - name: Comment on PR
+              uses: actions/github-script@v7
+              with:
+                  script: |
+                      github.rest.issues.createComment({
+                        issue_number: context.issue.number,
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        body: '✅ Documentation build successful! Preview will be available after merge.'
+                      })

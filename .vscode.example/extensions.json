@@ -1,0 +1,19 @@
+{
+    "recommendations": [
+        // Python
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.black-formatter",
+
+        // JavaScript/TypeScript/Web
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+
+        // Markdown
+        "DavidAnson.vscode-markdownlint",
+
+        // General Utilities
+        "editorconfig.editorconfig",
+        "streetsidesoftware.code-spell-checker"
+    ]
+}
