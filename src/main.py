@@ -74,7 +74,9 @@ async def lifespan_with_monitoring(app: FastAPI) -> AsyncIterator[None]:
         log.info("🚀 Starting worker monitoring scheduler...")
 
         # Create a scope to access scoped services like repositories
-        async with app.state.services.create_scope() as scope:
+        # Note: create_scope() returns a regular context manager, not async
+        scope = app.state.services.create_scope()
+        try:
             # Get required dependencies from scoped service provider
             worker_repository = scope.get_required_service(CMLWorkerRepository)
             aws_client = scope.get_required_service(AwsEc2Client)
@@ -105,7 +107,10 @@ async def lifespan_with_monitoring(app: FastAPI) -> AsyncIterator[None]:
             # Start the scheduler
             await _monitoring_scheduler.start_async()
 
-        log.info("✅ Worker monitoring scheduler started")
+            log.info("✅ Worker monitoring scheduler started")
+        finally:
+            # Dispose the scope after initialization
+            scope.dispose()
     else:
         log.info("⚠️ Worker monitoring disabled in settings")
 
