@@ -20,13 +20,15 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 #### CML API Integration
 
-- **CMLApiClient**: REST API client for querying CML instances
-  - `/api/v0/system_stats` endpoint integration
-  - Parses compute nodes, dominfo, CPU/memory/disk statistics
-  - Extracts allocated CPUs, running nodes, total nodes from dominfo
-  - HTTP authentication with configurable credentials
-  - Graceful error handling for unreachable instances
-  - SSL verification configurable (disabled for self-signed certs)
+- **CMLApiClient**: Async REST API client for querying CML instances
+  - **JWT Authentication**: POST `/api/v0/authenticate` with username/password
+  - **Token Management**: Automatic token caching and refresh on expiration
+  - **System Stats**: `/api/v0/system_stats` endpoint integration
+  - **Metrics Parsing**: Compute nodes, dominfo, CPU/memory/disk statistics
+  - **Workload Metrics**: Allocated CPUs, running nodes, total nodes from dominfo
+  - **Error Handling**: Graceful handling for unreachable instances
+  - **SSL Support**: SSL verification configurable (disabled for self-signed certs)
+  - **Async/Await**: Fully async implementation using httpx
 
 #### Command Pattern Implementation
 
@@ -54,6 +56,24 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 - `notes/WORKER_METRICS_SOURCE_SEPARATION.md`: Architecture guide for metric sources
 - `notes/REFRESH_WORKER_METRICS_IMPLEMENTATION_PLAN.md`: Implementation roadmap and phases
 - `notes/METRICS_STORAGE_ARCHITECTURE.md`: Analysis of metrics storage options (time-series collections, external DBs)
+- `notes/CML_API_TESTING.md`: Testing guide for CML API client with endpoint reference and troubleshooting
+
+#### Testing & Development Tools
+
+- `scripts/test_cml_api.py`: Comprehensive test script for CML API client
+  - Test specific HTTPS endpoints with authentication
+  - Test by worker ID (database lookup)
+  - Test all RUNNING workers in parallel
+  - MongoDB integration for worker discovery
+  - Detailed logging and error reporting
+
+#### Decision Log
+
+- **Custom CML API Client vs Official Library**: Chose custom implementation
+  - Official `virl2-client` library is sync (our architecture is async)
+  - We only need `system_stats` endpoint (library has 50+ methods)
+  - Custom implementation: lightweight, async, fits architecture perfectly
+  - Future: Can integrate official library for advanced features if needed
 
 ### Changed
 

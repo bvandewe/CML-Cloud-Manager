@@ -5,31 +5,24 @@
 1. Import CML worker from AWS region by AMI name: add btn in "CML Workers" view next to "Refresh" btn.
 
 
+Next Steps (Future Work):
+Test the CML API Integration:
 
-2025-11-16 22:55:26,463 - neuroglia.mediation.tracing_middleware - DEBUG - ✅ Query 'GetCMLWorkerResourcesQuery' completed in 1421.29ms
+Deploy and test with a real CML worker instance
+Verify /api/v0/system_stats endpoint works
+Check authentication and SSL handling
+UI Updates:
 
-INFO:     151.101.64.223:23449 - "GET /api/workers/region/us-east-1/workers/78ceebfa-e1bb-4678-ad59-d73d2344c7ee/resources?start_time=10m HTTP/1.1" 200 OK
+Display source-separated metrics in worker details modal
+Show EC2, CloudWatch, CML sections independently
+Add "Enable Detailed Monitoring" button for admins
+OTEL Metrics Enhancement:
 
-2025-11-16 22:55:28,118 - neuroglia.mediation.mediator - INFO - 🔍 MEDIATOR DEBUG: Starting execute_async for request: GetCMLWorkerByIdQuery
+Add more gauges for CML-specific metrics
+Track dominfo statistics (allocated CPUs, memory)
+Export to Prometheus/Grafana
+Time-Series Storage (if needed):
 
-2025-11-16 22:55:28,119 - neuroglia.mediation.mediator - DEBUG - 🔍 MEDIATOR DEBUG: Successfully resolved GetCMLWorkerByIdQueryHandler from registry
-
-2025-11-16 22:55:28,120 - neuroglia.mediation.mediator - DEBUG - Found 3 pipeline behaviors for GetCMLWorkerByIdQuery
-
-2025-11-16 22:55:28,124 - application.queries.get_cml_worker_by_id_query - ERROR - Error retrieving CML worker: 'CMLWorkerState' object has no attribute 'cpu_utilization'
-
-Traceback (most recent call last):
-
-  File "/app/src/application/queries/get_cml_worker_by_id_query.py", line 77, in handle_async
-
-    "cpu_utilization": worker.state.cpu_utilization,
-
-                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-AttributeError: 'CMLWorkerState' object has no attribute 'cpu_utilization'
-
-2025-11-16 22:55:28,126 - neuroglia.mediation.metrics_middleware - DEBUG - 📊 CQRS Metrics - query.GetCMLWorkerByIdQuery: ❌ 5.41ms
-
-2025-11-16 22:55:28,126 - neuroglia.mediation.tracing_middleware - DEBUG - ✅ Query 'GetCMLWorkerByIdQuery' completed in 5.97ms
-
-INFO:     151.101.64.223:23449 - "GET /api/workers/region/us-east-1/workers/78ceebfa-e1bb-4678-ad59-d73d2344c7ee HTTP/1.1" 500 Internal Server Error
+Implement MongoDB time-series collection
+Store historical metric samples
+Create history API endpoints

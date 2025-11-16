@@ -118,3 +118,4 @@ Desktop.ini
 site/
 .mkdocs_cache/
 .memory
+.ruff_cache/
