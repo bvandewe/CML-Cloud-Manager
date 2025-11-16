@@ -152,31 +152,33 @@ class SystemController(ControllerBase):
 
         (**Requires admin or manager role.**)"""
         try:
-            from application.services import WorkerMonitoringScheduler
+            # Import global monitoring scheduler reference
+            from main import _monitoring_scheduler
 
-            monitoring_scheduler: WorkerMonitoringScheduler = (
-                self.service_provider.get_required_service(WorkerMonitoringScheduler)
-            )
+            monitoring_scheduler = _monitoring_scheduler
 
-            if monitoring_scheduler and monitoring_scheduler._scheduler:
-                jobs = monitoring_scheduler._scheduler.get_jobs()
-                return {
-                    "status": "active",
-                    "scheduler_running": monitoring_scheduler._scheduler.running,
-                    "monitoring_job_count": len(jobs),
-                    "jobs": [
-                        {
-                            "id": job.id,
-                            "name": job.name,
-                            "next_run_time": (
-                                job.next_run_time.isoformat()
-                                if job.next_run_time
-                                else None
-                            ),
-                        }
-                        for job in jobs
-                    ],
-                }
+            if monitoring_scheduler and monitoring_scheduler._background_task_scheduler:
+                # Get jobs from the background task scheduler
+                bg_scheduler = monitoring_scheduler._background_task_scheduler
+                if bg_scheduler and bg_scheduler._scheduler:
+                    jobs = bg_scheduler._scheduler.get_jobs()
+                    return {
+                        "status": "active",
+                        "scheduler_running": bg_scheduler._scheduler.running,
+                        "monitoring_job_count": len(monitoring_scheduler._active_jobs),
+                        "jobs": [
+                            {
+                                "id": job.id,
+                                "name": job.name,
+                                "next_run_time": (
+                                    job.next_run_time.isoformat()
+                                    if job.next_run_time
+                                    else None
+                                ),
+                            }
+                            for job in jobs
+                        ],
+                    }
             else:
                 return {
                     "status": "inactive",
@@ -219,15 +221,15 @@ class SystemController(ControllerBase):
             "components": {},
         }
 
-        # Check database
+        # Check database via mediator (which uses scoped repositories)
         try:
-            from domain.repositories.cml_worker_repository import CMLWorkerRepository
+            from application.queries.get_cml_workers_query import GetCMLWorkersQuery
+            from integration.enums import AwsRegion
 
-            repo: CMLWorkerRepository = self.service_provider.get_required_service(
-                CMLWorkerRepository
-            )
-            # Simple check - try to count documents
-            await repo.collection.count_documents({}, limit=1)
+            # Try a simple query to verify database connectivity
+            query = GetCMLWorkersQuery(aws_region=AwsRegion.US_EAST_1)
+            _ = await self.mediator.execute_async(query)
+
             health_status["components"]["database"] = {
                 "status": "healthy",
                 "type": "mongodb",
@@ -269,12 +271,11 @@ class SystemController(ControllerBase):
 
         # Check worker monitoring
         try:
-            from application.services import WorkerMonitoringScheduler
+            # Import global monitoring scheduler reference
+            from main import _monitoring_scheduler
 
-            monitoring: WorkerMonitoringScheduler = (
-                self.service_provider.get_required_service(WorkerMonitoringScheduler)
-            )
-            if monitoring and monitoring._scheduler and monitoring._scheduler.running:
+            monitoring = _monitoring_scheduler
+            if monitoring and monitoring._is_running:
                 health_status["components"]["worker_monitoring"] = {
                     "status": "healthy",
                     "running": True,
