@@ -243,15 +243,33 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
                 if scope:
                     worker_repository = scope.get_required_service(CMLWorkerRepository)
                 else:
-                    # Fallback: get from main app - this should work even without service provider in job
-                    from main import app
+                    # No service provider - create repository directly for horizontal scaling
+                    from motor.motor_asyncio import AsyncIOMotorClient
+                    from neuroglia.serialization.json import JsonSerializer
 
-                    temp_scope = app.state.services.create_scope()
-                    worker_repository = temp_scope.get_required_service(
-                        CMLWorkerRepository
+                    from application.settings import app_settings
+                    from domain.entities.cml_worker import CMLWorker
+                    from integration.repositories.motor_cml_worker_repository import (
+                        MongoCMLWorkerRepository,
                     )
-                    if not scope:
-                        scope = temp_scope  # Use this scope for cleanup
+
+                    # Get MongoDB connection string
+                    mongo_uri = app_settings.connection_strings.get("mongo")
+                    if not mongo_uri:
+                        raise Exception("MongoDB connection string not configured")
+
+                    # Create Motor client
+                    client = AsyncIOMotorClient(mongo_uri)
+
+                    # Create repository
+                    worker_repository = MongoCMLWorkerRepository(
+                        client=client,
+                        database_name="cml_cloud_manager",
+                        collection_name="cml_workers",
+                        serializer=JsonSerializer(),
+                        entity_type=CMLWorker,
+                        mediator=None,  # No mediator for background jobs
+                    )
 
                 # 1. Load worker from repository
                 worker = await worker_repository.get_by_id_async(self.worker_id)
@@ -350,7 +368,7 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
                             worker.update_telemetry(
                                 cpu_utilization=cpu_util,
                                 memory_utilization=memory_util,
-                                active_labs_count=worker.state.active_labs_count,
+                                active_labs_count=worker.state.cml_labs_count or 0,
                                 last_activity_at=datetime.now(timezone.utc),
                             )
 
