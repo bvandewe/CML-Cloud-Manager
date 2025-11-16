@@ -239,7 +239,12 @@ APP_HOST=127.0.0.1         # Override only if you must expose the API externally
 APP_PORT=8080
 
 # Keycloak OAuth2/OIDC
-KEYCLOAK_SERVER_URL=http://keycloak:8080
+# External URL - browser/Swagger UI accessible (defaults to http://localhost:8021)
+KEYCLOAK_URL=http://localhost:8021
+# Internal URL - backend server-to-server communication (optional, defaults to KEYCLOAK_URL if not set)
+# In Docker: use internal Docker network URL (http://keycloak:8080)
+# In Kubernetes: may be same as KEYCLOAK_URL or intra-cluster URL depending on setup
+KEYCLOAK_URL_INTERNAL=http://keycloak:8080
 KEYCLOAK_REALM=cml-cloud-manager
 KEYCLOAK_CLIENT_ID=portal-web-app
 

@@ -23,27 +23,36 @@ services:
             APP_URL: http://localhost:${APP_PORT:-8030}
             APP_PORT: ${APP_PORT:-8030}
 
+            # Keycloak Configuration
+            # External URL (browser/Swagger UI accessible)
+            KEYCLOAK_URL: http://localhost:${KEYCLOAK_PORT:-8021}
+            # Internal URL (backend app uses this for server-to-server communication)
+            KEYCLOAK_URL_INTERNAL: http://keycloak:8080
+            KEYCLOAK_REALM: ${KEYCLOAK_REALM:-cml-cloud-manager}
+            KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-cml-cloud-manager-public}
+
             # JWT Configuration
             JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production}
             JWT_ALGORITHM: HS256
             JWT_EXPIRATION_HOURS: 24
 
+            # Token Claim Validation (optional hardened checks)
+            VERIFY_ISSUER: true
+            EXPECTED_ISSUER: 'http://localhost:8031/realms/cml-cloud-manager'
+            VERIFY_AUDIENCE: true
+            EXPECTED_AUDIENCE: '["cml-cloud-manager"]' # JSON array format required for list[str]
+            REFRESH_AUTO_LEEWAY_SECONDS: 60
+
+            # Application settings
+            ENABLE_CORS: 'true'
+
             # Database connections (MongoDB for future use)
             CONNECTION_STRINGS: '{"mongo": "mongodb://root:${MONGODB_PASSWORD:-password123}@mongodb:27017/?authSource=admin"}'
-
-            # Keycloak Configuration (Optional)
-            KEYCLOAK_SERVER_URL: http://keycloak:8080
-            KEYCLOAK_REALM: ${KEYCLOAK_REALM:-cml-cloud-manager}
-            KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-cml-cloud-manager-public}
-            KEYCLOAK_PORT: ${KEYCLOAK_PORT:-8021}
 
             # Redis Configuration (Session Storage)
             REDIS_URL: redis://redis:6379/0
             REDIS_ENABLED: ${REDIS_ENABLED:-false} # Set to true to use Redis for sessions
             REDIS_KEY_PREFIX: 'session:'
-
-            # Application settings
-            ENABLE_CORS: 'true'
 
             # Event streaming
             CLOUD_EVENT_SINK: http://event-player:8080/events/pub
@@ -59,6 +68,13 @@ services:
             OTEL_METRICS_EXPORTER: otlp
             OTEL_LOGS_EXPORTER: none
             OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED: 'false'
+
+            # AWS Credentials for EC2/CloudWatch access
+            AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+            AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+
+            CML_WORKER_AMI_NAME_DEFAULT: ${CML_WORKER_AMI_NAME_DEFAULT}
+
         volumes:
             - ./:/app
         networks:

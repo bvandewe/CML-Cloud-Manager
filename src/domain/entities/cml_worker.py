@@ -13,14 +13,17 @@ from multipledispatch import dispatch
 from neuroglia.data.abstractions import AggregateRoot, AggregateState
 
 from domain.enums import CMLServiceStatus, CMLWorkerStatus, LicenseStatus
-from domain.events.cml_worker import (CMLServiceStatusUpdatedDomainEvent,
-                                      CMLWorkerCreatedDomainEvent,
-                                      CMLWorkerEndpointUpdatedDomainEvent,
-                                      CMLWorkerInstanceAssignedDomainEvent,
-                                      CMLWorkerLicenseUpdatedDomainEvent,
-                                      CMLWorkerStatusUpdatedDomainEvent,
-                                      CMLWorkerTelemetryUpdatedDomainEvent,
-                                      CMLWorkerTerminatedDomainEvent)
+from domain.events.cml_worker import (
+    CMLServiceStatusUpdatedDomainEvent,
+    CMLWorkerCreatedDomainEvent,
+    CMLWorkerEndpointUpdatedDomainEvent,
+    CMLWorkerImportedDomainEvent,
+    CMLWorkerInstanceAssignedDomainEvent,
+    CMLWorkerLicenseUpdatedDomainEvent,
+    CMLWorkerStatusUpdatedDomainEvent,
+    CMLWorkerTelemetryUpdatedDomainEvent,
+    CMLWorkerTerminatedDomainEvent,
+)
 
 
 class CMLWorkerState(AggregateState[str]):
@@ -109,6 +112,34 @@ class CMLWorkerState(AggregateState[str]):
         self.created_at = event.created_at
         self.updated_at = event.created_at
         self.created_by = event.created_by
+
+    @dispatch(CMLWorkerImportedDomainEvent)
+    def on(self, event: CMLWorkerImportedDomainEvent) -> None:  # type: ignore[override]
+        """Apply the import event to the state."""
+        self.id = event.aggregate_id
+        self.name = event.name
+        self.aws_region = event.aws_region
+        self.aws_instance_id = event.aws_instance_id
+        self.instance_type = event.instance_type
+        self.ami_id = event.ami_id
+        self.ami_name = event.ami_name
+        self.public_ip = event.public_ip
+        self.private_ip = event.private_ip
+        self.created_at = event.created_at
+        self.updated_at = event.created_at
+        self.created_by = event.created_by
+
+        # Map EC2 instance state to CMLWorkerStatus
+        if event.instance_state == "running":
+            self.status = CMLWorkerStatus.RUNNING
+        elif event.instance_state == "stopped":
+            self.status = CMLWorkerStatus.STOPPED
+        elif event.instance_state == "stopping":
+            self.status = CMLWorkerStatus.STOPPING
+        elif event.instance_state == "pending":
+            self.status = CMLWorkerStatus.PENDING
+        else:
+            self.status = CMLWorkerStatus.UNKNOWN
 
     @dispatch(CMLWorkerStatusUpdatedDomainEvent)
     def on(self, event: CMLWorkerStatusUpdatedDomainEvent) -> None:  # type: ignore[override]
@@ -223,6 +254,66 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
             )
         )
 
+    @staticmethod
+    def import_from_existing_instance(
+        name: str,
+        aws_region: str,
+        aws_instance_id: str,
+        instance_type: str,
+        ami_id: str,
+        instance_state: str,
+        created_by: str | None = None,
+        ami_name: str | None = None,
+        public_ip: str | None = None,
+        private_ip: str | None = None,
+    ) -> "CMLWorker":
+        """Factory method to import an existing EC2 instance as a CML Worker.
+
+        This creates a worker from an already-provisioned EC2 instance without
+        creating a new instance. Used for registering instances that were
+        created outside of the CML Cloud Manager system.
+
+        Args:
+            name: Friendly name for the worker
+            aws_region: AWS region where instance exists
+            aws_instance_id: AWS EC2 instance ID
+            instance_type: EC2 instance type (e.g., 'c5.2xlarge')
+            ami_id: AMI ID used by the instance
+            instance_state: Current EC2 state (running, stopped, etc.)
+            created_by: User who initiated the import
+            ami_name: Optional AMI name
+            public_ip: Optional public IP address
+            private_ip: Optional private IP address
+
+        Returns:
+            New CMLWorker aggregate with imported instance details
+        """
+        worker_id = str(uuid4())
+        created_at = datetime.now(timezone.utc)
+
+        # Create a new worker instance without going through __init__
+        worker = object.__new__(CMLWorker)
+        AggregateRoot.__init__(worker)
+
+        # Register and apply the import event
+        event = CMLWorkerImportedDomainEvent(
+            aggregate_id=worker_id,
+            name=name,
+            aws_region=aws_region,
+            aws_instance_id=aws_instance_id,
+            instance_type=instance_type,
+            ami_id=ami_id,
+            ami_name=ami_name,
+            instance_state=instance_state,
+            public_ip=public_ip,
+            private_ip=private_ip,
+            created_by=created_by,
+            created_at=created_at,
+        )
+
+        worker.state.on(worker.register_event(event))  # type: ignore
+        return worker
+
     def id(self) -> str:
         """Return the aggregate identifier with a precise type."""
         aggregate_id = super().id()
@@ -269,8 +360,10 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
         Returns:
             True if status was changed, False if already at that status
         """
-        if (self.state.service_status == new_service_status
-                and self.state.https_endpoint == https_endpoint):
+        if (
+            self.state.service_status == new_service_status
+            and self.state.https_endpoint == https_endpoint
+        ):
             return False
 
         old_service_status = self.state.service_status
@@ -326,8 +419,10 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
         Returns:
             True if license was updated, False if unchanged
         """
-        if (self.state.license_status == license_status
-                and self.state.license_token == license_token):
+        if (
+            self.state.license_status == license_status
+            and self.state.license_token == license_token
+        ):
             return False
 
         self.state.on(
@@ -443,6 +538,8 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
         Returns:
             True if worker is running and service is available
         """
-        return (self.state.status == CMLWorkerStatus.RUNNING
-                and self.state.service_status == CMLServiceStatus.AVAILABLE
-                and self.state.https_endpoint is not None)
+        return (
+            self.state.status == CMLWorkerStatus.RUNNING
+            and self.state.service_status == CMLServiceStatus.AVAILABLE
+            and self.state.https_endpoint is not None
+        )

@@ -11,11 +11,13 @@ from neuroglia.mvc.controller_base import ControllerBase
 from api.dependencies import get_current_user, require_roles
 from api.models import (
     CreateCMLWorkerRequest,
+    ImportCMLWorkerRequest,
     RegisterLicenseRequest,
     UpdateCMLWorkerTagsRequest,
 )
 from application.commands import (
     CreateCMLWorkerCommand,
+    ImportCMLWorkerCommand,
     StartCMLWorkerCommand,
     StopCMLWorkerCommand,
     TerminateCMLWorkerCommand,
@@ -150,11 +152,11 @@ class WorkersController(ControllerBase):
         self,
         aws_region: aws_region_annotation,
         request: CreateCMLWorkerRequest,
-        token: str = Depends(require_roles("lablets-admin")),
+        token: str = Depends(require_roles("admin")),
     ) -> Any:
         """Creates a new CML Worker instance in AWS EC2.
 
-        (**Requires `lablets-admin` role!**)"""
+        (**Requires `admin` role!**)"""
         logger.info(f"Creating CML worker '{request.name}' in region {aws_region}")
         command = CreateCMLWorkerCommand(
             aws_region=aws_region,
@@ -163,6 +165,44 @@ class WorkersController(ControllerBase):
             ami_id=request.ami_id,
             ami_name=request.ami_name,
             cml_version=request.cml_version,
+        )
+        return self.process(await self.mediator.execute_async(command))
+
+    @post(
+        "/region/{aws_region}/workers/import",
+        response_model=Any,
+        status_code=201,
+        responses=ControllerBase.error_responses,
+    )
+    async def import_existing_cml_worker(
+        self,
+        aws_region: aws_region_annotation,
+        request: ImportCMLWorkerRequest,
+        token: str = Depends(require_roles("admin")),
+    ) -> Any:
+        """Imports an existing EC2 instance as a CML Worker.
+
+        This endpoint allows you to register EC2 instances that were created
+        outside of CML Cloud Manager (e.g., via AWS Console, Terraform, etc.)
+
+        You can specify either:
+        - aws_instance_id: Direct lookup by instance ID
+        - ami_id: Search for instances using that AMI
+        - ami_name: Search for instances with matching AMI name
+
+        The 'name' field is optional - if not provided, the AWS instance's
+        name will be used automatically.
+
+        (**Requires `admin` role!**)"""
+        logger.info(
+            f"Importing existing EC2 instance as CML worker in region {aws_region}"
+        )
+        command = ImportCMLWorkerCommand(
+            aws_region=aws_region,
+            aws_instance_id=request.aws_instance_id,
+            ami_id=request.ami_id,
+            ami_name=request.ami_name,
+            name=request.name,
         )
         return self.process(await self.mediator.execute_async(command))
 

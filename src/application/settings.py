@@ -2,7 +2,7 @@
 
 import logging
 import sys
-from typing import Optional
+from typing import Any, Optional
 
 from neuroglia.hosting.abstractions import ApplicationSettings
 
@@ -73,13 +73,19 @@ class Settings(ApplicationSettings):
     cors_origins: list[str] = ["http://localhost:8020", "http://localhost:3000"]
 
     # Keycloak OAuth2/OIDC Configuration
-    keycloak_url: str = "http://localhost:8021"  # External URL (browser accessible)
-    keycloak_url_internal: str = "http://keycloak:8080"  # Internal Docker network URL
+    keycloak_url: str = (
+        "http://localhost:8031"  # External URL (browser/Swagger accessible)
+    )
+    keycloak_url_internal: Optional[str] = (
+        None  # Internal Docker network URL (auto-populated if not set)
+    )
     keycloak_realm: str = "cml-cloud-manager"
 
     # Backend confidential client for secure token exchange
     keycloak_client_id: str = "cml-cloud-manager-backend"
-    keycloak_client_secret: str = "cml-cloud-manager-backend-secret-change-in-production"
+    keycloak_client_secret: str = (
+        "cml-cloud-manager-backend-secret-change-in-production"
+    )
 
     # Legacy public client (deprecated)
     keycloak_public_client_id: str = (
@@ -93,9 +99,11 @@ class Settings(ApplicationSettings):
 
     # Token Claim Validation (optional hardened checks)
     verify_issuer: bool = False  # Set True to enforce 'iss' claim
-    expected_issuer: str = ""  # e.g. "http://localhost:8021/realms/cml-cloud-manager"
+    expected_issuer: str = ""  # e.g. "http://localhost:8031/realms/cml-cloud-manager"
     verify_audience: bool = False  # Set True to enforce 'aud' claim
-    expected_audience: list[str] = []  # e.g. ["cml-cloud-manager-backend"]
+    expected_audience: list[str] = [
+        "cml-cloud-manager"
+    ]  # Audience claim expected in tokens
     refresh_auto_leeway_seconds: int = 60  # Auto-refresh if exp is within this window
 
     # Persistence Configuration
@@ -116,8 +124,15 @@ class Settings(ApplicationSettings):
     aws_secret_access_key: str = "YOUR_SECRET_ACCESS_KEY"
 
     # AWS EC2 CML Worker Settings
-    cml_worker_ami_ids: dict[str, str] = {"us-east-1": "ami-0123456789abcdef0", "us-west-2": "ami-0123456789abcdef0"}
-    cml_worker_ami_names: dict[str, str] = {"us-east-1": "CML-2.7.0-Ubuntu-22.04", "us-west-2": "CML-2.7.0-Ubuntu-22.04"}
+    cml_worker_ami_name_default: str = "my-cml2.7.0-lablet-v0.1.0"
+    cml_worker_ami_ids: dict[str, str] = {
+        "us-east-1": "ami-0123456789abcdef0",
+        "us-west-2": "ami-0123456789abcdef0",
+    }
+    cml_worker_ami_names: dict[str, str] = {
+        "us-east-1": "CML-2.7.0-Ubuntu-22.04",
+        "us-west-2": "CML-2.7.0-Ubuntu-22.04",
+    }
     cml_worker_instance_type: Ec2InstanceType = Ec2InstanceType.SMALL
     cml_worker_security_group_ids: list[str] = ["sg-0123456789abcdef0"]
     cml_worker_security_group_names: list[str] = ["ec2_cml_worker_sg"]
@@ -136,6 +151,14 @@ class Settings(ApplicationSettings):
         env_file = ".env"
         case_sensitive = False
         extra = "ignore"  # Ignore extra environment variables
+
+    def __init__(self, **kwargs: Any) -> None:
+        """Initialize settings and auto-populate keycloak_url_internal if not provided."""
+        super().__init__(**kwargs)
+        # If keycloak_url_internal is not provided, use keycloak_url as fallback
+        # This handles both Docker (with override) and Kubernetes (single URL) scenarios
+        if not self.keycloak_url_internal:
+            self.keycloak_url_internal = self.keycloak_url
 
 
 # Instantiate application settings

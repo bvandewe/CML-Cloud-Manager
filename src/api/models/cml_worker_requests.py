@@ -1,6 +1,8 @@
 """Request DTOs for CML Worker API endpoints."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from application.settings import app_settings
 
 
 class CreateCMLWorkerRequest(BaseModel):
@@ -50,3 +52,74 @@ class RegisterLicenseRequest(BaseModel):
 
     class Config:
         json_schema_extra = {"example": {"license_token": "ABCD-1234-EFGH-5678"}}
+
+
+class ImportCMLWorkerRequest(BaseModel):
+    """Request model for importing existing EC2 instances as CML Workers.
+
+    You can import an instance by providing one of the following:
+    - aws_instance_id: Direct lookup by EC2 instance ID
+    - ami_id: Search for instances using this AMI ID
+    - ami_name: Search for instances with matching AMI name
+
+    At least one search criterion must be provided.
+
+    The 'name' field is optional - if not provided, the AWS instance's
+    name will be used automatically.
+    """
+
+    aws_instance_id: str | None = Field(
+        None,
+        description="AWS EC2 instance ID (e.g., 'i-1234567890abcdef0'). "
+        "If provided, directly import this instance.",
+        examples=["i-0abcdef1234567890"],
+    )
+
+    ami_id: str | None = Field(
+        None,
+        description="AMI ID to search for (e.g., 'ami-0c55b159cbfafe1f0'). "
+        "Will import the first instance found with this AMI.",
+        examples=["ami-0c55b159cbfafe1f0"],
+    )
+
+    ami_name: str | None = Field(
+        None,
+        description="AMI name pattern to search for. "
+        "Will import the first instance found with matching AMI name.",
+        examples=[app_settings.cml_worker_ami_name_default],
+    )
+
+    name: str | None = Field(
+        None,
+        description="Optional friendly name for the worker. "
+        "If not provided, uses the AWS instance's name automatically.",
+        examples=["cml-worker-imported-01"],
+    )
+
+    @model_validator(mode="after")
+    def validate_search_criteria(self) -> "ImportCMLWorkerRequest":
+        """Ensure at least one search criterion is provided."""
+        if not any([self.aws_instance_id, self.ami_id, self.ami_name]):
+            raise ValueError(
+                "Must provide at least one of: aws_instance_id, ami_id, or ami_name"
+            )
+        return self
+
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "ami_name": app_settings.cml_worker_ami_name_default,
+                },
+                {
+                    "ami_id": "ami-0c55b159cbfafe1f0",
+                },
+                {
+                    "aws_instance_id": "i-0abcdef1234567890",
+                    "name": "imported-worker-01",
+                },
+                {
+                    "aws_instance_id": "i-0abcdef1234567890",
+                },
+            ]
+        }

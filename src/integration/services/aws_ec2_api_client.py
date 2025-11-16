@@ -1,21 +1,31 @@
 import datetime
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import boto3  # type: ignore
 from botocore.exceptions import ClientError, ParamValidationError  # type: ignore
 
-from integration.enums import (AwsRegion,
-                               Ec2InstanceResourcesUtilizationRelativeStartTime)
-from integration.exceptions import (EC2AuthenticationException,
-                                    EC2InstanceCreationException,
-                                    EC2InstanceNotFoundException,
-                                    EC2InstanceOperationException,
-                                    EC2InvalidParameterException,
-                                    EC2QuotaExceededException, EC2StatusCheckException,
-                                    EC2TagOperationException, IntegrationException)
+from integration.enums import (
+    AwsRegion,
+    Ec2InstanceResourcesUtilizationRelativeStartTime,
+)
+from integration.exceptions import (
+    EC2AuthenticationException,
+    EC2InstanceCreationException,
+    EC2InstanceNotFoundException,
+    EC2InstanceOperationException,
+    EC2InvalidParameterException,
+    EC2QuotaExceededException,
+    EC2StatusCheckException,
+    EC2TagOperationException,
+    IntegrationException,
+)
 from integration.models import CMLWorkerInstanceDto
+from integration.services.relative_time import relative_time
+
+if TYPE_CHECKING:
+    from neuroglia.hosting.web import WebApplicationBuilder
 
 log = logging.getLogger(__name__)
 logging.getLogger("botocore").setLevel(logging.INFO)
@@ -83,23 +93,47 @@ class AwsEc2Client:
         error_message = error.response.get("Error", {}).get("Message", str(error))
 
         # Authentication/Authorization errors
-        if error_code in ("UnauthorizedOperation", "InvalidClientTokenId", "SignatureDoesNotMatch", "AccessDenied"):
-            return EC2AuthenticationException(f"{operation} - Authentication failed: {error_message}")
+        if error_code in (
+            "UnauthorizedOperation",
+            "InvalidClientTokenId",
+            "SignatureDoesNotMatch",
+            "AccessDenied",
+        ):
+            return EC2AuthenticationException(
+                f"{operation} - Authentication failed: {error_message}"
+            )
 
         # Instance not found
         if error_code in ("InvalidInstanceID.NotFound", "InvalidInstanceId.NotFound"):
-            return EC2InstanceNotFoundException(f"{operation} - Instance not found: {error_message}")
+            return EC2InstanceNotFoundException(
+                f"{operation} - Instance not found: {error_message}"
+            )
 
         # Quota/Limit errors
-        if error_code in ("InstanceLimitExceeded", "InsufficientInstanceCapacity", "RequestLimitExceeded"):
-            return EC2QuotaExceededException(f"{operation} - AWS quota exceeded: {error_message}")
+        if error_code in (
+            "InstanceLimitExceeded",
+            "InsufficientInstanceCapacity",
+            "RequestLimitExceeded",
+        ):
+            return EC2QuotaExceededException(
+                f"{operation} - AWS quota exceeded: {error_message}"
+            )
 
         # Invalid parameters
-        if error_code in ("InvalidParameterValue", "InvalidParameter", "InvalidAMIID.NotFound", "InvalidGroup.NotFound"):
-            return EC2InvalidParameterException(f"{operation} - Invalid parameter: {error_message}")
+        if error_code in (
+            "InvalidParameterValue",
+            "InvalidParameter",
+            "InvalidAMIID.NotFound",
+            "InvalidGroup.NotFound",
+        ):
+            return EC2InvalidParameterException(
+                f"{operation} - Invalid parameter: {error_message}"
+            )
 
         # Generic AWS error
-        return IntegrationException(f"{operation} - AWS error [{error_code}]: {error_message}")
+        return IntegrationException(
+            f"{operation} - AWS error [{error_code}]: {error_message}"
+        )
 
     def health(self) -> bool:
         """Validates whether the service is available
@@ -108,7 +142,12 @@ class AwsEc2Client:
             bool: True if EC2 Cloud is available.
         """
         try:
-            ec2_client = boto3.client("ec2", aws_access_key_id=self.aws_account_credentials.aws_access_key_id, aws_secret_access_key=self.aws_account_credentials.aws_secret_access_key, region_name=AwsRegion.US_EAST_1.value)
+            ec2_client = boto3.client(
+                "ec2",
+                aws_access_key_id=self.aws_account_credentials.aws_access_key_id,
+                aws_secret_access_key=self.aws_account_credentials.aws_secret_access_key,
+                region_name=AwsRegion.US_EAST_1.value,
+            )
             # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2/client/describe_regions.html
             response = ec2_client.describe_regions()
             if "Regions" in response:
@@ -117,6 +156,60 @@ class AwsEc2Client:
         except (ValueError, ParamValidationError, ClientError) as e:
             log.error(f"Error while verifying access to EC2: {e}")
             raise IntegrationException(f"Error while verifying access to EC2: {e}")
+
+    def get_ami_ids_by_name(
+        self,
+        aws_region: AwsRegion,
+        ami_name: str,
+    ) -> List[str]:
+        """Query AWS to find AMI IDs that match the given AMI name.
+
+        Args:
+            aws_region: The AWS region to search in.
+            ami_name: The AMI name pattern to search for.
+
+        Returns:
+            List of AMI IDs that match the name pattern.
+
+        Raises:
+            IntegrationException: If the AMI query fails.
+        """
+        try:
+            ec2_client = boto3.client(
+                "ec2",
+                aws_access_key_id=self.aws_account_credentials.aws_access_key_id,
+                aws_secret_access_key=self.aws_account_credentials.aws_secret_access_key,
+                region_name=aws_region.value,
+            )
+
+            # Search for AMIs by name pattern
+            # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2/client/describe_images.html
+            response = ec2_client.describe_images(
+                Filters=[
+                    {"Name": "name", "Values": [f"*{ami_name}*"]}  # Wildcard search
+                ]
+            )
+
+            ami_ids = [image["ImageId"] for image in response.get("Images", [])]
+
+            if ami_ids:
+                log.info(
+                    f"Found {len(ami_ids)} AMI(s) matching name pattern '{ami_name}' in {aws_region.value}: {ami_ids}"
+                )
+            else:
+                log.warning(
+                    f"No AMIs found matching name pattern '{ami_name}' in {aws_region.value}"
+                )
+
+            return ami_ids
+
+        except ClientError as e:
+            error = self._parse_aws_error(e, f"Query AMIs by name '{ami_name}'")
+            log.error(f"Failed to query AMIs: {error}")
+            raise error
+        except (ValueError, ParamValidationError) as e:
+            log.error(f"Invalid parameters for AMI query: {e}")
+            raise EC2InvalidParameterException(f"Invalid AMI name parameter: {e}")
 
     def create_instance(
         self,
@@ -155,9 +248,14 @@ class AwsEc2Client:
         )
 
         try:
-            tag_specifications = [{"ResourceType": "instance", "Tags": [{"Key": "Name", "Value": instance_name}]}]
+            tag_specifications = [
+                {
+                    "ResourceType": "instance",
+                    "Tags": [{"Key": "Name", "Value": instance_name}],
+                }
+            ]
             # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2/service-resource/create_instances.html#create-instances
-            instances = ec2.create_instances(
+            instances = ec2.create_instances(  # type: ignore[attr-defined]
                 ImageId=ami_id,
                 MinCount=1,
                 MaxCount=1,
@@ -168,12 +266,14 @@ class AwsEc2Client:
                 TagSpecifications=tag_specifications,
             )
             instance = instances[0]
-            log.info(f"New CML Worker EC2 instance created in region {aws_region.value}: id={instance.id}, instance_type={instance.instance_type}")
+            log.info(
+                f"New CML Worker EC2 instance created in region {aws_region.value}: id={instance.id}, instance_type={instance.instance_type}"
+            )
 
             # Extract tags from the instance
             tags = {}
-            if hasattr(instance, 'tags') and instance.tags:
-                tags = {tag['Key']: tag['Value'] for tag in instance.tags}
+            if hasattr(instance, "tags") and instance.tags:
+                tags = {tag["Key"]: tag["Value"] for tag in instance.tags}
 
             return CMLWorkerInstanceDto(
                 id=instance.id,
@@ -185,7 +285,9 @@ class AwsEc2Client:
                 instance_type=instance.instance_type,
                 security_group_ids=[sg["GroupId"] for sg in instance.security_groups],
                 subnet_id=subnet_id,
-                instance_state=instance.state["Name"] if hasattr(instance, 'state') else "pending",
+                instance_state=(
+                    instance.state["Name"] if hasattr(instance, "state") else "pending"
+                ),
                 key_pair_name=key_name,
                 public_ip=instance.public_ip_address,
                 private_ip=instance.private_ip_address,
@@ -194,9 +296,13 @@ class AwsEc2Client:
 
         except ParamValidationError as e:
             log.error(f"Error creating CML Worker instance - invalid parameters: {e}")
-            raise EC2InvalidParameterException(f"Invalid parameters for instance creation: {e}")
+            raise EC2InvalidParameterException(
+                f"Invalid parameters for instance creation: {e}"
+            )
         except ClientError as e:
-            log.error(f"Error creating CML Worker instance in region {aws_region.value}: {e}")
+            log.error(
+                f"Error creating CML Worker instance in region {aws_region.value}: {e}"
+            )
             raise self._parse_aws_error(e, "Create CML Worker instance")
         except ValueError as e:
             log.error(f"Error creating CML Worker instance - invalid value: {e}")
@@ -227,7 +333,9 @@ class AwsEc2Client:
             # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2/client/start_instances.html
             response = ec2_client.start_instances(InstanceIds=[instance_id])
             if response and response.get("StartingInstances"):
-                log.info(f"CML Worker EC2 instance {instance_id} start requested in region {aws_region.value}")
+                log.info(
+                    f"CML Worker EC2 instance {instance_id} start requested in region {aws_region.value}"
+                )
                 return True
             return False
 
@@ -235,7 +343,9 @@ class AwsEc2Client:
             log.error(f"Error starting CML Worker instance - invalid parameters: {e}")
             raise EC2InvalidParameterException(f"Invalid instance ID provided: {e}")
         except ClientError as e:
-            log.error(f"Error starting CML Worker instance {instance_id} in region {aws_region.value}: {e}")
+            log.error(
+                f"Error starting CML Worker instance {instance_id} in region {aws_region.value}: {e}"
+            )
             raise self._parse_aws_error(e, f"Start instance {instance_id}")
         except ValueError as e:
             log.error(f"Error starting CML Worker instance - invalid value: {e}")
@@ -266,7 +376,9 @@ class AwsEc2Client:
             # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2/client/stop_instances.html
             response = ec2_client.stop_instances(InstanceIds=[instance_id])
             if response and response.get("StoppingInstances"):
-                log.info(f"CML Worker EC2 instance {instance_id} stop requested in region {aws_region.value}")
+                log.info(
+                    f"CML Worker EC2 instance {instance_id} stop requested in region {aws_region.value}"
+                )
                 return True
             return False
 
@@ -274,7 +386,9 @@ class AwsEc2Client:
             log.error(f"Error stopping CML Worker instance - invalid parameters: {e}")
             raise EC2InvalidParameterException(f"Invalid instance ID provided: {e}")
         except ClientError as e:
-            log.error(f"Error stopping CML Worker instance {instance_id} in region {aws_region.value}: {e}")
+            log.error(
+                f"Error stopping CML Worker instance {instance_id} in region {aws_region.value}: {e}"
+            )
             raise self._parse_aws_error(e, f"Stop instance {instance_id}")
         except ValueError as e:
             log.error(f"Error stopping CML Worker instance - invalid value: {e}")
@@ -305,15 +419,21 @@ class AwsEc2Client:
             # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2/client/terminate_instances.html
             response = ec2_client.terminate_instances(InstanceIds=[instance_id])
             if response:
-                log.info(f"CML Worker EC2 instance {instance_id} termination requested in region {aws_region.value}")
+                log.info(
+                    f"CML Worker EC2 instance {instance_id} termination requested in region {aws_region.value}"
+                )
                 return True
             return False
 
         except ParamValidationError as e:
-            log.error(f"Error terminating CML Worker instance - invalid parameters: {e}")
+            log.error(
+                f"Error terminating CML Worker instance - invalid parameters: {e}"
+            )
             raise EC2InvalidParameterException(f"Invalid instance ID provided: {e}")
         except ClientError as e:
-            log.error(f"Error terminating CML Worker instance {instance_id} in region {aws_region.value}: {e}")
+            log.error(
+                f"Error terminating CML Worker instance {instance_id} in region {aws_region.value}: {e}"
+            )
             raise self._parse_aws_error(e, f"Terminate instance {instance_id}")
         except ValueError as e:
             log.error(f"Error terminating CML Worker instance - invalid value: {e}")
@@ -361,7 +481,9 @@ class AwsEc2Client:
                 }
 
             # If no status returned, instance might not exist or be in a transitional state
-            log.warning(f"No status information available for CML Worker instance {instance_id} in region {aws_region.value}")
+            log.warning(
+                f"No status information available for CML Worker instance {instance_id} in region {aws_region.value}"
+            )
             return {
                 "instance_status_check": "unknown",
                 "ec2_system_status_check": "unknown",
@@ -372,8 +494,12 @@ class AwsEc2Client:
             log.error(f"Error getting status checks - invalid parameters: {e}")
             raise EC2InvalidParameterException(f"Invalid instance ID provided: {e}")
         except ClientError as e:
-            log.error(f"Error getting status checks for CML Worker instance {instance_id} in region {aws_region.value}: {e}")
-            raise self._parse_aws_error(e, f"Get status checks for instance {instance_id}")
+            log.error(
+                f"Error getting status checks for CML Worker instance {instance_id} in region {aws_region.value}: {e}"
+            )
+            raise self._parse_aws_error(
+                e, f"Get status checks for instance {instance_id}"
+            )
         except ValueError as e:
             log.error(f"Error getting status checks - invalid value: {e}")
             raise EC2StatusCheckException(f"Failed to get status checks: {e}")
@@ -410,14 +536,18 @@ class AwsEc2Client:
             if response.get("Tags"):
                 tags = {tag["Key"]: tag["Value"] for tag in response["Tags"]}
 
-            log.info(f"Retrieved {len(tags)} tags for CML Worker instance {instance_id} in region {aws_region.value}")
+            log.info(
+                f"Retrieved {len(tags)} tags for CML Worker instance {instance_id} in region {aws_region.value}"
+            )
             return tags
 
         except ParamValidationError as e:
             log.error(f"Error getting tags - invalid parameters: {e}")
             raise EC2InvalidParameterException(f"Invalid instance ID provided: {e}")
         except ClientError as e:
-            log.error(f"Error getting tags for CML Worker instance {instance_id} in region {aws_region.value}: {e}")
+            log.error(
+                f"Error getting tags for CML Worker instance {instance_id} in region {aws_region.value}: {e}"
+            )
             raise self._parse_aws_error(e, f"Get tags for instance {instance_id}")
         except ValueError as e:
             log.error(f"Error getting tags - invalid value: {e}")
@@ -453,14 +583,20 @@ class AwsEc2Client:
             tag_list = [{"Key": k, "Value": v} for k, v in tags.items()]
             ec2_client.create_tags(Resources=[instance_id], Tags=tag_list)
 
-            log.info(f"Added/updated {len(tags)} tags on CML Worker instance {instance_id} in region {aws_region.value}")
+            log.info(
+                f"Added/updated {len(tags)} tags on CML Worker instance {instance_id} in region {aws_region.value}"
+            )
             return True
 
         except ParamValidationError as e:
             log.error(f"Error adding tags - invalid parameters: {e}")
-            raise EC2InvalidParameterException(f"Invalid parameters for tag operation: {e}")
+            raise EC2InvalidParameterException(
+                f"Invalid parameters for tag operation: {e}"
+            )
         except ClientError as e:
-            log.error(f"Error adding tags to CML Worker instance {instance_id} in region {aws_region.value}: {e}")
+            log.error(
+                f"Error adding tags to CML Worker instance {instance_id} in region {aws_region.value}: {e}"
+            )
             raise self._parse_aws_error(e, f"Add tags to instance {instance_id}")
         except ValueError as e:
             log.error(f"Error adding tags - invalid value: {e}")
@@ -496,20 +632,28 @@ class AwsEc2Client:
             tag_list = [{"Key": key} for key in tag_keys]
             ec2_client.delete_tags(Resources=[instance_id], Tags=tag_list)
 
-            log.info(f"Removed {len(tag_keys)} tags from CML Worker instance {instance_id} in region {aws_region.value}")
+            log.info(
+                f"Removed {len(tag_keys)} tags from CML Worker instance {instance_id} in region {aws_region.value}"
+            )
             return True
 
         except ParamValidationError as e:
             log.error(f"Error removing tags - invalid parameters: {e}")
-            raise EC2InvalidParameterException(f"Invalid parameters for tag removal: {e}")
+            raise EC2InvalidParameterException(
+                f"Invalid parameters for tag removal: {e}"
+            )
         except ClientError as e:
-            log.error(f"Error removing tags from CML Worker instance {instance_id} in region {aws_region.value}: {e}")
+            log.error(
+                f"Error removing tags from CML Worker instance {instance_id} in region {aws_region.value}: {e}"
+            )
             raise self._parse_aws_error(e, f"Remove tags from instance {instance_id}")
         except ValueError as e:
             log.error(f"Error removing tags - invalid value: {e}")
             raise EC2TagOperationException(f"Failed to remove tags: {e}")
 
-    def get_instance_details(self, aws_region: AwsRegion, instance_id: str) -> Ec2InstanceDescriptor | None:
+    def get_instance_details(
+        self, aws_region: AwsRegion, instance_id: str
+    ) -> Ec2InstanceDescriptor | None:
         """Gets the given EC2 instance details from the given AWS Region.
 
         Args:
@@ -519,7 +663,12 @@ class AwsEc2Client:
         Returns:
             Ec2InstanceDescriptor: An Ec2InstanceDescriptor.
         """
-        ec2_client = boto3.client("ec2", aws_access_key_id=self.aws_account_credentials.aws_access_key_id, aws_secret_access_key=self.aws_account_credentials.aws_secret_access_key, region_name=aws_region.value)
+        ec2_client = boto3.client(
+            "ec2",
+            aws_access_key_id=self.aws_account_credentials.aws_access_key_id,
+            aws_secret_access_key=self.aws_account_credentials.aws_secret_access_key,
+            region_name=aws_region.value,
+        )
         try:
             # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2/client/describe_instances.html
             res_dict = ec2_client.describe_instances(InstanceIds=[instance_id])
@@ -527,12 +676,24 @@ class AwsEc2Client:
                 instance = res_dict["Reservations"][0]["Instances"][0]
                 for tag in instance["Tags"]:
                     if tag["Key"] == "Name":
-                        return Ec2InstanceDescriptor(id=instance["InstanceId"], type=instance["InstanceType"], state=instance["State"]["Name"], image_id=instance["ImageId"], name=tag["Value"], launch_timestamp=instance["LaunchTime"], launch_time_relative=relative_time(instance["LaunchTime"]))
+                        return Ec2InstanceDescriptor(
+                            id=instance["InstanceId"],
+                            type=instance["InstanceType"],
+                            state=instance["State"]["Name"],
+                            image_id=instance["ImageId"],
+                            name=tag["Value"],
+                            launch_timestamp=instance["LaunchTime"],
+                            launch_time_relative=relative_time(instance["LaunchTime"]),
+                        )
             return None
 
         except (ValueError, ParamValidationError, ClientError) as e:
-            log.error(f"Error while getting details of instance {instance_id} in Region {aws_region}: {e}")
-            raise IntegrationException(f"{type(e)} Error while getting details of instance {instance_id} in Region {aws_region}: {e}")
+            log.error(
+                f"Error while getting details of instance {instance_id} in Region {aws_region}: {e}"
+            )
+            raise IntegrationException(
+                f"{type(e)} Error while getting details of instance {instance_id} in Region {aws_region}: {e}"
+            )
 
     def list_instances(
         self,
@@ -541,7 +702,7 @@ class AwsEc2Client:
         instance_types: Optional[List[str]] = None,
         instance_states: Optional[List[str]] = None,
         image_ids: Optional[List[str]] = None,
-        tag_filters: Optional[Dict[str, str]] = None
+        tag_filters: Optional[Dict[str, str]] = None,
     ) -> List[Ec2InstanceDescriptor] | None:
         """List EC2 instances in the AWS Region with optional filters.
 
@@ -560,7 +721,7 @@ class AwsEc2Client:
             "ec2",
             aws_access_key_id=self.aws_account_credentials.aws_access_key_id,
             aws_secret_access_key=self.aws_account_credentials.aws_secret_access_key,
-            region_name=region_name.value
+            region_name=region_name.value,
         )
 
         try:
@@ -568,36 +729,26 @@ class AwsEc2Client:
             filters = []
 
             if instance_types:
-                filters.append({
-                    'Name': 'instance-type',
-                    'Values': instance_types
-                })
+                filters.append({"Name": "instance-type", "Values": instance_types})
 
             if instance_states:
-                filters.append({
-                    'Name': 'instance-state-name',
-                    'Values': instance_states
-                })
+                filters.append(
+                    {"Name": "instance-state-name", "Values": instance_states}
+                )
 
             if image_ids:
-                filters.append({
-                    'Name': 'image-id',
-                    'Values': image_ids
-                })
+                filters.append({"Name": "image-id", "Values": image_ids})
 
             if tag_filters:
                 for tag_key, tag_value in tag_filters.items():
-                    filters.append({
-                        'Name': f'tag:{tag_key}',
-                        'Values': [tag_value]
-                    })
+                    filters.append({"Name": f"tag:{tag_key}", "Values": [tag_value]})
 
             # Prepare describe_instances parameters
             describe_params: Dict[str, Any] = {}
             if instance_ids:
-                describe_params['InstanceIds'] = instance_ids
+                describe_params["InstanceIds"] = instance_ids
             if filters:
-                describe_params['Filters'] = filters
+                describe_params["Filters"] = filters
 
             # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2/client/describe_instances.html
             res_dict = ec2_client.describe_instances(**describe_params)
@@ -605,22 +756,32 @@ class AwsEc2Client:
 
             if res_dict and "Reservations" in res_dict:
                 for reservation in res_dict["Reservations"]:
-                    if not "Instances" in reservation:
-                        log.warning(f"Reservation {reservation['ReservationId']} has no Instances.")
+                    if "Instances" not in reservation:
+                        log.warning(
+                            f"Reservation {reservation['ReservationId']} has no Instances."
+                        )
                         continue
 
                     for instance in reservation["Instances"]:
-                        if not "InstanceId" in instance:
-                            log.warning(f"Instance in Reservation {reservation['ReservationId']} has no InstanceId.")
+                        if "InstanceId" not in instance:
+                            log.warning(
+                                f"Instance in Reservation {reservation['ReservationId']} has no InstanceId."
+                            )
                             continue
-                        if not "InstanceType" in instance:
-                            log.warning(f"Instance {instance['InstanceId']} in Reservation {reservation['ReservationId']} has no InstanceType.")
+                        if "InstanceType" not in instance:
+                            log.warning(
+                                f"Instance {instance['InstanceId']} in Reservation {reservation['ReservationId']} has no InstanceType."
+                            )
                             continue
-                        if not "ImageId" in instance:
-                            log.warning(f"Instance {instance['InstanceId']} in Reservation {reservation['ReservationId']} has no ImageId.")
+                        if "ImageId" not in instance:
+                            log.warning(
+                                f"Instance {instance['InstanceId']} in Reservation {reservation['ReservationId']} has no ImageId."
+                            )
                             continue
 
-                        log.debug(f"Instance ID: {instance['InstanceId']}, Instance Type: {instance['InstanceType']}, Image ID: {instance['ImageId']}, LaunchTime: {instance['LaunchTime']}")
+                        log.debug(
+                            f"Instance ID: {instance['InstanceId']}, Instance Type: {instance['InstanceType']}, Image ID: {instance['ImageId']}, LaunchTime: {instance['LaunchTime']}"
+                        )
 
                         # Extract instance name from tags
                         ec2_vm_name = f"{instance['InstanceType']}.{instance['ImageId']}.{instance['InstanceId']}"
@@ -637,21 +798,34 @@ class AwsEc2Client:
                             image_id=instance["ImageId"],
                             name=ec2_vm_name,
                             launch_timestamp=instance["LaunchTime"],
-                            launch_time_relative=relative_time(instance["LaunchTime"])
+                            launch_time_relative=relative_time(instance["LaunchTime"]),
                         )
                         instances.append(ec2_vm)
 
-                log.info(f"{len(instances)} EC2 Instances found in Region {region_name} after applying filters.")
+                log.info(
+                    f"{len(instances)} EC2 Instances found in Region {region_name} after applying filters."
+                )
                 return instances
 
-            log.info(f"No EC2 Instances found in Region {region_name} matching the specified filters.")
+            log.info(
+                f"No EC2 Instances found in Region {region_name} matching the specified filters."
+            )
             return []
 
         except (ValueError, ParamValidationError, ClientError) as e:
-            log.error(f"Error while listing CML Worker instances in Region {region_name}: {e}")
-            raise IntegrationException(f"Error while listing CML Worker instances in Region {region_name}: {e}")
+            log.error(
+                f"Error while listing CML Worker instances in Region {region_name}: {e}"
+            )
+            raise IntegrationException(
+                f"Error while listing CML Worker instances in Region {region_name}: {e}"
+            )
 
-    def get_instance_resources_utilization(self, aws_region: AwsRegion, instance_id: str, relative_start_time: Ec2InstanceResourcesUtilizationRelativeStartTime) -> Ec2InstanceResourcesUtilization | None:
+    def get_instance_resources_utilization(
+        self,
+        aws_region: AwsRegion,
+        instance_id: str,
+        relative_start_time: Ec2InstanceResourcesUtilizationRelativeStartTime,
+    ) -> Ec2InstanceResourcesUtilization | None:
         """
         Retrieves averageCPU utilization and memory utilization for a given EC2 instance, region and for the time period starting `now() - relative_start_time`.
 
@@ -664,12 +838,23 @@ class AwsEc2Client:
             dict: A dictionary containing CPU utilization and memory utilization.
         """
         try:
-            check_if_instance_exists = self.get_instance_details(aws_region=aws_region, instance_id=instance_id)  # Raise IntegrationException if the instance doesnt exist!
+            # Verify instance exists - raises IntegrationException if not found
+            self.get_instance_details(aws_region=aws_region, instance_id=instance_id)
 
-            cloudwatch = boto3.client("cloudwatch", aws_access_key_id=self.aws_account_credentials.aws_access_key_id, aws_secret_access_key=self.aws_account_credentials.aws_secret_access_key, region_name=aws_region.value)
+            cloudwatch = boto3.client(
+                "cloudwatch",
+                aws_access_key_id=self.aws_account_credentials.aws_access_key_id,
+                aws_secret_access_key=self.aws_account_credentials.aws_secret_access_key,
+                region_name=aws_region.value,
+            )
 
             now = datetime.datetime.utcnow()
-            start_time = now - Ec2InstanceResourcesUtilizationRelativeStartTime.to_timedelta(relative_start_time.value)
+            start_time = (
+                now
+                - Ec2InstanceResourcesUtilizationRelativeStartTime.to_timedelta(
+                    relative_start_time.value
+                )
+            )
 
             # CPU Utilization
             cpu_metric = cloudwatch.get_metric_statistics(
@@ -701,8 +886,57 @@ class AwsEc2Client:
             else:
                 memory_utilization = "unknown - enable CloudWatch..."
 
-            return Ec2InstanceResourcesUtilization(region_name=aws_region, id=instance_id, relative_start_time=relative_start_time, start_time=start_time, end_time=now, avg_cpu_utilization=cpu_utilization, avg_memory_utilization=memory_utilization)
+            return Ec2InstanceResourcesUtilization(
+                region_name=aws_region,
+                id=instance_id,
+                relative_start_time=relative_start_time,
+                start_time=start_time,
+                end_time=now,
+                avg_cpu_utilization=cpu_utilization,
+                avg_memory_utilization=memory_utilization,
+            )
 
         except Exception as e:
-            log.error(f"Error while pulling resources utilization for CML Worker instance {instance_id} in Region {aws_region}: {e}")
-            raise IntegrationException(f"Error while pulling resources utilization for CML Worker instance {instance_id} in Region {aws_region}: {e}")
+            log.error(
+                f"Error while pulling resources utilization for CML Worker instance {instance_id} in Region {aws_region}: {e}"
+            )
+            raise IntegrationException(
+                f"Error while pulling resources utilization for CML Worker instance {instance_id} in Region {aws_region}: {e}"
+            )
+
+    @staticmethod
+    def configure(builder: "WebApplicationBuilder") -> None:
+        """Configure AWS EC2 client in the application builder.
+
+        This method:
+        1. Creates AWS account credentials from application settings
+        2. Creates an AwsEc2Client instance with the credentials
+        3. Registers the client as a singleton in the DI container
+
+        Args:
+            builder: WebApplicationBuilder instance for service registration
+        """
+        from application.settings import app_settings
+
+        log.info("☁️ Configuring AWS EC2 Client...")
+
+        # Create AWS credentials from settings
+        credentials = AwsAccountCredentials(
+            aws_access_key_id=app_settings.aws_access_key_id,
+            aws_secret_access_key=app_settings.aws_secret_access_key,
+        )
+
+        # Create EC2 client instance
+        ec2_client = AwsEc2Client(aws_account_credentials=credentials)
+
+        # Test connectivity (optional - can be disabled for faster startup)
+        try:
+            if ec2_client.health():
+                log.info("✅ AWS EC2 connection successful")
+        except Exception as e:
+            log.warning(f"⚠️ AWS EC2 health check failed: {e}")
+            log.warning("⚠️ AWS operations may fail at runtime")
+
+        # Register as singleton in DI container
+        builder.services.add_singleton(AwsEc2Client, singleton=ec2_client)
+        log.info("✅ AWS EC2 Client registered in DI container")

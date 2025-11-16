@@ -7,6 +7,10 @@ from .create_cml_worker_command import (
 )
 from .create_task_command import CreateTaskCommand, CreateTaskCommandHandler
 from .delete_task_command import DeleteTaskCommand, DeleteTaskCommandHandler
+from .import_cml_worker_command import (
+    ImportCMLWorkerCommand,
+    ImportCMLWorkerCommandHandler,
+)
 from .start_cml_worker_command import (
     StartCMLWorkerCommand,
     StartCMLWorkerCommandHandler,
@@ -34,6 +38,8 @@ __all__ = [
     "CreateTaskCommandHandler",
     "DeleteTaskCommand",
     "DeleteTaskCommandHandler",
+    "ImportCMLWorkerCommand",
+    "ImportCMLWorkerCommandHandler",
     "StartCMLWorkerCommand",
     "StartCMLWorkerCommandHandler",
     "StopCMLWorkerCommand",

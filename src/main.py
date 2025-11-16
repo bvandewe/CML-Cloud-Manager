@@ -29,8 +29,14 @@ from api.services.openapi_config import (
 from application.services import configure_logging
 from application.settings import app_settings
 from domain.entities import Task
+from domain.entities.cml_worker import CMLWorker
 from domain.repositories import TaskRepository
+from domain.repositories.cml_worker_repository import CMLWorkerRepository
+from integration.repositories.motor_cml_worker_repository import (
+    MongoCMLWorkerRepository,
+)
 from integration.repositories.motor_task_repository import MongoTaskRepository
+from integration.services.aws_ec2_api_client import AwsEc2Client
 
 configure_logging(log_level=app_settings.log_level)
 log = logging.getLogger(__name__)
@@ -91,6 +97,20 @@ def create_app() -> FastAPI:
         domain_repository_type=TaskRepository,
         implementation_type=MongoTaskRepository,
     )
+
+    # Configure CML Worker MongoDB repository
+    MotorRepository.configure(
+        builder,
+        entity_type=CMLWorker,
+        key_type=str,
+        database_name="cml_cloud_manager",
+        collection_name="cml_workers",
+        domain_repository_type=CMLWorkerRepository,
+        implementation_type=MongoCMLWorkerRepository,
+    )
+
+    # Configure AWS EC2 Client
+    AwsEc2Client.configure(builder)
 
     # Configure authentication services (session store + auth service)
     DualAuthService.configure(builder)
@@ -153,8 +173,8 @@ def create_app() -> FastAPI:
 
     log.info("✅ Application created successfully!")
     log.info("📊 Access points:")
-    log.info("   - UI: http://localhost:8020/")
-    log.info("   - API Docs: http://localhost:8020/api/docs")
+    log.info(f"   - UI: http://localhost:{app_settings.app_port}/")
+    log.info(f"   - API Docs: http://localhost:{app_settings.app_port}/api/docs")
     return app
 
 

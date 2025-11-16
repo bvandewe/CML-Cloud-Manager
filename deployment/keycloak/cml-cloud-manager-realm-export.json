@@ -215,6 +215,17 @@
                         "id.token.claim": "true",
                         "access.token.claim": "true"
                     }
+                },
+                {
+                    "name": "audience-mapper",
+                    "protocol": "openid-connect",
+                    "protocolMapper": "oidc-audience-mapper",
+                    "consentRequired": false,
+                    "config": {
+                        "included.client.audience": "cml-cloud-manager",
+                        "id.token.claim": "false",
+                        "access.token.claim": "true"
+                    }
                 }
             ]
         },
@@ -228,7 +239,20 @@
             "webOrigins": ["http://localhost:8030", "http://localhost:8034", "http://localhost:1234"],
             "standardFlowEnabled": true,
             "directAccessGrantsEnabled": true,
-            "serviceAccountsEnabled": true
+            "serviceAccountsEnabled": true,
+            "protocolMappers": [
+                {
+                    "name": "audience-mapper",
+                    "protocol": "openid-connect",
+                    "protocolMapper": "oidc-audience-mapper",
+                    "consentRequired": false,
+                    "config": {
+                        "included.client.audience": "cml-cloud-manager",
+                        "id.token.claim": "false",
+                        "access.token.claim": "true"
+                    }
+                }
+            ]
         },
         {
             "clientId": "cml-cloud-manager-public",
@@ -241,7 +265,20 @@
             "standardFlowEnabled": true,
             "implicitFlowEnabled": false,
             "directAccessGrantsEnabled": true,
-            "fullScopeAllowed": true
+            "fullScopeAllowed": true,
+            "protocolMappers": [
+                {
+                    "name": "audience-mapper",
+                    "protocol": "openid-connect",
+                    "protocolMapper": "oidc-audience-mapper",
+                    "consentRequired": false,
+                    "config": {
+                        "included.client.audience": "cml-cloud-manager",
+                        "id.token.claim": "false",
+                        "access.token.claim": "true"
+                    }
+                }
+            ]
         }
     ]
 }

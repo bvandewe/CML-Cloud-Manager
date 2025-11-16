@@ -211,6 +211,59 @@ class CMLWorkerEndpointUpdatedDomainEvent(DomainEvent):
         self.updated_at = updated_at
 
 
+@cloudevent("cml_worker.imported.v1")
+@dataclass
+class CMLWorkerImportedDomainEvent(DomainEvent):
+    """Event raised when an existing EC2 instance is imported as a CML Worker.
+
+    This event is used when registering pre-existing EC2 instances that were
+    created outside of the CML Cloud Manager system (e.g., via AWS Console,
+    Terraform, CloudFormation, or other tools).
+    """
+
+    aggregate_id: str
+    name: str
+    aws_region: str
+    aws_instance_id: str
+    instance_type: str
+    ami_id: str
+    ami_name: Optional[str]
+    instance_state: str
+    public_ip: Optional[str]
+    private_ip: Optional[str]
+    created_by: Optional[str]
+    created_at: datetime
+
+    def __init__(
+        self,
+        aggregate_id: str,
+        name: str,
+        aws_region: str,
+        aws_instance_id: str,
+        instance_type: str,
+        ami_id: str,
+        ami_name: Optional[str],
+        instance_state: str,
+        public_ip: Optional[str],
+        private_ip: Optional[str],
+        created_by: Optional[str],
+        created_at: datetime,
+    ) -> None:
+        super().__init__(aggregate_id)
+        self.aggregate_id = aggregate_id
+        self.name = name
+        self.aws_region = aws_region
+        self.aws_instance_id = aws_instance_id
+        self.instance_type = instance_type
+        self.ami_id = ami_id
+        self.ami_name = ami_name
+        self.instance_state = instance_state
+        self.public_ip = public_ip
+        self.private_ip = private_ip
+        self.created_by = created_by
+        self.created_at = created_at
+
+
 @cloudevent("cml_worker.terminated.v1")
 @dataclass
 class CMLWorkerTerminatedDomainEvent(DomainEvent):

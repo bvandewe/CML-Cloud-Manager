@@ -92,7 +92,7 @@ repos:
       hooks:
           - id: detect-secrets
             args: ['--baseline', '.secrets.baseline']
-            exclude: 'package-lock\.json|poetry\.lock'
+            exclude: 'package-lock\.json|poetry\.lock|deployment/keycloak/.*realm.*\.json'
 
 # Configure pre-commit to run only on commit (not on push)
 default_install_hook_types: [pre-commit]
