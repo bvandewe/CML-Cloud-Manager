@@ -96,7 +96,7 @@ class CMLSystemStats:
 class CMLApiClient:
     """Client for CML REST API endpoints.
 
-    Handles authentication and requests to CML worker instances.
+    Handles JWT authentication and requests to CML worker instances.
     """
 
     def __init__(
@@ -121,6 +121,73 @@ class CMLApiClient:
         self.password = password
         self.verify_ssl = verify_ssl
         self.timeout = timeout
+        self._token: Optional[str] = None
+
+    async def _authenticate(self) -> str:
+        """Authenticate and get JWT token.
+
+        Returns:
+            JWT token string
+
+        Raises:
+            IntegrationException: On authentication failure
+        """
+        auth_url = f"{self.base_url}/api/v0/authenticate"
+
+        try:
+            async with httpx.AsyncClient(
+                verify=self.verify_ssl, timeout=self.timeout
+            ) as client:
+                response = await client.post(
+                    auth_url,
+                    json={"username": self.username, "password": self.password},
+                )
+
+                if response.status_code == 401 or response.status_code == 403:
+                    log.error(f"CML API authentication failed for {self.base_url}")
+                    raise IntegrationException(
+                        "CML API authentication failed: Invalid credentials"
+                    )
+
+                if response.status_code != 200:
+                    log.error(
+                        f"CML API auth request failed: {response.status_code} {response.text}"
+                    )
+                    raise IntegrationException(
+                        f"CML API auth request failed: HTTP {response.status_code}"
+                    )
+
+                # Response is the JWT token as a string
+                token = response.json()
+                if not token:
+                    raise IntegrationException("CML API returned empty token")
+
+                log.debug(f"Successfully authenticated to CML at {self.base_url}")
+                return token
+
+        except httpx.ConnectError as e:
+            log.warning(f"Cannot connect to CML instance at {self.base_url}: {e}")
+            raise IntegrationException(f"Cannot connect to CML instance: {e}") from e
+
+        except httpx.TimeoutException as e:
+            log.warning(f"CML API auth request timed out for {self.base_url}: {e}")
+            raise IntegrationException(f"CML API auth request timed out: {e}") from e
+
+        except Exception as e:
+            log.error(
+                f"Unexpected error during CML authentication at {self.base_url}: {e}"
+            )
+            raise IntegrationException(f"Unexpected CML API auth error: {e}") from e
+
+    async def _get_token(self) -> str:
+        """Get cached token or authenticate to get new one.
+
+        Returns:
+            JWT token string
+        """
+        if not self._token:
+            self._token = await self._authenticate()
+        return self._token
 
     async def get_system_stats(self) -> Optional[CMLSystemStats]:
         """Query CML system statistics.
@@ -134,17 +201,31 @@ class CMLApiClient:
         endpoint = f"{self.base_url}/api/v0/system_stats"
 
         try:
+            # Get JWT token
+            token = await self._get_token()
+
             async with httpx.AsyncClient(
                 verify=self.verify_ssl, timeout=self.timeout
             ) as client:
                 response = await client.get(
-                    endpoint, auth=(self.username, self.password)
+                    endpoint, headers={"Authorization": f"Bearer {token}"}
                 )
 
                 if response.status_code == 401:
-                    log.error(f"CML API authentication failed for {self.base_url}")
+                    # Token expired, re-authenticate
+                    log.info("Token expired, re-authenticating")
+                    self._token = None
+                    token = await self._get_token()
+
+                    # Retry with new token
+                    response = await client.get(
+                        endpoint, headers={"Authorization": f"Bearer {token}"}
+                    )
+
+                if response.status_code == 401 or response.status_code == 403:
+                    log.error(f"CML API authorization failed for {self.base_url}")
                     raise IntegrationException(
-                        f"CML API authentication failed: Invalid credentials"
+                        "CML API authorization failed: Invalid token"
                     )
 
                 if response.status_code == 404:
@@ -166,9 +247,7 @@ class CMLApiClient:
 
         except httpx.ConnectError as e:
             log.warning(f"Cannot connect to CML instance at {self.base_url}: {e}")
-            raise IntegrationException(
-                f"Cannot connect to CML instance: {e}"
-            ) from e
+            raise IntegrationException(f"Cannot connect to CML instance: {e}") from e
 
         except httpx.TimeoutException as e:
             log.warning(f"CML API request timed out for {self.base_url}: {e}")
