@@ -8,6 +8,60 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ### Added
 
+#### Worker Metrics Source Separation
+
+- **Multi-Source Metrics Architecture**: Clear separation of metrics by data source
+  - **EC2 Metrics**: Instance health checks from AWS EC2 API (`ec2_instance_state_detail`, `ec2_system_status_check`, `ec2_last_checked_at`)
+  - **CloudWatch Metrics**: Resource utilization from AWS CloudWatch (`cloudwatch_cpu_utilization`, `cloudwatch_memory_utilization`, `cloudwatch_last_collected_at`, `cloudwatch_detailed_monitoring_enabled`)
+  - **CML Metrics**: Application metrics from CML API (`cml_system_info`, `cml_ready`, `cml_uptime_seconds`, `cml_labs_count`, `cml_last_synced_at`)
+  - Domain events for each source: `EC2MetricsUpdatedDomainEvent`, `CloudWatchMetricsUpdatedDomainEvent`, `CMLMetricsUpdatedDomainEvent`
+  - Aggregate methods: `update_ec2_metrics()`, `update_cloudwatch_metrics()`, `update_cml_metrics()`
+  - Backward compatibility maintained with deprecated `update_telemetry()` method
+
+#### CML API Integration
+
+- **CMLApiClient**: REST API client for querying CML instances
+  - `/api/v0/system_stats` endpoint integration
+  - Parses compute nodes, dominfo, CPU/memory/disk statistics
+  - Extracts allocated CPUs, running nodes, total nodes from dominfo
+  - HTTP authentication with configurable credentials
+  - Graceful error handling for unreachable instances
+  - SSL verification configurable (disabled for self-signed certs)
+
+#### Command Pattern Implementation
+
+- **RefreshWorkerMetricsCommand**: CQRS-compliant metrics refresh
+  - Orchestrates EC2, CloudWatch, and CML data collection
+  - Updates worker aggregate state (triggers domain events)
+  - Updates OpenTelemetry gauges after each refresh
+  - Handles failures gracefully per data source
+  - Respects worker status (only queries CML when RUNNING+AVAILABLE)
+
+- **EnableWorkerDetailedMonitoringCommand**: Admin command for 1-minute metrics
+  - Enables detailed CloudWatch monitoring via AWS API
+  - Updates worker aggregate with monitoring status
+  - POST `/region/{region}/workers/{id}/monitoring` endpoint (admin-only)
+  - Cost: ~$2.10/month per instance
+
+#### Configuration
+
+- **CML API Settings**:
+  - `cml_worker_api_username`: CML API username for system stats (default: "admin")
+  - `cml_worker_api_password`: CML API password (change in production)
+
+#### Documentation
+
+- `notes/WORKER_METRICS_SOURCE_SEPARATION.md`: Architecture guide for metric sources
+- `notes/REFRESH_WORKER_METRICS_IMPLEMENTATION_PLAN.md`: Implementation roadmap and phases
+- `notes/METRICS_STORAGE_ARCHITECTURE.md`: Analysis of metrics storage options (time-series collections, external DBs)
+
+### Changed
+
+- **Monitoring Status Tracking**: AWS EC2 API now returns `monitoring_state` field
+  - `get_instance_status_checks()` includes CloudWatch monitoring status
+  - RefreshWorkerMetricsCommand syncs monitoring status from AWS
+  - New instances created with detailed monitoring enabled by default
+
 #### Background Task Scheduling System
 
 - **APScheduler Integration**: Distributed task scheduling with Redis/MongoDB persistence
