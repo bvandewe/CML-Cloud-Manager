@@ -6,22 +6,85 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ## [Unreleased]
 
+### Added
+
+#### Background Task Scheduling System
+
+- **APScheduler Integration**: Distributed task scheduling with Redis/MongoDB persistence
+  - `BackgroundTaskScheduler`: Core scheduler with automatic job discovery via `@backgroundjob` decorator
+  - `BackgroundTasksBus`: Message bus for task scheduling and coordination
+  - `RecurrentBackgroundJob` and `ScheduledBackgroundJob`: Base classes for periodic and one-time jobs
+  - Dependency injection pattern: Jobs serialize minimal data, dependencies re-injected on deserialization
+  - Automatic job recovery after application restarts
+  - Support for both Redis and MongoDB job stores
+
+#### Worker Monitoring System
+
+- **Automated Worker Monitoring**: Background monitoring of CML Worker health and metrics
+  - `WorkerMetricsCollectionJob`: Recurrent job for collecting AWS EC2 and CloudWatch metrics
+  - `WorkerMonitoringScheduler`: Orchestrates monitoring job lifecycle for all active workers
+  - `WorkerNotificationHandler`: Reactive observer for processing metrics events and threshold alerts
+  - Auto-discovery of active workers on application startup
+  - Graceful job termination when workers are deleted
+  - CPU and memory utilization threshold monitoring (default: 90%)
+  - OpenTelemetry integration for observability
+
+#### Worker Management Features
+
+- **AMI Name Support**: Workers can be created and imported using human-readable AMI names
+  - `cml_worker_ami_name_default` setting for default AMI
+  - `cml_worker_ami_names` dictionary mapping names to AMI IDs
+  - AMI name stored in worker state for auditing
+  - AMI name included in worker domain events
+
+#### Configuration
+
+- **Worker Monitoring Settings**:
+  - `worker_monitoring_enabled`: Enable/disable automated monitoring (default: true)
+  - `worker_metrics_poll_interval`: Metrics collection interval in seconds (default: 300)
+  - `worker_notification_webhooks`: List of webhook URLs for alerts (placeholder)
+  
+- **Background Job Store Settings**:
+  - `background_job_store`: Redis or MongoDB configuration for job persistence
+  - Separate Redis database for job storage (DB 1) vs sessions (DB 0)
+
+#### Documentation
+
+- **Architecture Documentation**:
+  - `docs/architecture/background-scheduling.md`: Comprehensive guide to background task system
+  - `docs/architecture/worker-monitoring.md`: Worker monitoring system architecture and usage
+  - Updated README.md with new features and expanded project structure
+  - Updated mkdocs.yml navigation to include new documentation pages
+
+#### Design Notes
+
+- `notes/APSCHEDULER_IMPROVEMENTS_COMPLETE.md`: Phase 2 implementation details and recommendations
+- `notes/APSCHEDULER_REFACTORING_SUMMARY.md`: Phase 1 summary and architectural decisions
+- `notes/WORKER_MONITORING_ARCHITECTURE.md`: Reactive monitoring architecture design
+- `notes/ROA_MIGRATION_PLAN.md`: Future Resource-Oriented Architecture (ROA) migration plan
+
 ### Changed
 
 #### Backend
 
 - Refactored authentication middleware configuration by moving detailed setup code from `main.py` to `DualAuthService.configure_middleware()` helper method for better separation of concerns and maintainability.
 - Updated import statements formatting for improved code readability (multi-line imports consolidated).
+- Enhanced `main.py` with worker monitoring configuration during application startup
+- Added lifecycle hooks for background task scheduler and worker monitoring
 
 #### Dependencies
 
-- Updated `neuroglia-python` from 0.6.6 to 0.6.7.
+- Updated `neuroglia-python` from 0.6.6 to 0.6.7 (later updated to 0.6.8)
+- Added `apscheduler = "^3.11.1"` for background task scheduling
 
 ### Fixed
 
-- Fixed dependency injection for authentication middleware to properly resolve service provider.
-- Fixed configuration issues in CI workflow for Git LFS checkout to ensure GitHub Pages deployment includes LFS assets.
-- Fixed Bandit security scanner configuration to skip test directories and B101 (assert_used) check, eliminating 155 false positive warnings.
+- Fixed dependency injection for authentication middleware to properly resolve service provider
+- Fixed configuration issues in CI workflow for Git LFS checkout to ensure GitHub Pages deployment includes LFS assets
+- Fixed Bandit security scanner configuration to skip test directories and B101 (assert_used) check, eliminating 155 false positive warnings
+- Fixed job serialization to store only minimal data (worker_id), avoiding non-serializable dependencies
+- Fixed job stop implementation in `WorkerMonitoringScheduler` to properly call APScheduler's remove_job
+- Fixed job state validation to check for terminated workers and raise exceptions to stop jobs gracefully
 
 ---
 

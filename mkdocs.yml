@@ -22,6 +22,8 @@ nav:
           - CQRS Pattern: architecture/cqrs-pattern.md
           - Data Layer: architecture/data-layer.md
           - Dependency Injection: architecture/dependency-injection.md
+          - Background Scheduling: architecture/background-scheduling.md
+          - Worker Monitoring: architecture/worker-monitoring.md
     - Security:
           - Authentication Flows: security/authentication-flows.md
           - Authorization: security/authorization.md

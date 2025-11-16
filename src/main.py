@@ -26,8 +26,13 @@ from api.services.openapi_config import (
     configure_api_openapi,
     configure_mounted_apps_openapi_prefix,
 )
-from application.services import configure_logging
-from application.settings import app_settings
+from application.services import (
+    BackgroundTasksBus,
+    BackgroundTaskScheduler,
+    WorkerMonitoringScheduler,
+    WorkerNotificationHandler,
+)
+from application.settings import app_settings, configure_logging
 from domain.entities import Task
 from domain.entities.cml_worker import CMLWorker
 from domain.repositories import TaskRepository
@@ -40,6 +45,82 @@ from integration.services.aws_ec2_api_client import AwsEc2Client
 
 configure_logging(log_level=app_settings.log_level)
 log = logging.getLogger(__name__)
+
+
+# Global reference to monitoring scheduler for lifecycle management
+_monitoring_scheduler: WorkerMonitoringScheduler | None = None
+
+
+def configure_worker_monitoring(
+    app: FastAPI,
+) -> None:
+    """Configure worker monitoring services and lifecycle hooks.
+
+    Registers BackgroundTaskScheduler and WorkerMonitoringScheduler with
+    their dependencies. Adds startup/shutdown hooks for the monitoring system.
+
+    Args:
+        app: FastAPI application instance with configured services
+    """
+    global _monitoring_scheduler
+
+    if not app_settings.worker_monitoring_enabled:
+        log.info("⚠️ Worker monitoring disabled in settings")
+        return
+
+    log.info("📊 Configuring worker monitoring system with APScheduler...")
+
+    # Get required dependencies from service provider
+    worker_repository = app.state.services.get_required_service(CMLWorkerRepository)
+    aws_client = app.state.services.get_required_service(AwsEc2Client)
+    background_task_bus = app.state.services.get_required_service(BackgroundTasksBus)
+    background_task_scheduler = app.state.services.get_required_service(
+        BackgroundTaskScheduler
+    )
+
+    # Create notification handler (reactive observer)
+    notification_handler = WorkerNotificationHandler(
+        cpu_threshold=90.0,
+        memory_threshold=90.0,
+    )
+
+    # Create monitoring scheduler
+    scheduler = WorkerMonitoringScheduler(
+        worker_repository=worker_repository,
+        aws_client=aws_client,
+        notification_handler=notification_handler,
+        background_task_bus=background_task_bus,
+        background_task_scheduler=background_task_scheduler,
+        poll_interval=app_settings.worker_metrics_poll_interval,
+    )
+
+    # Store reference for lifecycle management
+    _monitoring_scheduler = scheduler
+
+    # Add lifecycle hooks
+    @app.on_event("startup")
+    async def start_monitoring() -> None:
+        """Start worker monitoring on application startup.
+
+        BackgroundTaskScheduler starts automatically as a HostedService.
+        This just discovers active workers and schedules monitoring jobs.
+        """
+        if _monitoring_scheduler:
+            log.info("🚀 Starting worker monitoring scheduler...")
+            await _monitoring_scheduler.start_async()
+
+    @app.on_event("shutdown")
+    async def stop_monitoring() -> None:
+        """Stop worker monitoring on application shutdown.
+
+        BackgroundTaskScheduler stops automatically as a HostedService.
+        This just stops the monitoring jobs.
+        """
+        if _monitoring_scheduler:
+            log.info("🛑 Stopping worker monitoring scheduler...")
+            await _monitoring_scheduler.stop_async()
+
+    log.info("✅ Worker monitoring services configured with APScheduler")
 
 
 def create_app() -> FastAPI:
@@ -112,6 +193,12 @@ def create_app() -> FastAPI:
     # Configure AWS EC2 Client
     AwsEc2Client.configure(builder)
 
+    # Configure BackgroundTaskScheduler for worker monitoring jobs
+    BackgroundTaskScheduler.configure(
+        builder,
+        modules=["application.services"],  # Scan for @backgroundjob decorated classes
+    )
+
     # Configure authentication services (session store + auth service)
     DualAuthService.configure(builder)
 
@@ -170,6 +257,9 @@ def create_app() -> FastAPI:
             allow_methods=["*"],
             allow_headers=["*"],
         )
+
+    # Configure worker monitoring (after app is built and services are available)
+    configure_worker_monitoring(app)
 
     log.info("✅ Application created successfully!")
     log.info("📊 Access points:")

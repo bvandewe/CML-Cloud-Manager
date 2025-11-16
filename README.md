@@ -23,6 +23,8 @@ An opinionated Neuroglia FastAPI template showcasing multi-subapp architecture (
 - 🛡️ **RBAC**: Role-based access control at the application layer
 - 📋 **CQRS Pattern**: Command Query Responsibility Segregation
 - 🎯 **Clean Architecture**: Domain-driven design with clear boundaries
+- ⏰ **Background Task Scheduling**: APScheduler integration with Redis/MongoDB persistence
+- 📊 **Worker Monitoring**: Automated health and metrics collection for CML Workers
 
 ![Cml Cloud Manager demo](./docs/assets/cml-cloud-manager_v0.1.0.gif)
 
@@ -52,15 +54,21 @@ cml-cloud-manager/
 │   │   ├── queries/                 # Read operations
 │   │   ├── events/                  # Domain/application events (placeholder)
 │   │   ├── mapping/                 # Object mapping profiles
-│   │   └── services/                # Cross-cutting services (logger, etc.)
+│   │   └── services/                # Cross-cutting services (logger, background jobs)
+│   │       ├── background_scheduler.py       # Background task scheduling with APScheduler
+│   │       ├── worker_metrics_collection_job.py  # Metrics collection background job
+│   │       ├── worker_monitoring_scheduler.py    # Worker monitoring orchestrator
+│   │       └── worker_notification_handler.py    # Metrics event observer
 │   ├── domain/                      # Pure domain model
-│   │   ├── entities/                # Aggregate/entity classes (task, etc.)
+│   │   ├── entities/                # Aggregate/entity classes (CMLWorker, etc.)
 │   │   └── repositories/            # Repository interfaces (ports)
 │   ├── infrastructure/              # Technical adapters implementing ports
 │   │   └── session_store.py         # Session store implementations (in-memory/redis)
 │   ├── integration/                 # Concrete adapters / in-memory repos
 │   │   └── models/
 │   │   └── repositories/
+│   │   └── services/                # AWS integration services
+│   │       └── aws_ec2_api_client.py         # AWS EC2 and CloudWatch client
 │   ├── observability/               # Metrics, tracing, logging integration points
 │   │   └── metrics.py
 │   ├── ui/                          # Frontend build + controller sub-app

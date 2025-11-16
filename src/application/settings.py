@@ -147,6 +147,27 @@ class Settings(ApplicationSettings):
         "Name": "cml-worker-{worker_id}",
     }
 
+    # Worker Monitoring Configuration
+    worker_monitoring_enabled: bool = True
+    worker_metrics_poll_interval: int = (
+        300  # Seconds between metrics collections (default: 5 minutes)
+    )
+    worker_notification_webhooks: list[str] = (
+        []
+    )  # List of webhook URLs for notifications
+
+    # Background Job Store Configuration (APScheduler persistence)
+    background_job_store: dict[str, Any] = {
+        # Redis configuration (recommended for production)
+        "redis_host": "redis",
+        "redis_port": 6379,
+        "redis_db": 1,  # Use separate DB from session storage (DB 0)
+        # Alternatively, use MongoDB (if Redis not available)
+        # "mongo_uri": "mongodb://root:pass@mongodb:27017/?authSource=admin",  # pragma: allowlist secret
+        # "mongo_db": "cml_cloud_manager",
+        # "mongo_collection": "background_jobs",
+    }
+
     class Config:
         env_file = ".env"
         case_sensitive = False
