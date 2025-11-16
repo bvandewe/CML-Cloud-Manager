@@ -19,7 +19,7 @@ log = logging.getLogger(__name__)
 
 
 class CommandHandlerBase:
-    """Represents the base class for all services used to handle IOLVM Commands."""
+    """Represents the base class for all services used to handle CML Worker Commands."""
 
     mediator: Mediator
     """ Gets the service used to mediate calls """
