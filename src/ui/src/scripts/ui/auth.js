@@ -45,10 +45,14 @@ export function showDashboard(user) {
         localStorage.setItem('user_roles', JSON.stringify(user.roles));
     }
 
-    // Show/hide nav items based on role
-    const isAdminOrManager = user.roles && (user.roles.includes('admin') || user.roles.includes('manager'));
+    // Show/hide nav items based on role - System nav is admin-only
+    const isAdmin = user.roles && user.roles.includes('admin');
     const adminOnlyNavItems = document.querySelectorAll('.admin-only-nav');
     adminOnlyNavItems.forEach(item => {
-        item.style.display = isAdminOrManager ? 'block' : 'none';
+        if (isAdmin) {
+            item.style.display = ''; // Reset to default display
+        } else {
+            item.style.display = 'none';
+        }
     });
 }

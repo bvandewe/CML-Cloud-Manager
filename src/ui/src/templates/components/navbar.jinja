@@ -12,10 +12,33 @@
                         <i class="bi bi-list-task"></i> Tasks
                     </a>
                 </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="#" id="nav-workers">
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="nav-workers-dropdown" role="button"
+                        data-bs-toggle="dropdown" aria-expanded="false">
                         <i class="bi bi-server"></i> CML Workers
                     </a>
+                    <ul class="dropdown-menu" aria-labelledby="nav-workers-dropdown">
+                        <li><a class="dropdown-item" href="#" id="nav-workers"><i class="bi bi-list-ul"></i> View
+                                Workers</a></li>
+                        <li>
+                            <hr class="dropdown-divider admin-only-nav">
+                        </li>
+                        <li class="admin-only-nav">
+                            <h6 class="dropdown-header">Admin Actions</h6>
+                        </li>
+                        <li class="admin-only-nav">
+                            <a class="dropdown-item" href="#" data-bs-toggle="modal"
+                                data-bs-target="#createWorkerModal">
+                                <i class="bi bi-plus-circle"></i> Create Worker
+                            </a>
+                        </li>
+                        <li class="admin-only-nav">
+                            <a class="dropdown-item" href="#" data-bs-toggle="modal"
+                                data-bs-target="#importWorkerModal">
+                                <i class="bi bi-box-arrow-in-down"></i> Import Existing
+                            </a>
+                        </li>
+                    </ul>
                 </li>
                 <li class="nav-item admin-only-nav">
                     <a class="nav-link" href="#" id="nav-system">

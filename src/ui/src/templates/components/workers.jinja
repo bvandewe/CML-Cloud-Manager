@@ -10,10 +10,12 @@
             </div>
             <div class="col-auto">
                 <div class="btn-group" role="group">
-                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createWorkerModal">
+                    <button class="btn btn-primary admin-only-element" data-bs-toggle="modal"
+                        data-bs-target="#createWorkerModal">
                         <i class="bi bi-plus-circle"></i> Create Worker
                     </button>
-                    <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#importWorkerModal">
+                    <button class="btn btn-outline-primary admin-only-element" data-bs-toggle="modal"
+                        data-bs-target="#importWorkerModal">
                         <i class="bi bi-box-arrow-in-down"></i> Import Existing
                     </button>
                     <button class="btn btn-outline-secondary" onclick="window.workersApp.refreshWorkers()">

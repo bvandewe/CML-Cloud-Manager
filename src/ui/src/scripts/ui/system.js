@@ -189,13 +189,13 @@ async function loadWorkerMonitoring() {
     try {
         const status = await systemApi.getWorkerMonitoringStatus();
 
-        const container = document.getElementById('worker-monitoring');
+        const container = document.getElementById('monitoring-details');
         if (container) {
-            container.innerHTML = renderWorkerMonitoring(status);
+            container.innerHTML = renderMonitoringDetails(status);
         }
     } catch (error) {
         console.error('Failed to load worker monitoring:', error);
-        const container = document.getElementById('worker-monitoring');
+        const container = document.getElementById('monitoring-details');
 
         // Check if it's a permission error
         const isPermissionError = error.message && error.message.includes('Permission denied');
@@ -232,13 +232,13 @@ async function loadMetricsCollectors() {
     try {
         const data = await systemApi.getMetricsCollectorsStatus();
 
-        const container = document.getElementById('metrics-collectors');
+        const container = document.getElementById('collectors-list');
         if (container) {
-            container.innerHTML = renderMetricsCollectors(data);
+            container.innerHTML = renderCollectorsList(data);
         }
     } catch (error) {
         console.error('Failed to load metrics collectors:', error);
-        const container = document.getElementById('metrics-collectors');
+        const container = document.getElementById('collectors-list');
 
         // Check if it's a permission error
         const isPermissionError = error.message && error.message.includes('Permission denied');
@@ -365,20 +365,31 @@ function renderMonitoringDetails(monitoring) {
             <div class="col-md-6">
                 <div class="card">
                     <div class="card-body">
-                        <h6 class="card-title">Service Status</h6>
-                        <p class="mb-1">Status: ${statusBadge}</p>
-                        <p class="mb-1">Monitoring Jobs: ${monitoring.monitoring_job_count || 0}</p>
+                        <h6 class="card-title">Monitoring Service Status</h6>
+                        <p class="mb-1"><strong>Status:</strong> ${statusBadge}</p>
+                        <p class="mb-1"><strong>Scheduler Running:</strong> ${monitoring.scheduler_running ? 'Yes' : 'No'}</p>
+                        <p class="mb-0"><strong>Active Jobs:</strong> ${monitoring.monitoring_job_count || 0}</p>
                     </div>
                 </div>
             </div>
         </div>
     `;
 
-    if (monitoring.jobs && monitoring.jobs.length > 0) {
+    if (monitoring.monitoring_job_count === 0) {
         html += `
-            <h6 class="mb-3">Active Monitoring Jobs</h6>
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle me-2"></i>
+                No workers are currently being monitored. Monitoring jobs are automatically created when you import or create CML Workers.
+            </div>
+            <div class="text-muted small mt-3">
+                <strong>Note:</strong> There is one monitoring job per CML Worker. Each job polls AWS EC2 and CloudWatch APIs every 5 minutes to track worker status and metrics.
+            </div>
+        `;
+    } else if (monitoring.jobs && monitoring.jobs.length > 0) {
+        html += `
+            <h6 class="mb-3">Active Monitoring Jobs (${monitoring.jobs.length})</h6>
             <div class="table-responsive">
-                <table class="table table-sm">
+                <table class="table table-sm table-hover">
                     <thead>
                         <tr>
                             <th>Job ID</th>
@@ -393,8 +404,8 @@ function renderMonitoringDetails(monitoring) {
             const nextRun = job.next_run_time ? formatDateTime(job.next_run_time) : 'N/A';
             html += `
                 <tr>
-                    <td><code>${job.id}</code></td>
-                    <td>${job.name}</td>
+                    <td><code class="small">${job.id}</code></td>
+                    <td>${job.name || 'Unnamed Job'}</td>
                     <td>${nextRun}</td>
                 </tr>
             `;
@@ -404,9 +415,10 @@ function renderMonitoringDetails(monitoring) {
                     </tbody>
                 </table>
             </div>
+            <div class="text-muted small mt-3">
+                <strong>Note:</strong> Each job monitors one CML Worker's EC2 instance and collects CloudWatch metrics.
+            </div>
         `;
-    } else {
-        html += '<div class="alert alert-info">No monitoring jobs scheduled</div>';
     }
 
     return html;
@@ -415,21 +427,35 @@ function renderMonitoringDetails(monitoring) {
 /**
  * Render collectors list
  */
-function renderCollectorsList(collectors) {
+function renderCollectorsList(data) {
+    const collectors = data.collectors || [];
+
     if (collectors.length === 0) {
-        return '<div class="alert alert-info">No collectors configured</div>';
+        return `
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle me-2"></i>
+                ${data.message || 'No collectors configured. Collectors are created automatically when workers are imported or created.'}
+            </div>
+            <div class="text-muted small mt-3">
+                <strong>Note:</strong> There is one metrics collector per CML Worker. Each collector monitors the worker's EC2 instance status and CloudWatch metrics.
+            </div>
+        `;
     }
 
     let html = `
+        <div class="alert alert-info mb-3">
+            <i class="bi bi-info-circle me-2"></i>
+            <strong>Active Collectors:</strong> ${data.active_collectors} of ${data.total_collectors}
+            (Polling every ${data.poll_interval}s)
+        </div>
         <div class="table-responsive">
             <table class="table table-hover">
                 <thead>
                     <tr>
-                        <th>Collector Name</th>
+                        <th>Worker ID</th>
+                        <th>Job ID</th>
                         <th>Status</th>
-                        <th>Interval</th>
-                        <th>Last Collection</th>
-                        <th>Errors</th>
+                        <th>Poll Interval</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -438,15 +464,12 @@ function renderCollectorsList(collectors) {
     collectors.forEach(collector => {
         const statusBadge = collector.status === 'active' ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-danger">Inactive</span>';
 
-        const lastCollection = collector.last_collection ? formatDateTime(collector.last_collection) : 'Never';
-
         html += `
             <tr>
-                <td>${collector.name}</td>
+                <td><code>${collector.worker_id}</code></td>
+                <td><code class="small">${collector.job_id}</code></td>
                 <td>${statusBadge}</td>
                 <td>${collector.interval}</td>
-                <td>${lastCollection}</td>
-                <td>${collector.error_count || 0}</td>
             </tr>
         `;
     });
@@ -454,6 +477,9 @@ function renderCollectorsList(collectors) {
     html += `
                 </tbody>
             </table>
+        </div>
+        <div class="text-muted small mt-3">
+            <strong>Note:</strong> Each CML Worker has a dedicated metrics collector that polls AWS EC2 and CloudWatch APIs to monitor instance status and resource utilization.
         </div>
     `;
 
