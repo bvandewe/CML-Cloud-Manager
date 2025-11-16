@@ -213,8 +213,8 @@ After generating the AWS access keys, configure them in your environment:
 # ============================================================================
 # AWS Settings
 # ============================================================================
-AWS_ACCESS_KEY_ID=AKIA6GBMW7QFGZXVVBN6
-AWS_SECRET_ACCESS_KEY=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
+AWS_ACCESS_KEY_ID=AKIA6G....
+AWS_SECRET_ACCESS_KEY=4mQiit....
 ```
 
 ### Kubernetes Secret
