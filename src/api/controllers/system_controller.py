@@ -32,7 +32,7 @@ class SystemController(ControllerBase):
     async def list_scheduler_jobs(
         self,
         token: str = Depends(get_current_user),
-        roles: str = Depends(require_roles("admin", "manager")),
+        roles: str = Depends(require_roles("admin", "manager", "user")),
     ) -> Any:
         """List all APScheduler jobs and their status.
 
@@ -42,7 +42,7 @@ class SystemController(ControllerBase):
         - Trigger type
         - Job status
 
-        (**Requires admin or manager role.**)"""
+        (**Requires authenticated user.**)"""
         try:
             from application.services import BackgroundTaskScheduler
 
@@ -83,11 +83,11 @@ class SystemController(ControllerBase):
     async def get_scheduler_status(
         self,
         token: str = Depends(get_current_user),
-        roles: str = Depends(require_roles("admin", "manager")),
+        roles: str = Depends(require_roles("admin", "manager", "user")),
     ) -> Any:
         """Get APScheduler status and statistics.
 
-        (**Requires admin or manager role.**)"""
+        (**Requires authenticated user.**)"""
         try:
             from application.services import BackgroundTaskScheduler
 
@@ -141,7 +141,7 @@ class SystemController(ControllerBase):
     async def get_worker_monitoring_status(
         self,
         token: str = Depends(get_current_user),
-        roles: str = Depends(require_roles("admin", "manager")),
+        roles: str = Depends(require_roles("admin", "manager", "user")),
     ) -> Any:
         """Get worker monitoring service status.
 
@@ -150,7 +150,7 @@ class SystemController(ControllerBase):
         - Monitored workers count
         - Last update times
 
-        (**Requires admin or manager role.**)"""
+        (**Requires authenticated user.**)"""
         try:
             # Import global monitoring scheduler reference
             from main import _monitoring_scheduler
@@ -304,36 +304,58 @@ class SystemController(ControllerBase):
     async def get_metrics_collectors_status(
         self,
         token: str = Depends(get_current_user),
-        roles: str = Depends(require_roles("admin", "manager")),
+        roles: str = Depends(require_roles("admin", "manager", "user")),
     ) -> Any:
         """Get status of all metrics collectors.
 
         Returns information about:
-        - Active collectors
+        - Active collectors (one per worker)
         - Collection intervals
-        - Last collection times
-        - Error counts
+        - Worker details
 
-        (**Requires admin or manager role.**)"""
-        # Placeholder for metrics collectors
-        # This would integrate with your actual metrics collection system
-        return {
-            "collectors": [
-                {
-                    "name": "worker_metrics_collector",
-                    "status": "active",
-                    "interval": "60s",
-                    "last_collection": None,
-                    "error_count": 0,
-                },
-                {
-                    "name": "resource_utilization_collector",
-                    "status": "active",
-                    "interval": "300s",
-                    "last_collection": None,
-                    "error_count": 0,
-                },
-            ],
-            "total_collectors": 2,
-            "active_collectors": 2,
-        }
+        Note: There is one collector per CML Worker being monitored.
+
+        (**Requires authenticated user.**)"""
+        try:
+            # Import global monitoring scheduler reference
+            from main import _monitoring_scheduler
+
+            monitoring_scheduler = _monitoring_scheduler
+
+            if monitoring_scheduler and monitoring_scheduler._is_running:
+                # Get active monitoring jobs - one collector per worker
+                collectors = []
+
+                for worker_id, job_id in monitoring_scheduler._active_jobs.items():
+                    collectors.append(
+                        {
+                            "worker_id": worker_id,
+                            "job_id": job_id,
+                            "status": "active",
+                            "interval": f"{monitoring_scheduler._poll_interval}s",
+                        }
+                    )
+
+                return {
+                    "collectors": collectors,
+                    "total_collectors": len(collectors),
+                    "active_collectors": len(collectors),
+                    "poll_interval": monitoring_scheduler._poll_interval,
+                }
+            else:
+                return {
+                    "collectors": [],
+                    "total_collectors": 0,
+                    "active_collectors": 0,
+                    "poll_interval": 0,
+                    "message": "Worker monitoring is not running",
+                }
+        except Exception as e:
+            logger.error(f"Failed to retrieve metrics collectors status: {e}")
+            return {
+                "collectors": [],
+                "total_collectors": 0,
+                "active_collectors": 0,
+                "poll_interval": 0,
+                "error": str(e),
+            }

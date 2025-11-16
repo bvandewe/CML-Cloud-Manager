@@ -18,7 +18,9 @@ from application.services.background_scheduler import (
     BackgroundTasksBus,
     RecurrentTaskDescriptor,
 )
-from application.services.worker_metrics_collection_job import (
+
+# Import WorkerMetricsCollectionJob for type resolution in BackgroundTaskScheduler
+from application.services.worker_metrics_collection_job import (  # noqa: F401
     WorkerMetricsCollectionJob,
 )
 from application.services.worker_notification_handler import WorkerNotificationHandler
@@ -154,21 +156,12 @@ class WorkerMonitoringScheduler:
                 )
                 return
 
-            # Create monitoring job instance
-            job = WorkerMetricsCollectionJob(
-                worker_id=worker_id,
-                worker_repository=self._worker_repository,
-                aws_ec2_client=self._aws_client,
-            )
-
-            # Subscribe notification handler to job's metrics events
-            job.subscribe(self._notification_handler)
-
             # Generate unique job ID
             job_id = f"worker-metrics-{worker_id}"
 
             # Create task descriptor for scheduling
-            # Only serialize minimal data (worker_id) - dependencies will be re-injected
+            # Only serialize minimal data (worker_id) - dependencies will be re-injected via configure()
+            # The actual job instance will be created by BackgroundTaskScheduler during deserialization
             task_descriptor = RecurrentTaskDescriptor(
                 id=job_id,
                 name="WorkerMetricsCollectionJob",

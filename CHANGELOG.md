@@ -37,6 +37,14 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
   - AMI name stored in worker state for auditing
   - AMI name included in worker domain events
 
+- **Worker Refresh Endpoint**: Manual worker state synchronization and monitoring restart
+  - POST `/region/{aws_region}/workers/{worker_id}/refresh` endpoint
+  - Queries AWS EC2 for latest instance status and metrics
+  - Updates worker state in database with current AWS data
+  - Automatically starts monitoring if worker is running/pending and not monitored
+  - Returns refreshed worker details to UI
+  - Refresh button in Worker Details modal with loading state and notifications
+
 #### Configuration
 
 - **Worker Monitoring Settings**:
@@ -62,6 +70,14 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 - `notes/APSCHEDULER_REFACTORING_SUMMARY.md`: Phase 1 summary and architectural decisions
 - `notes/WORKER_MONITORING_ARCHITECTURE.md`: Reactive monitoring architecture design
 - `notes/ROA_MIGRATION_PLAN.md`: Future Resource-Oriented Architecture (ROA) migration plan
+- `notes/WORKER_REFRESH_IMPLEMENTATION.md`: Worker refresh feature implementation details and known issues
+
+#### UI/Frontend Utilities
+
+- **Role-based Access Control**: New `src/ui/src/scripts/utils/roles.js` module
+  - `getUserRoles()`, `hasRole()`, `hasAnyRole()`, `hasAllRoles()` utility functions
+  - `isAdmin()`, `isManager()`, `isAdminOrManager()` convenience functions
+  - Centralized role checking logic for frontend components
 
 ### Changed
 
@@ -71,6 +87,16 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 - Updated import statements formatting for improved code readability (multi-line imports consolidated).
 - Enhanced `main.py` with worker monitoring configuration during application startup
 - Added lifecycle hooks for background task scheduler and worker monitoring
+- Improved `WorkerMetricsCollectionJob` pickle serialization with `__getstate__` and `__setstate__` methods
+- Enhanced job configuration with proper dependency injection pattern
+
+#### UI/Frontend
+
+- Enhanced Worker Details modal with improved refresh functionality
+- Added loading states and visual feedback for async operations
+- Improved role-based access control checks in workers UI
+- Enhanced system monitoring display with better data formatting
+- Updated navbar to properly display user information and roles
 
 #### Dependencies
 

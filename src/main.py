@@ -85,11 +85,8 @@ async def lifespan_with_monitoring(app: FastAPI) -> AsyncIterator[None]:
                 BackgroundTaskScheduler
             )
 
-            # Create notification handler (reactive observer)
-            notification_handler = WorkerNotificationHandler(
-                cpu_threshold=90.0,
-                memory_threshold=90.0,
-            )
+            # Get notification handler singleton from service provider
+            notification_handler = scope.get_required_service(WorkerNotificationHandler)
 
             # Create monitoring scheduler
             scheduler = WorkerMonitoringScheduler(
@@ -218,6 +215,18 @@ def create_app() -> FastAPI:
         builder,
         modules=["application.services"],  # Scan for @backgroundjob decorated classes
     )
+
+    # Register WorkerNotificationHandler as singleton service
+    # This allows jobs to look it up from service provider without pickling callback references
+    if app_settings.worker_monitoring_enabled:
+        notification_handler_instance = WorkerNotificationHandler(
+            cpu_threshold=90.0,
+            memory_threshold=90.0,
+        )
+        builder.services.add_singleton(
+            WorkerNotificationHandler, singleton=notification_handler_instance
+        )
+        log.info("✅ Registered WorkerNotificationHandler as singleton service")
 
     # Configure authentication services (session store + auth service)
     DualAuthService.configure(builder)
