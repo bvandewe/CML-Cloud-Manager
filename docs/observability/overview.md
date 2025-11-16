@@ -1,6 +1,6 @@
 # Observability Overview
 
-This guide provides an overview of observability in the Starter App, covering the three pillars of observability and how they work together to help you understand your system.
+This guide provides an overview of observability in the Cml Cloud Manager, covering the three pillars of observability and how they work together to help you understand your system.
 
 ## Table of Contents
 
@@ -34,7 +34,7 @@ This guide provides an overview of observability in the Starter App, covering th
 
 ## The Three Pillars
 
-The Starter App implements all three pillars of observability using OpenTelemetry:
+The Cml Cloud Manager implements all three pillars of observability using OpenTelemetry:
 
 ### 1. Metrics
 
@@ -142,12 +142,12 @@ curl -X POST http://localhost:8000/api/tasks \
 
 1. Open http://localhost:3000
 2. Navigate to **Explore** → **Tempo**
-3. Search for service: `starter-app`
+3. Search for service: `cml-cloud-manager`
 
 **Metrics in Prometheus**:
 
 1. Open http://localhost:9090
-2. Execute query: `rate(starter_app_tasks_created_total[5m])`
+2. Execute query: `rate(cml_cloud_manager_tasks_created_total[5m])`
 
 **Full Guide**: See [Getting Started](./getting-started.md)
 
@@ -166,11 +166,11 @@ curl -X POST http://localhost:8000/api/tasks \
 
 ```promql
 # View rate in Prometheus or Grafana
-rate(starter_app_tasks_created_total[5m])
+rate(cml_cloud_manager_tasks_created_total[5m])
 
 # Alert when rate drops
 alert: TaskCreationRateLow
-expr: rate(starter_app_tasks_created_total[5m]) < 1
+expr: rate(cml_cloud_manager_tasks_created_total[5m]) < 1
 ```
 
 **Full Workflow**: See [Getting Started - Workflow 2](./getting-started.md#workflow-2-monitor-task-creation)
@@ -190,7 +190,7 @@ When a production error occurs:
 
 ## Technology Stack
 
-The Starter App uses:
+The Cml Cloud Manager uses:
 
 - **[OpenTelemetry](https://opentelemetry.io/)** - Vendor-neutral instrumentation (CNCF project)
 - **[OTEL Collector](https://opentelemetry.io/docs/collector/)** - Telemetry aggregation and routing

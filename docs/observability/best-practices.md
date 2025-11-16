@@ -1,6 +1,6 @@
 # Observability Best Practices
 
-This guide covers best practices for implementing observability in the Starter App.
+This guide covers best practices for implementing observability in the Cml Cloud Manager.
 
 ## Table of Contents
 
@@ -23,10 +23,10 @@ Use consistent, hierarchical naming:
 
 ```python
 # ✅ Good: Clear hierarchy
-meter.create_counter("starter_app.tasks.created")
-meter.create_counter("starter_app.tasks.completed")
-meter.create_counter("starter_app.tasks.failed")
-meter.create_histogram("starter_app.task.processing_time")
+meter.create_counter("cml_cloud_manager.tasks.created")
+meter.create_counter("cml_cloud_manager.tasks.completed")
+meter.create_counter("cml_cloud_manager.tasks.failed")
+meter.create_histogram("cml_cloud_manager.task.processing_time")
 
 # ❌ Bad: Inconsistent naming
 meter.create_counter("TasksCreated")
@@ -249,7 +249,7 @@ Track errors with metrics:
 ```python
 # ✅ Good: Separate error counter
 tasks_failed = meter.create_counter(
-    name="starter_app.tasks.failed",
+    name="cml_cloud_manager.tasks.failed",
     description="Total failed task operations",
     unit="1"
 )

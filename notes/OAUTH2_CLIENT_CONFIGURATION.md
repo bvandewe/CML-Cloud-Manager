@@ -2,7 +2,7 @@
 
 ## Summary of Changes
 
-✅ **Added confidential backend client** (`starter-app-backend`) for secure token exchange
+✅ **Added confidential backend client** (`cml-cloud-manager-backend`) for secure token exchange
 ✅ **Updated settings** to use confidential client with client secret
 ✅ **Added roles scope** to include user roles in tokens and userinfo
 ✅ **Added protocol mappers** to include roles in userinfo response
@@ -44,13 +44,13 @@
 
 **When to use**: Never for backend server-to-server communication!
 
-### Confidential Client (`starter-app-backend`)
+### Confidential Client (`cml-cloud-manager-backend`)
 
 ```json
 {
-    "clientId": "starter-app-backend",
+    "clientId": "cml-cloud-manager-backend",
     "publicClient": false,
-    "secret": "starter-app-backend-secret-change-in-production"
+    "secret": "cml-cloud-manager-backend-secret-change-in-production"
 }
 ```
 
@@ -78,12 +78,12 @@ sequenceDiagram
     Backend->>Browser: Redirect to Keycloak<br/>(no client secret exposed)
 
     Note over Browser,Keycloak: 2. User Authentication
-    Browser->>Keycloak: Login page<br/>client_id=starter-app-backend<br/>scope=openid profile email roles
+    Browser->>Keycloak: Login page<br/>client_id=cml-cloud-manager-backend<br/>scope=openid profile email roles
     Keycloak->>Browser: Authorization code
 
     Note over Browser,Keycloak: 3. Secure Token Exchange
     Browser->>Backend: GET /api/auth/callback?code=xxx
-    Backend->>Keycloak: POST /token<br/>code=xxx<br/>client_id=starter-app-backend<br/>client_secret=SECRET ✅
+    Backend->>Keycloak: POST /token<br/>code=xxx<br/>client_id=cml-cloud-manager-backend<br/>client_secret=SECRET ✅
     Keycloak->>Keycloak: Verify client secret ✅
     Keycloak->>Backend: Access token + ID token
     Backend->>Keycloak: GET /userinfo (with access token)
@@ -105,16 +105,16 @@ sequenceDiagram
 
 ### 1. Keycloak Realm Configuration
 
-**File**: `deployment/keycloak/starter-app-realm-export.json`
+**File**: `deployment/keycloak/cml-cloud-manager-realm-export.json`
 
 Added new confidential client with protocol mappers:
 
 ```json
 {
-    "clientId": "starter-app-backend",
-    "name": "Starter App Backend (Confidential)",
+    "clientId": "cml-cloud-manager-backend",
+    "name": "Cml Cloud Manager Backend (Confidential)",
     "publicClient": false,
-    "secret": "starter-app-backend-secret-change-in-production",
+    "secret": "cml-cloud-manager-backend-secret-change-in-production",
     "standardFlowEnabled": true,
     "fullScopeAllowed": true,
     "protocolMappers": [
@@ -145,8 +145,8 @@ Added new confidential client with protocol mappers:
 
 ```python
 # Backend confidential client for secure token exchange
-KEYCLOAK_CLIENT_ID: str = "starter-app-backend"
-KEYCLOAK_CLIENT_SECRET: str = "starter-app-backend-secret-change-in-production"
+KEYCLOAK_CLIENT_ID: str = "cml-cloud-manager-backend"
+KEYCLOAK_CLIENT_SECRET: str = "cml-cloud-manager-backend-secret-change-in-production"
 
 # Legacy public client (deprecated)
 KEYCLOAK_PUBLIC_CLIENT_ID: str = "portal-web-app"
@@ -154,7 +154,7 @@ KEYCLOAK_PUBLIC_CLIENT_ID: str = "portal-web-app"
 
 **Changes**:
 
-- ✅ Changed `KEYCLOAK_CLIENT_ID` to `starter-app-backend`
+- ✅ Changed `KEYCLOAK_CLIENT_ID` to `cml-cloud-manager-backend`
 - ✅ Set `KEYCLOAK_CLIENT_SECRET` to actual secret value
 - ✅ Kept old public client ID for reference
 
@@ -191,8 +191,8 @@ auth_url = self.keycloak.auth_url(
 
 ```bash
 # Keycloak Backend Client (Confidential - for secure token exchange)
-KEYCLOAK_CLIENT_ID=starter-app-backend
-KEYCLOAK_CLIENT_SECRET=starter-app-backend-secret-change-in-production
+KEYCLOAK_CLIENT_ID=cml-cloud-manager-backend
+KEYCLOAK_CLIENT_SECRET=cml-cloud-manager-backend-secret-change-in-production
 ```
 
 ---
@@ -213,8 +213,8 @@ docker-compose logs -f keycloak
 ### 2. Restart Application
 
 ```bash
-# Restart the starter-app to use new settings
-docker-compose restart starter-app
+# Restart the cml-cloud-manager to use new settings
+docker-compose restart cml-cloud-manager
 # Or if running locally:
 poetry run python src/main.py
 ```
@@ -255,7 +255,7 @@ curl -b cookies.txt http://localhost:8020/api/auth/user
 Check backend logs for successful token exchange:
 
 ```bash
-docker-compose logs -f starter-app | grep "callback"
+docker-compose logs -f cml-cloud-manager | grep "callback"
 ```
 
 You should see the callback succeed without errors.
@@ -314,7 +314,7 @@ Before deploying to production:
    ```
 
 2. **Verify protocol mapper**: Check Keycloak admin console
-   - Clients → starter-app-backend → Client scopes → Mappers
+   - Clients → cml-cloud-manager-backend → Client scopes → Mappers
    - Look for "realm-roles" mapper
    - Ensure "Add to userinfo" is enabled
 
@@ -326,15 +326,15 @@ Before deploying to production:
 
    ```bash
    # Get access token
-   curl -X POST http://localhost:8021/realms/starter-app/protocol/openid-connect/token \
+   curl -X POST http://localhost:8021/realms/cml-cloud-manager/protocol/openid-connect/token \
      -d "grant_type=password" \
-     -d "client_id=starter-app-backend" \
-     -d "client_secret=starter-app-backend-secret-change-in-production" \
+     -d "client_id=cml-cloud-manager-backend" \
+     -d "client_secret=cml-cloud-manager-backend-secret-change-in-production" \
      -d "username=admin" \
      -d "password=admin"
 
    # Use access_token from response
-   curl http://localhost:8021/realms/starter-app/protocol/openid-connect/userinfo \
+   curl http://localhost:8021/realms/cml-cloud-manager/protocol/openid-connect/userinfo \
      -H "Authorization: Bearer <access_token>"
    ```
 

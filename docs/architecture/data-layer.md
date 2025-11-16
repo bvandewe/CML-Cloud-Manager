@@ -1,6 +1,6 @@
 # Data Layer Architecture
 
-This document explains the data layer architecture of the Starter App, covering domain abstractions, repository patterns, and how they integrate with Domain-Driven Design (DDD) principles using the Neuroglia framework.
+This document explains the data layer architecture of the Cml Cloud Manager, covering domain abstractions, repository patterns, and how they integrate with Domain-Driven Design (DDD) principles using the Neuroglia framework.
 
 ## Overview
 
@@ -747,7 +747,7 @@ services.add_singleton(
     OrderRepository,
     lambda sp: MongoOrderRepository(
         client=sp.get_required_service(AsyncIOMotorClient),
-        database_name="starter_app",
+        database_name="cml_cloud_manager",
         collection_name="orders",
         serializer=sp.get_required_service(JsonSerializer),
         entity_type=Order,

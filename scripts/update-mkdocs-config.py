@@ -36,8 +36,8 @@ def update_mkdocs_yml(mkdocs_path: Path, env_vars: dict):
         lines = f.readlines()
 
     # Get values from env vars or keep defaults
-    site_name = env_vars.get('DOCS_SITE_NAME', 'Starter App')
-    site_url = env_vars.get('DOCS_SITE_URL', 'https://bvandewe.github.io/starter-app')
+    site_name = env_vars.get('DOCS_SITE_NAME', 'Cml Cloud Manager')
+    site_url = env_vars.get('DOCS_SITE_URL', 'https://bvandewe.github.io/cml-cloud-manager')
     docs_dir = env_vars.get('DOCS_FOLDER', './docs').lstrip('./')
 
     # Update specific lines

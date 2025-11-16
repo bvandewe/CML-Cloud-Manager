@@ -118,7 +118,7 @@ class AuthController(ControllerBase):
                         not in [
                             "offline_access",
                             "uma_authorization",
-                            "default-roles-starter-app",
+                            "default-roles-cml-cloud-manager",
                         ]
                     ]
                     user_info["roles"] = user_roles

@@ -1,6 +1,6 @@
 # Observability Architecture
 
-This guide covers the technical architecture and components of the observability stack in the Starter App.
+This guide covers the technical architecture and components of the observability stack in the Cml Cloud Manager.
 
 ## Table of Contents
 
@@ -11,11 +11,11 @@ This guide covers the technical architecture and components of the observability
 
 ## Architecture Overview
 
-The Starter App uses **OpenTelemetry** for observability instrumentation with the following architecture:
+The Cml Cloud Manager uses **OpenTelemetry** for observability instrumentation with the following architecture:
 
 ```mermaid
 graph TB
-    App[Starter App]
+    App[Cml Cloud Manager]
     OTel[OpenTelemetry SDK]
     Collector[OTEL Collector]
     Tempo[Tempo]
@@ -47,7 +47,7 @@ graph TB
 
 ## Components
 
-### 1. Application (Starter App)
+### 1. Application (Cml Cloud Manager)
 
 **Responsibilities**:
 
@@ -199,7 +199,7 @@ Observability.configure(builder)
 
 ```mermaid
 sequenceDiagram
-    participant App as Starter App
+    participant App as Cml Cloud Manager
     participant SDK as OTEL SDK
     participant Collector as OTEL Collector
     participant Tempo as Tempo
@@ -219,7 +219,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant App as Starter App
+    participant App as Cml Cloud Manager
     participant SDK as OTEL SDK
     participant Collector as OTEL Collector
     participant Prom as Prometheus
@@ -243,7 +243,7 @@ services:
   app:
     environment:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-      OTEL_SERVICE_NAME: starter-app
+      OTEL_SERVICE_NAME: cml-cloud-manager
 
   otel-collector:
     ports:

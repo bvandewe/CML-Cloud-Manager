@@ -5,11 +5,11 @@ Project Renamer Utility
 
 Purpose:
     Turn this repo into a reusable starter by safely replacing occurrences of the
-    original project name ("starter-app" and its variants) with a new name.
+    original project name ("cml-cloud-manager" and its variants) with a new name.
 
 Features:
     - Derives multiple naming styles (slug, snake, Pascal, title, UPPER_SNAKE) from one input.
-    - Replaces common variants: starter-app, starter_app, Starter App, StarterApp, STARTER_APP.
+    - Replaces common variants: cml-cloud-manager, cml_cloud_manager, Cml Cloud Manager, CmlCloudManager, CML_CLOUD_MANAGER.
     - Updates service identifiers (e.g., service_name, KEYCLOAK_REALM, KEYCLOAK_CLIENT_ID) optionally.
     - Dry-run mode shows planned changes without modifying files.
     - Skips binary/large/unrelated paths (venv, .git, node_modules, __pycache__, *.pyc, *.png/.jpg, package lock files, dist assets).
@@ -49,12 +49,12 @@ from typing import Iterable, Mapping
 
 # Original name variants to search for
 ORIGINAL_VARIANTS = {
-    "starter-app",     # slug
-    "starter_app",     # snake
-    "Starter App",     # title/spaced
-    "StarterApp",      # Pascal
-    "STARTER_APP",     # upper snake
-    "Starter App API",  # special case
+    "cml-cloud-manager",     # slug
+    "cml_cloud_manager",     # snake
+    "Cml Cloud Manager",     # title/spaced
+    "CmlCloudManager",      # Pascal
+    "CML_CLOUD_MANAGER",     # upper snake
+    "Cml Cloud Manager API",  # special case
 }
 
 # Files/directories to ignore when traversing
@@ -100,17 +100,17 @@ class NameStyles:
 
     def replacement_map(self) -> Mapping[str, str]:
         return {
-            "starter-app": self.slug,
-            "starter_app": self.snake,
-            "Starter App": self.title,
-            "StarterApp": self.pascal,
-            "STARTER_APP": self.upper,
-            "Starter App API": f"{self.title} API",
+            "cml-cloud-manager": self.slug,
+            "cml_cloud_manager": self.snake,
+            "Cml Cloud Manager": self.title,
+            "CmlCloudManager": self.pascal,
+            "CML_CLOUD_MANAGER": self.upper,
+            "Cml Cloud Manager API": f"{self.title} API",
         }
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Rename project occurrences of 'starter-app' variants.")
+    p = argparse.ArgumentParser(description="Rename project occurrences of 'cml-cloud-manager' variants.")
     p.add_argument("--new-name", required=True, help="Base name for project (e.g. 'Acme Tasks')")
     p.add_argument("--slug", help="Override slug variant")
     p.add_argument("--snake", help="Override snake_case variant")
@@ -200,9 +200,9 @@ def main() -> int:
     # Optional Keycloak realm/client updates (best-effort basic patterns)
     if args.update_keycloak:
         # NOTE: user must adjust Keycloak server config externally.
-        replacements["starter-app-backend"] = f"{styles.slug}-backend"
-        replacements["starter-app"] = styles.slug  # realm name occurrences
-        replacements["starter-app-backend-secret-change-in-production"] = f"{styles.slug}-backend-secret-change-in-production"
+        replacements["cml-cloud-manager-backend"] = f"{styles.slug}-backend"
+        replacements["cml-cloud-manager"] = styles.slug  # realm name occurrences
+        replacements["cml-cloud-manager-backend-secret-change-in-production"] = f"{styles.slug}-backend-secret-change-in-production"
 
     excludes = set(DEFAULT_EXCLUDES)
     if args.exclude:

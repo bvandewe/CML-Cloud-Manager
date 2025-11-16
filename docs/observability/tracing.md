@@ -1,6 +1,6 @@
 # Distributed Tracing Instrumentation Guide
 
-This guide covers how to implement distributed tracing in the Starter App using OpenTelemetry.
+This guide covers how to implement distributed tracing in the Cml Cloud Manager using OpenTelemetry.
 
 ## Table of Contents
 

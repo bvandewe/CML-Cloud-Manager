@@ -46,7 +46,7 @@ def create_app() -> FastAPI:
     Returns:
         Configured FastAPI application with multiple mounted apps
     """
-    log.debug("🚀 Creating Starter App application...")
+    log.debug("🚀 Creating Cml Cloud Manager application...")
 
     builder = WebApplicationBuilder(app_settings=app_settings)
 
@@ -86,7 +86,7 @@ def create_app() -> FastAPI:
         builder,
         entity_type=Task,
         key_type=str,
-        database_name="starter_app",
+        database_name="cml_cloud_manager",
         collection_name="tasks",
         domain_repository_type=TaskRepository,
         implementation_type=MongoTaskRepository,
@@ -129,7 +129,7 @@ def create_app() -> FastAPI:
 
     # Build the application
     app = builder.build_app_with_lifespan(
-        title="Starter App",
+        title="Cml Cloud Manager",
         description="Task management application with multi-app architecture",
         version="1.0.0",
         debug=True,

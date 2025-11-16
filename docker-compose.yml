@@ -1,12 +1,12 @@
-# Starter App Application - Docker Compose Configuration
+# Cml Cloud Manager Application - Docker Compose Configuration
 # This file is based on the simple-ui sample docker-compose configuration
 
-name: starter-app
+name: cml-cloud-manager
 
 services:
-    # 📱 Starter App Application
+    # 📱 Cml Cloud Manager Application
     # http://localhost:${APP_PORT:-8020}/
-    # http://localhost:8020/
+    # http://localhost:8030/
     app:
         build:
             context: .
@@ -20,6 +20,9 @@ services:
             LOG_LEVEL: DEBUG
             PYTHONPATH: '/app/src'
 
+            APP_URL: http://localhost:${APP_PORT:-8030}
+            APP_PORT: ${APP_PORT:-8030}
+
             # JWT Configuration
             JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production}
             JWT_ALGORITHM: HS256
@@ -30,8 +33,8 @@ services:
 
             # Keycloak Configuration (Optional)
             KEYCLOAK_SERVER_URL: http://keycloak:8080
-            KEYCLOAK_REALM: ${KEYCLOAK_REALM:-starter-app}
-            KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-starter-app-public}
+            KEYCLOAK_REALM: ${KEYCLOAK_REALM:-cml-cloud-manager}
+            KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-cml-cloud-manager-public}
             KEYCLOAK_PORT: ${KEYCLOAK_PORT:-8021}
 
             # Redis Configuration (Session Storage)
@@ -44,11 +47,11 @@ services:
 
             # Event streaming
             CLOUD_EVENT_SINK: http://event-player:8080/events/pub
-            CLOUD_EVENT_SOURCE: https://starter-app.io
-            CLOUD_EVENT_TYPE_PREFIX: io.starter-app
+            CLOUD_EVENT_SOURCE: https://cml-cloud-manager.io
+            CLOUD_EVENT_TYPE_PREFIX: io.cml-cloud-manager
 
             # OpenTelemetry configuration - Metrics & Traces
-            OTEL_SERVICE_NAME: starter-app
+            OTEL_SERVICE_NAME: cml-cloud-manager
             OTEL_SERVICE_VERSION: 1.0.0
             OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
             OTEL_EXPORTER_OTLP_PROTOCOL: grpc
@@ -59,7 +62,7 @@ services:
         volumes:
             - ./:/app
         networks:
-            - starter-app-net
+            - cml-cloud-manager-net
         depends_on:
             - mongodb
             - keycloak
@@ -96,9 +99,9 @@ services:
             # NOTE: Master realm SSL setting (sslRequired=none) is persisted in this volume
             - keycloak_data:/opt/keycloak/data
             # Import realm configurations on first startup
-            - ./deployment/keycloak/starter-app-realm-export.json:/opt/keycloak/data/import/starter-app-realm-export.json:ro
+            - ./deployment/keycloak/cml-cloud-manager-realm-export.json:/opt/keycloak/data/import/cml-cloud-manager-realm-export.json:ro
         networks:
-            - starter-app-net
+            - cml-cloud-manager-net
 
     # 🗄️ MongoDB Database
     # mongodb://localhost:${MONGODB_PORT}
@@ -117,7 +120,7 @@ services:
         volumes:
             - mongodb_data:/data/db
         networks:
-            - starter-app-net
+            - cml-cloud-manager-net
 
     # 📊 MongoDB Express (Database Admin UI)
     # http://localhost:${MONGODB_EXPRESS_PORT}
@@ -137,7 +140,7 @@ services:
             ME_CONFIG_MONGODB_AUTH_DATABASE: admin
             ME_CONFIG_BASICAUTH: 'false'
         networks:
-            - starter-app-net
+            - cml-cloud-manager-net
         depends_on:
             - mongodb
 
@@ -173,8 +176,8 @@ services:
             oauth_server_url: http://localhost:${KEYCLOAK_PORT:-8021}
             oauth_server_url_backend: http://keycloak:8080
             oauth_legacy_keycloak: 'false'
-            oauth_realm: ${KEYCLOAK_REALM:-starter-app}
-            oauth_client_id: starter-app-public
+            oauth_realm: ${KEYCLOAK_REALM:-cml-cloud-manager}
+            oauth_client_id: cml-cloud-manager-public
             oauth_client_secret: ''
 
             # HTTP Client Configuration
@@ -189,7 +192,7 @@ services:
             storage_max_recent_events: 5000
             storage_max_metadata_events: 100000
         networks:
-            - starter-app-net
+            - cml-cloud-manager-net
         depends_on:
             - keycloak
 
@@ -205,7 +208,7 @@ services:
         volumes:
             - redis_data:/data
         networks:
-            - starter-app-net
+            - cml-cloud-manager-net
         healthcheck:
             test: ['CMD', 'redis-cli', 'ping']
             interval: 10s
@@ -227,7 +230,7 @@ services:
         volumes:
             - ./deployment/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
         networks:
-            - starter-app-net
+            - cml-cloud-manager-net
 
     # 🎨 UI Builder (Parcel Watch Mode)
     # Automatically rebuilds UI assets on file changes
@@ -239,7 +242,7 @@ services:
             - ./:/app
             - /app/src/ui/node_modules # Anonymous volume for node_modules
         networks:
-            - starter-app-net
+            - cml-cloud-manager-net
         environment:
             NODE_ENV: development
         entrypoint: >
@@ -249,7 +252,7 @@ services:
             "
 
 networks:
-    starter-app-net:
+    cml-cloud-manager-net:
         driver: bridge
 
 volumes:

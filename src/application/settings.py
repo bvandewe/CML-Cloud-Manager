@@ -6,6 +6,8 @@ from typing import Optional
 
 from neuroglia.hosting.abstractions import ApplicationSettings
 
+from integration.enums import Ec2InstanceType
+
 
 class Settings(ApplicationSettings):
     """Application settings with Keycloak OAuth2/OIDC configuration and observability."""
@@ -16,7 +18,7 @@ class Settings(ApplicationSettings):
     log_level: str = "INFO"
 
     # Application Configuration
-    app_name: str = "Starter App"
+    app_name: str = "Cml Cloud Manager"
     app_version: str = "1.0.0"
     app_url: str = "http://localhost:8020"  # External URL for callbacks
     app_host: str = (
@@ -25,7 +27,7 @@ class Settings(ApplicationSettings):
     app_port: int = 8080  # Uvicorn port
 
     # Observability Configuration
-    service_name: str = "starter-app"
+    service_name: str = "cml-cloud-manager"
     service_version: str = app_version
     deployment_environment: str = "development"
 
@@ -73,15 +75,15 @@ class Settings(ApplicationSettings):
     # Keycloak OAuth2/OIDC Configuration
     keycloak_url: str = "http://localhost:8021"  # External URL (browser accessible)
     keycloak_url_internal: str = "http://keycloak:8080"  # Internal Docker network URL
-    keycloak_realm: str = "starter-app"
+    keycloak_realm: str = "cml-cloud-manager"
 
     # Backend confidential client for secure token exchange
-    keycloak_client_id: str = "starter-app-backend"
-    keycloak_client_secret: str = "starter-app-backend-secret-change-in-production"
+    keycloak_client_id: str = "cml-cloud-manager-backend"
+    keycloak_client_secret: str = "cml-cloud-manager-backend-secret-change-in-production"
 
     # Legacy public client (deprecated)
     keycloak_public_client_id: str = (
-        "starter-app-public"  # Using existing client from realm config
+        "cml-cloud-manager-public"  # Using existing client from realm config
     )
 
     # Legacy JWT (deprecated - will be removed)
@@ -91,13 +93,13 @@ class Settings(ApplicationSettings):
 
     # Token Claim Validation (optional hardened checks)
     verify_issuer: bool = False  # Set True to enforce 'iss' claim
-    expected_issuer: str = ""  # e.g. "http://localhost:8021/realms/starter-app"
+    expected_issuer: str = ""  # e.g. "http://localhost:8021/realms/cml-cloud-manager"
     verify_audience: bool = False  # Set True to enforce 'aud' claim
-    expected_audience: list[str] = []  # e.g. ["starter-app-backend"]
+    expected_audience: list[str] = []  # e.g. ["cml-cloud-manager-backend"]
     refresh_auto_leeway_seconds: int = 60  # Auto-refresh if exp is within this window
 
     # Persistence Configuration
-    consumer_group: Optional[str] = "starter-app-consumer-group"
+    consumer_group: Optional[str] = "cml-cloud-manager-consumer-group"
     connection_strings: dict[str, str] = {
         "mongo": "mongodb://root:pass@mongodb:27017/?authSource=admin"  # pragma: allowlist secret
     }
@@ -105,9 +107,30 @@ class Settings(ApplicationSettings):
     # Cloud Events Configuration
     cloud_event_sink: Optional[str] = None
     cloud_event_source: Optional[str] = None
-    cloud_event_type_prefix: str = "io.system.starter-app"
+    cloud_event_type_prefix: str = "io.system.cml-cloud-manager"
     cloud_event_retry_attempts: int = 5
     cloud_event_retry_delay: float = 1.0
+
+    # AWS Account Credentials
+    aws_access_key_id: str = "YOUR_ACCESS_KEY_ID"
+    aws_secret_access_key: str = "YOUR_SECRET_ACCESS_KEY"
+
+    # AWS EC2 CML Worker Settings
+    cml_worker_ami_ids: dict[str, str] = {"us-east-1": "ami-0123456789abcdef0", "us-west-2": "ami-0123456789abcdef0"}
+    cml_worker_ami_names: dict[str, str] = {"us-east-1": "CML-2.7.0-Ubuntu-22.04", "us-west-2": "CML-2.7.0-Ubuntu-22.04"}
+    cml_worker_instance_type: Ec2InstanceType = Ec2InstanceType.SMALL
+    cml_worker_security_group_ids: list[str] = ["sg-0123456789abcdef0"]
+    cml_worker_security_group_names: list[str] = ["ec2_cml_worker_sg"]
+    cml_worker_vpc_id: str = "vpc-0123456789abcdef0"
+    cml_worker_subnet_id: str = "subnet-0123456789abcdef0"
+    cml_worker_key_name: str = "cml_worker_key_pair"
+    cml_worker_username: str = "sys-admin"
+    cml_worker_default_tags: dict[str, str] = {
+        "Environment": "dev",
+        "ApplicationName": "CML-Cloud-Manager",
+        "ManagedBy": "CML-Cloud-Manager",
+        "Name": "cml-worker-{worker_id}",
+    }
 
     class Config:
         env_file = ".env"
@@ -115,6 +138,7 @@ class Settings(ApplicationSettings):
         extra = "ignore"  # Ignore extra environment variables
 
 
+# Instantiate application settings
 app_settings = Settings()
 
 
@@ -134,4 +158,5 @@ def configure_logging(log_level: str = "INFO") -> None:
 
     # Set third-party loggers to WARNING to reduce noise
     logging.getLogger("uvicorn").setLevel(logging.WARNING)
+    logging.getLogger("fastapi").setLevel(logging.WARNING)
     logging.getLogger("fastapi").setLevel(logging.WARNING)

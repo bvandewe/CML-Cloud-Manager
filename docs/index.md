@@ -1,10 +1,10 @@
-# Welcome to the Starter App
+# Welcome to the CML Cloud Manager
 
 This project is a template application that demonstrates how to build a modern web application using the **[neuroglia-python](https://github.com/bvandewe/pyneuro)** framework. It provides a solid foundation for building clean, scalable, and maintainable applications with Python.
 
-![Starter App demo](./assets/starter-app_v0.1.0.gif)
+![Cml Cloud Manager demo](./assets/cml-cloud-manager_v0.1.0.gif)
 
-**[Online Documentation](https://bvandewe.github.io/starter-app/)**
+**[Online Documentation](https://bvandewe.github.io/cml-cloud-manager/)**
 
 ## Getting Started
 
@@ -86,7 +86,7 @@ This is a starter app template. When adapting for your project:
 
 ### Documentation
 
-- [GitHub Repository](https://github.com/bvandewe/starter-app)
+- [GitHub Repository](https://github.com/bvandewe/cml-cloud-manager)
 - [API Documentation](http://localhost:8020/api/docs) (when running)
 - [Deployment Guide](deployment/github-pages-setup.md)
 
@@ -100,7 +100,7 @@ This is a starter app template. When adapting for your project:
 
 1. Check [Common Issues](troubleshooting/common-issues.md)
 2. Review relevant documentation section
-3. Search [GitHub Issues](https://github.com/bvandewe/starter-app/issues)
+3. Search [GitHub Issues](https://github.com/bvandewe/cml-cloud-manager/issues)
 4. Create a new issue with details
 
 ---

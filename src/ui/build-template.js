@@ -13,7 +13,7 @@ const env = nunjucks.configure('src/templates', {
 
 // Render the template
 const html = env.render('index.jinja', {
-    title: 'Starter App - Task Management',
+    title: 'CML Cloud Manager - Task Management',
 });
 
 // Write to src/tmp_build/index.html for Parcel to process

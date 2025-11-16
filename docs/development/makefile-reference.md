@@ -1,6 +1,6 @@
 # Makefile Quick Reference
 
-This document provides a quick reference for all available `make` commands in the Starter App project.
+This document provides a quick reference for all available `make` commands in the Cml Cloud Manager project.
 
 ## 🚀 Quick Start Commands
 
@@ -102,7 +102,7 @@ make help         # Show all commands
 ```bash
 # Clone the repository (if needed)
 git clone <repository-url>
-cd starter-app
+cd cml-cloud-manager
 
 # Check environment
 make env-check

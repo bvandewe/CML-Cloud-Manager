@@ -1,4 +1,4 @@
-# Dockerfile for Starter App Application
+# Dockerfile for Cml Cloud Manager Application
 
 FROM python:3.11-slim
 

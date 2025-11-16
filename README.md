@@ -1,11 +1,11 @@
-# Starter App - Neuroglia WebApplication
+# Cml Cloud Manager - Neuroglia WebApplication
 
 [![Python Version](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Poetry](https://img.shields.io/endpoint?url=https://python-poetry.org/badge/v0.json)](https://python-poetry.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688.svg?logo=fastapi)](https://fastapi.tiangolo.com)
 [![Neuroglia](https://img.shields.io/badge/Neuroglia-0.6.6-purple.svg)](https://github.com/neuroglia-io/python-framework)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Documentation](https://img.shields.io/badge/docs-mkdocs-blue.svg)](https://bvandewe.github.io/starter-app/)
+[![Documentation](https://img.shields.io/badge/docs-mkdocs-blue.svg)](https://bvandewe.github.io/cml-cloud-manager/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Tests](https://img.shields.io/badge/tests-pytest-orange.svg)](https://docs.pytest.org/)
@@ -24,7 +24,7 @@ An opinionated Neuroglia FastAPI template showcasing multi-subapp architecture (
 - 📋 **CQRS Pattern**: Command Query Responsibility Segregation
 - 🎯 **Clean Architecture**: Domain-driven design with clear boundaries
 
-![Starter App demo](./docs/assets/starter-app_v0.1.0.gif)
+![Cml Cloud Manager demo](./docs/assets/cml-cloud-manager_v0.1.0.gif)
 
 ## 🏗️ Architecture
 
@@ -39,7 +39,7 @@ This application follows the **Simple UI** sample pattern from Neuroglia, implem
 ### Project Structure
 
 ```
-starter-app/
+cml-cloud-manager/
 ├── src/
 │   ├── main.py                      # FastAPI app factory entry point
 │   ├── api/                         # API sub-app (mounted at /api)
@@ -179,7 +179,7 @@ docker-compose up -d
 
 This will start:
 
-- ✅ Starter App App (http://localhost:8020)
+- ✅ Cml Cloud Manager App (http://localhost:8020)
 - ✅ MongoDB (localhost:8022) and Mongo Express (http://localhost:8023)
 - ✅ Keycloak (http://localhost:8021)
 - ✅ OpenTelemetry Collector
@@ -197,7 +197,7 @@ The application includes test users with different roles:
 | manager | test | manager | Department tasks |
 | user | test | user | Only assigned tasks |
 
-See [deployment/keycloak/starter-app-realm-export.json](./deployment/keycloak/starter-app-realm-export.json)
+See [deployment/keycloak/cml-cloud-manager-realm-export.json](./deployment/keycloak/cml-cloud-manager-realm-export.json)
 
 ## 🔐 Authentication & RBAC
 
@@ -240,7 +240,7 @@ APP_PORT=8080
 
 # Keycloak OAuth2/OIDC
 KEYCLOAK_SERVER_URL=http://keycloak:8080
-KEYCLOAK_REALM=starter-app
+KEYCLOAK_REALM=cml-cloud-manager
 KEYCLOAK_CLIENT_ID=portal-web-app
 
 # Redis Session Storage (for production horizontal scaling)
@@ -302,17 +302,17 @@ Once running, visit http://localhost:8020/api/docs for interactive API documenta
 
 Comprehensive documentation is available in the `docs/` directory and online:
 
-- **Online**: https://bvandewe.github.io/starter-app
+- **Online**: https://bvandewe.github.io/cml-cloud-manager
 - **Local**: Run `make docs-serve` and visit http://127.0.0.1:8000
 
 #### Documentation Topics
 
-- [**Getting Started**](https://bvandewe.github.io/starter-app/getting-started/installation/) - How to install and run the application.
-- [**Architecture**](https://bvandewe.github.io/starter-app/architecture/overview/) - CQRS pattern, dependency injection, design patterns
-- [**Security**](https://bvandewe.github.io/starter-app/security/authentication-flows/) - Dual auth system (session + JWT), OAuth2/OIDC, RBAC
-- [**Development**](https://bvandewe.github.io/starter-app/development/makefile-reference/) - Makefile reference, workflow, testing
-- [**Deployment**](https://bvandewe.github.io/starter-app/deployment/docker-environment/) - Docker environment, deployment, configuration
-- [**Troubleshooting**](https://bvandewe.github.io/starter-app/troubleshooting/common-issues/) - Common issues, known bugs, solutions
+- [**Getting Started**](https://bvandewe.github.io/cml-cloud-manager/getting-started/installation/) - How to install and run the application.
+- [**Architecture**](https://bvandewe.github.io/cml-cloud-manager/architecture/overview/) - CQRS pattern, dependency injection, design patterns
+- [**Security**](https://bvandewe.github.io/cml-cloud-manager/security/authentication-flows/) - Dual auth system (session + JWT), OAuth2/OIDC, RBAC
+- [**Development**](https://bvandewe.github.io/cml-cloud-manager/development/makefile-reference/) - Makefile reference, workflow, testing
+- [**Deployment**](https://bvandewe.github.io/cml-cloud-manager/deployment/docker-environment/) - Docker environment, deployment, configuration
+- [**Troubleshooting**](https://bvandewe.github.io/cml-cloud-manager/troubleshooting/common-issues/) - Common issues, known bugs, solutions
 
 #### Documentation Commands
 
@@ -467,7 +467,7 @@ Use `git commit -s` to auto-add this line.
 ## 🔁 Rebranding / Forking as a New Project
 
 You can turn this repository into a new project quickly without manually hunting for every
-`starter-app` occurrence.
+`cml-cloud-manager` occurrence.
 
 ### Option 1: Built-in Rename Script (Recommended)
 
@@ -485,12 +485,12 @@ python scripts/rename_project.py --new-name "Acme Tasks"
 
 This will replace variants:
 
-- `starter-app` (slug)
-- `starter_app` (snake)
-- `Starter App` (title)
-- `StarterApp` (Pascal)
-- `STARTER_APP` (UPPER_SNAKE)
-- `Starter App API`
+- `cml-cloud-manager` (slug)
+- `cml_cloud_manager` (snake)
+- `Cml Cloud Manager` (title)
+- `CmlCloudManager` (Pascal)
+- `CML_CLOUD_MANAGER` (UPPER_SNAKE)
+- `Cml Cloud Manager API`
 
 Optional flags:
 
@@ -524,7 +524,7 @@ Using GitHub's built‑in Template feature lets you create a clean copy of the r
 3. In your new repo clone, run the rename script (Option 1) to apply your branding and identifiers.
 4. Update any secrets / realms (Keycloak) and run tests.
 
-Why combine both? The template feature handles repository creation & initial history isolation; the rename script performs systematic text/style replacements so you don't miss lingering `starter-app` variants. If you skip the script, manual edits are error‑prone (especially mixed case variants and service identifiers).
+Why combine both? The template feature handles repository creation & initial history isolation; the rename script performs systematic text/style replacements so you don't miss lingering `cml-cloud-manager` variants. If you skip the script, manual edits are error‑prone (especially mixed case variants and service identifiers).
 
 ### Option 3: Cookiecutter (Future)
 
@@ -561,8 +561,8 @@ poetry run pytest --cov=. --cov-report=html
 ### Docker Production Build
 
 ```bash
-docker build -t starter-app:latest .
-docker run -p 8000:8000 starter-app:latest
+docker build -t cml-cloud-manager:latest .
+docker run -p 8000:8000 cml-cloud-manager:latest
 ```
 
 ## 🤝 Contributing
@@ -573,7 +573,7 @@ This project follows the Neuroglia Python Framework patterns. See the [developme
 
 Licensed under the Apache License, Version 2.0. See `LICENSE` for the full text.
 
-Copyright © 2025 Starter App Contributors.
+Copyright © 2025 Cml Cloud Manager Contributors.
 
 You may not use this project except in compliance with the License. Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND.
 

@@ -1,7 +1,7 @@
 {
-    "name": "starter-app-ui",
+    "name": "cml-cloud-manager-ui",
     "version": "1.0.0",
-    "description": "Frontend UI for Starter App application",
+    "description": "Frontend UI for Cml Cloud Manager application",
     "scripts": {
         "prebuild": "node build-template.js",
         "build": "npm run prebuild && parcel build src/tmp_build/index.html --dist-dir ../../static --public-url /static",

@@ -1,6 +1,6 @@
 # Authorization
 
-This guide explains the authorization concepts and implementation in the Starter App, covering OAuth2/OIDC fundamentals and practical implementation using Keycloak.
+This guide explains the authorization concepts and implementation in the Cml Cloud Manager, covering OAuth2/OIDC fundamentals and practical implementation using Keycloak.
 
 ## Table of Contents
 
@@ -15,7 +15,7 @@ This guide explains the authorization concepts and implementation in the Starter
 
 Authorization determines **what** an authenticated user is allowed to do. While authentication verifies identity ("who are you?"), authorization controls access ("what can you do?").
 
-The Starter App implements **Role-Based Access Control (RBAC)** using OAuth2/OIDC standards with Keycloak as the identity provider.
+The Cml Cloud Manager implements **Role-Based Access Control (RBAC)** using OAuth2/OIDC standards with Keycloak as the identity provider.
 
 ### Key Authorization Components
 
@@ -23,7 +23,7 @@ The Starter App implements **Role-Based Access Control (RBAC)** using OAuth2/OID
 |-----------|---------|---------|
 | **Claims** | User attributes in JWT | `sub`, `email`, `name` |
 | **Scope** | Permission boundaries | `openid`, `profile`, `email` |
-| **Audience** | Intended recipient of token | `starter-app-api` |
+| **Audience** | Intended recipient of token | `cml-cloud-manager-api` |
 | **Roles** | User permissions/groups | `admin`, `user`, `guest` |
 
 ## OAuth2 Bouncer Analogy
@@ -96,7 +96,7 @@ graph TB
 
 ```json
 {
-  "aud": "starter-app-api"
+  "aud": "cml-cloud-manager-api"
 }
 ```
 
@@ -129,14 +129,14 @@ graph TB
 |---------------|--------------|-------------|---------|
 | **Claims** | "Who is this person?" | `sub`, `email`, `name` | Identity information |
 | **Scope** | "What areas can they see?" | `openid profile email` | Information access boundaries |
-| **Audience** | "Is this wristband for THIS club?" | `aud: "starter-app-api"` | Token validity for specific API |
+| **Audience** | "Is this wristband for THIS club?" | `aud: "cml-cloud-manager-api"` | Token validity for specific API |
 | **Role** | "What color wristband do they have?" | `realm_access.roles: ["admin"]` | Permission level |
 
 ## Implementation Guide
 
 ### Overview
 
-The Starter App implements authorization through:
+The Cml Cloud Manager implements authorization through:
 
 1. **JWT Verification**: Validates token signature, expiry, audience, and issuer
 2. **Role Extraction**: Extracts roles from `realm_access.roles` claim
@@ -221,9 +221,9 @@ def get_user_from_jwt(self, token: str) -> dict | None:
 ```python
 # Environment variables
 VERIFY_AUDIENCE=true
-EXPECTED_AUDIENCE=starter-app-api
+EXPECTED_AUDIENCE=cml-cloud-manager-api
 VERIFY_ISSUER=true
-EXPECTED_ISSUER=http://localhost:8180/realms/starter-app
+EXPECTED_ISSUER=http://localhost:8180/realms/cml-cloud-manager
 ```
 
 ### Step 2: Role Extraction
@@ -265,8 +265,8 @@ def _map_claims(self, payload: dict) -> dict:
   "realm_access": {
     "roles": ["admin", "user", "offline_access"]
   },
-  "aud": "starter-app-api",
-  "iss": "http://localhost:8180/realms/starter-app",
+  "aud": "cml-cloud-manager-api",
+  "iss": "http://localhost:8180/realms/cml-cloud-manager",
   "exp": 1735689600,
   "iat": 1735686000
 }
@@ -456,7 +456,7 @@ graph TB
     User[User Login]
     KC[Keycloak]
     Token[JWT Token]
-    API[Starter App API]
+    API[Cml Cloud Manager API]
     JWKS[JWKS Endpoint]
 
     User -->|1. Authenticate| KC
@@ -480,7 +480,7 @@ graph TB
 ```python
 # Environment variables
 VERIFY_AUDIENCE=true
-EXPECTED_AUDIENCE=starter-app-api
+EXPECTED_AUDIENCE=cml-cloud-manager-api
 ```
 
 This configures the JWT verification to check the `aud` claim:
@@ -502,30 +502,30 @@ payload = jwt.decode(
 Configure the audience mapper to add `aud` claim to tokens:
 
 1. **Navigate to Client Scopes**:
-   - Keycloak Admin Console → Realm (e.g., `starter-app`) → Client Scopes
+   - Keycloak Admin Console → Realm (e.g., `cml-cloud-manager`) → Client Scopes
 
 2. **Create Audience Mapper**:
-   - Select/create client scope (e.g., `starter-app-api-scope`)
+   - Select/create client scope (e.g., `cml-cloud-manager-api-scope`)
    - Click **Add mapper** → **By configuration** → **Audience**
 
 3. **Configure Mapper**:
 
    ```yaml
    Name: audience-mapper
-   Included Client Audience: starter-app-api  # Must match EXPECTED_AUDIENCE
+   Included Client Audience: cml-cloud-manager-api  # Must match EXPECTED_AUDIENCE
    Add to ID token: OFF
    Add to access token: ON
    ```
 
 4. **Assign to Client**:
-   - Clients → `starter-app-client` → Client Scopes
-   - Add `starter-app-api-scope` to **Assigned Default Client Scopes**
+   - Clients → `cml-cloud-manager-client` → Client Scopes
+   - Add `cml-cloud-manager-api-scope` to **Assigned Default Client Scopes**
 
 **Result:** JWT tokens will contain:
 
 ```json
 {
-  "aud": "starter-app-api"
+  "aud": "cml-cloud-manager-api"
 }
 ```
 
@@ -538,13 +538,13 @@ Configure the audience mapper to add `aud` claim to tokens:
 **Configuration:**
 
 1. **Create Client**:
-   - Clients → Create → Client ID: `starter-app-frontend`
+   - Clients → Create → Client ID: `cml-cloud-manager-frontend`
 
 2. **Settings**:
 
    ```yaml
-   Client ID: starter-app-frontend
-   Name: Starter App Frontend
+   Client ID: cml-cloud-manager-frontend
+   Name: Cml Cloud Manager Frontend
    Enabled: ON
    Client authentication: OFF  # Public client
    Standard flow: ENABLED       # Authorization Code Flow
@@ -558,11 +558,11 @@ Configure the audience mapper to add `aud` claim to tokens:
    ```
 
 3. **Client Scopes**:
-   - Assign `openid`, `profile`, `email`, `starter-app-api-scope`
+   - Assign `openid`, `profile`, `email`, `cml-cloud-manager-api-scope`
 
 **Flow:** Backend-for-Frontend (BFF) Pattern with Authorization Code Flow
 
-The starter-app uses a **Backend-for-Frontend (BFF)** pattern where the backend handles the OAuth2 flow and manages tokens server-side. The browser only receives an httpOnly session cookie.
+The cml-cloud-manager uses a **Backend-for-Frontend (BFF)** pattern where the backend handles the OAuth2 flow and manages tokens server-side. The browser only receives an httpOnly session cookie.
 
 ```mermaid
 sequenceDiagram
@@ -608,13 +608,13 @@ sequenceDiagram
 **Configuration:**
 
 1. **Create Client**:
-   - Clients → Create → Client ID: `starter-app-service`
+   - Clients → Create → Client ID: `cml-cloud-manager-service`
 
 2. **Settings**:
 
    ```yaml
-   Client ID: starter-app-service
-   Name: Starter App Backend Service
+   Client ID: cml-cloud-manager-service
+   Name: Cml Cloud Manager Backend Service
    Enabled: ON
    Client authentication: ON  # Confidential client
    Standard flow: DISABLED
@@ -651,10 +651,10 @@ import requests
 
 # Request token
 response = requests.post(
-    "http://localhost:8180/realms/starter-app/protocol/openid-connect/token",
+    "http://localhost:8180/realms/cml-cloud-manager/protocol/openid-connect/token",
     data={
         "grant_type": "client_credentials",
-        "client_id": "starter-app-service",
+        "client_id": "cml-cloud-manager-service",
         "client_secret": "your-client-secret",
     }
 )
@@ -670,7 +670,7 @@ response = requests.get("http://localhost:8000/api/tasks", headers=headers)
 #### Create Realm Roles
 
 1. **Navigate to Roles**:
-   - Keycloak Admin Console → Realm (e.g., `starter-app`) → Realm roles
+   - Keycloak Admin Console → Realm (e.g., `cml-cloud-manager`) → Realm roles
 
 2. **Create Roles**:
    - Click **Create role**
@@ -751,7 +751,7 @@ By default, Keycloak includes `realm_access.roles` in tokens. Verify this:
 #### Using Keycloak Admin Console
 
 1. **Navigate to Client**:
-   - Clients → `starter-app-client` → Client scopes tab
+   - Clients → `cml-cloud-manager-client` → Client scopes tab
 
 2. **Evaluate Token**:
    - Click **Evaluate** → Select user
@@ -762,9 +762,9 @@ By default, Keycloak includes `realm_access.roles` in tokens. Verify this:
 ```bash
 # Get token
 TOKEN=$(curl -s -X POST \
-  "http://localhost:8180/realms/starter-app/protocol/openid-connect/token" \
+  "http://localhost:8180/realms/cml-cloud-manager/protocol/openid-connect/token" \
   -d "grant_type=password" \
-  -d "client_id=starter-app-client" \
+  -d "client_id=cml-cloud-manager-client" \
   -d "username=admin@example.com" \
   -d "password=admin123" \
   | jq -r '.access_token')
@@ -832,7 +832,7 @@ Always verify audience to prevent token reuse:
 ```python
 # Environment
 VERIFY_AUDIENCE=true
-EXPECTED_AUDIENCE=starter-app-api
+EXPECTED_AUDIENCE=cml-cloud-manager-api
 ```
 
 ### 5. Use Short-Lived Tokens
@@ -967,10 +967,10 @@ JWT token invalid: Audience doesn't match
 
    ```python
    # Code
-   EXPECTED_AUDIENCE=starter-app-api
+   EXPECTED_AUDIENCE=cml-cloud-manager-api
 
    # JWT
-   "aud": "starter-app-api"  # ✅ Match
+   "aud": "cml-cloud-manager-api"  # ✅ Match
    ```
 
 ### Issue: User Has Unexpected Roles
@@ -1011,7 +1011,7 @@ JWT token invalid: Audience doesn't match
 
 2. **Client scope not assigned**
 
-   **Check:** Clients → `starter-app-client` → Client scopes
+   **Check:** Clients → `cml-cloud-manager-client` → Client scopes
 
    **Solution:** Ensure `roles` is in **Assigned Default Client Scopes**.
 

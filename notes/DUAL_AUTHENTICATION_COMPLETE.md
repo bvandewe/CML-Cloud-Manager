@@ -226,7 +226,7 @@ async def get_tasks(
 
 ### Keycloak Confidential Client
 
-**Client**: `starter-app-backend`
+**Client**: `cml-cloud-manager-backend`
 
 - **Type**: Confidential (has client secret)
 - **Purpose**: Secure token exchange for authorization code flow

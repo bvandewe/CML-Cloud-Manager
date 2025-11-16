@@ -1,6 +1,6 @@
 # Documentation
 
-This directory contains comprehensive documentation for the Starter App, organized by topic for easy reference.
+This directory contains comprehensive documentation for the Cml Cloud Manager, organized by topic for easy reference.
 
 ## 📚 Documentation Structure
 
@@ -130,7 +130,7 @@ All documentation follows these principles:
 - **Docker** → `infrastructure/docker-environment.md`
 - **Parcel/Build** → `frontend/build-process.md`
 
-## 🛠️ Using This Starter App
+## 🛠️ Using This Cml Cloud Manager
 
 This is a template/starter application. When adapting for your project:
 
@@ -239,4 +239,4 @@ For questions or issues:
 
 **Last Updated**: January 2025
 **Documentation Version**: 1.0
-**Starter App Version**: 1.0
+**Cml Cloud Manager Version**: 1.0

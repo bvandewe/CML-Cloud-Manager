@@ -15,8 +15,8 @@ Before you begin, ensure you have the following installed:
 1. **Clone the repository**:
 
     ```bash
-    git clone https://github.com/bvandewe/starter-app.git
-    cd starter-app
+    git clone https://github.com/bvandewe/cml-cloud-manager.git
+    cd cml-cloud-manager
     ```
 
 2. **Install Python dependencies**:
@@ -56,4 +56,4 @@ This repository is designed to be used as a template for new projects.
     python scripts/rename_project.py --new-name "Your New Project Name"
     ```
 
-    This will replace all occurrences of "Starter App" and its variants (e.g., `starter-app`, `starter_app`) with your new project name. It is recommended to run with the `--dry-run` flag first to see the changes before they are applied.
+    This will replace all occurrences of "Cml Cloud Manager" and its variants (e.g., `cml-cloud-manager`, `cml_cloud_manager`) with your new project name. It is recommended to run with the `--dry-run` flag first to see the changes before they are applied.

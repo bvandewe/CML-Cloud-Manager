@@ -42,8 +42,8 @@ OTEL_GRPC_URL := localhost:$(OTEL_COLLECTOR_PORT_GRPC)
 OTEL_HTTP_URL := localhost:$(OTEL_COLLECTOR_PORT_HTTP)
 
 # Documentation settings
-DOCS_SITE_NAME ?= "Starter App"
-DOCS_SITE_URL ?= "https://bvandewe.github.io/starter-app"
+DOCS_SITE_NAME ?= "Cml Cloud Manager"
+DOCS_SITE_URL ?= "https://bvandewe.github.io/cml-cloud-manager"
 DOCS_FOLDER ?= ./docs
 DOCS_DEV_PORT ?= 8000
 
@@ -61,7 +61,7 @@ NC := \033[0m # No Color
 ##@ General
 
 help: ## Display this help message
-	@echo "$(BLUE)Starter App - Development Commands$(NC)"
+	@echo "$(BLUE)Cml Cloud Manager - Development Commands$(NC)"
 	@echo ""
 	@awk 'BEGIN {FS = ":.*##"; printf "Usage:\n  make $(GREEN)<target>$(NC)\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  $(GREEN)%-20s$(NC) %s\n", $$1, $$2 } /^##@/ { printf "\n$(YELLOW)%s$(NC)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
@@ -182,12 +182,12 @@ dev-ui: ## Start UI development server with hot-reload
 	cd ui && npm run dev
 
 run: build-ui ## Run the application locally (requires build-ui first)
-	@echo "$(BLUE)Starting Starter App application...$(NC)"
+	@echo "$(BLUE)Starting Cml Cloud Manager application...$(NC)"
 	@echo "$(GREEN)Access at: http://localhost:8000$(NC)"
 	cd src && PYTHONPATH=. poetry run uvicorn main:create_app --factory --host 0.0.0.0 --port 8000 --reload
 
 run-debug: build-ui ## Run with debug logging
-	@echo "$(BLUE)Starting Starter App with debug logging...$(NC)"
+	@echo "$(BLUE)Starting Cml Cloud Manager with debug logging...$(NC)"
 	cd src && LOG_LEVEL=DEBUG PYTHONPATH=. poetry run uvicorn main:create_app --factory --host 0.0.0.0 --port 8000 --reload --log-level debug
 
 ##@ Testing & Quality
@@ -336,7 +336,7 @@ status: ## Show current status
 	@echo "    Event Player:  http://localhost:8085"
 
 info: ## Show project information
-	@echo "$(BLUE)Starter App - Project Information$(NC)"
+	@echo "$(BLUE)Cml Cloud Manager - Project Information$(NC)"
 	@echo ""
 	@echo "$(YELLOW)Local Development URLs:$(NC)"
 	@echo "  Main App:        http://localhost:8000"

@@ -1,6 +1,6 @@
 # Metrics Instrumentation Guide
 
-This guide covers how to implement metrics instrumentation in the Starter App using OpenTelemetry.
+This guide covers how to implement metrics instrumentation in the Cml Cloud Manager using OpenTelemetry.
 
 ## Table of Contents
 
@@ -80,7 +80,7 @@ meter = metrics.get_meter(__name__)
 
 # Create counter
 tasks_created = meter.create_counter(
-    name="starter_app.tasks.created",
+    name="cml_cloud_manager.tasks.created",
     description="Total tasks created",
     unit="1"
 )
@@ -93,10 +93,10 @@ tasks_created.add(1, {"priority": "high", "status": "pending"})
 
 ```promql
 # Tasks created per second
-rate(starter_app_tasks_created_total[5m])
+rate(cml_cloud_manager_tasks_created_total[5m])
 
 # Total tasks created in last hour
-increase(starter_app_tasks_created_total[1h])
+increase(cml_cloud_manager_tasks_created_total[1h])
 ```
 
 ### 2. UpDownCounter
@@ -115,7 +115,7 @@ increase(starter_app_tasks_created_total[1h])
 
 ```python
 active_tasks = meter.create_up_down_counter(
-    name="starter_app.tasks.active",
+    name="cml_cloud_manager.tasks.active",
     description="Number of active (non-completed) tasks",
     unit="1"
 )
@@ -131,10 +131,10 @@ active_tasks.add(-1, {"department": "engineering"})
 
 ```promql
 # Current active tasks
-starter_app_tasks_active
+cml_cloud_manager_tasks_active
 
 # Average active tasks over time
-avg_over_time(starter_app_tasks_active[5m])
+avg_over_time(cml_cloud_manager_tasks_active[5m])
 ```
 
 ### 3. Histogram
@@ -153,7 +153,7 @@ avg_over_time(starter_app_tasks_active[5m])
 
 ```python
 task_processing_time = meter.create_histogram(
-    name="starter_app.task.processing_time",
+    name="cml_cloud_manager.task.processing_time",
     description="Time to process tasks",
     unit="ms"
 )
@@ -171,11 +171,11 @@ task_processing_time.record(
 ```promql
 # 95th percentile processing time
 histogram_quantile(0.95,
-  rate(starter_app_task_processing_time_bucket[5m]))
+  rate(cml_cloud_manager_task_processing_time_bucket[5m]))
 
 # Average processing time
-rate(starter_app_task_processing_time_sum[5m]) /
-rate(starter_app_task_processing_time_count[5m])
+rate(cml_cloud_manager_task_processing_time_sum[5m]) /
+rate(cml_cloud_manager_task_processing_time_count[5m])
 ```
 
 ### 4. Gauge (Observable)
@@ -200,7 +200,7 @@ def get_memory_usage():
 
 # Create observable gauge
 meter.create_observable_gauge(
-    name="starter_app.memory.usage",
+    name="cml_cloud_manager.memory.usage",
     description="Current memory usage",
     unit="MB",
     callbacks=[get_memory_usage]
@@ -246,26 +246,26 @@ meter = metrics.get_meter(__name__)
 
 # Counters
 tasks_created = meter.create_counter(
-    name="starter_app.tasks.created",
+    name="cml_cloud_manager.tasks.created",
     description="Total tasks created",
     unit="1"
 )
 
 tasks_completed = meter.create_counter(
-    name="starter_app.tasks.completed",
+    name="cml_cloud_manager.tasks.completed",
     description="Total tasks completed",
     unit="1"
 )
 
 tasks_failed = meter.create_counter(
-    name="starter_app.tasks.failed",
+    name="cml_cloud_manager.tasks.failed",
     description="Total task failures",
     unit="1"
 )
 
 # Histograms
 task_processing_time = meter.create_histogram(
-    name="starter_app.task.processing_time",
+    name="cml_cloud_manager.task.processing_time",
     description="Time to process tasks",
     unit="ms"
 )
@@ -374,15 +374,15 @@ Follow OpenTelemetry semantic conventions:
 
 ```python
 # Good examples
-"starter_app.tasks.created"           # namespace.component.metric
-"starter_app.task.processing_time"
-"starter_app.database.queries"
-"starter_app.cache.hits"
+"cml_cloud_manager.tasks.created"           # namespace.component.metric
+"cml_cloud_manager.task.processing_time"
+"cml_cloud_manager.database.queries"
+"cml_cloud_manager.cache.hits"
 
 # Bad examples
 "TasksCreated"                        # No namespace, capitalized
 "tasks"                               # Too vague
-"starter_app_tasks_created_total"     # Wrong separator (use dots)
+"cml_cloud_manager_tasks_created_total"     # Wrong separator (use dots)
 ```
 
 **Units**: Use standard units
@@ -410,12 +410,12 @@ Be descriptive and consistent:
 
 ```python
 # Counters: Use noun (what is being counted)
-tasks_created = meter.create_counter("starter_app.tasks.created")
-requests_failed = meter.create_counter("starter_app.requests.failed")
+tasks_created = meter.create_counter("cml_cloud_manager.tasks.created")
+requests_failed = meter.create_counter("cml_cloud_manager.requests.failed")
 
 # Histograms: Use noun describing measured value
-request_duration = meter.create_histogram("starter_app.request.duration")
-payload_size = meter.create_histogram("starter_app.payload.size")
+request_duration = meter.create_histogram("cml_cloud_manager.request.duration")
+payload_size = meter.create_histogram("cml_cloud_manager.payload.size")
 ```
 
 ### 3. Attribute Design
@@ -604,13 +604,13 @@ from opentelemetry import metrics
 meter = metrics.get_meter(__name__)
 
 tasks_created = meter.create_counter(
-    name="starter_app.tasks.created",
+    name="cml_cloud_manager.tasks.created",
     description="Total tasks created",
     unit="1"
 )
 
 task_processing_time = meter.create_histogram(
-    name="starter_app.task.processing_time",
+    name="cml_cloud_manager.task.processing_time",
     description="Time to process task operations",
     unit="ms"
 )
@@ -684,13 +684,13 @@ Track API endpoint usage:
 ```python
 # src/observability/metrics.py
 api_requests = meter.create_counter(
-    name="starter_app.api.requests",
+    name="cml_cloud_manager.api.requests",
     description="Total API requests",
     unit="1"
 )
 
 api_request_duration = meter.create_histogram(
-    name="starter_app.api.request.duration",
+    name="cml_cloud_manager.api.request.duration",
     description="API request duration",
     unit="ms"
 )
@@ -738,13 +738,13 @@ Monitor database performance:
 ```python
 # src/observability/metrics.py
 db_queries = meter.create_counter(
-    name="starter_app.database.queries",
+    name="cml_cloud_manager.database.queries",
     description="Total database queries",
     unit="1"
 )
 
 db_query_duration = meter.create_histogram(
-    name="starter_app.database.query.duration",
+    name="cml_cloud_manager.database.query.duration",
     description="Database query duration",
     unit="ms"
 )
@@ -791,19 +791,19 @@ Track business-critical metrics:
 ```python
 # src/observability/metrics.py
 tasks_by_department = meter.create_counter(
-    name="starter_app.tasks.by_department",
+    name="cml_cloud_manager.tasks.by_department",
     description="Tasks created by department",
     unit="1"
 )
 
 high_priority_tasks = meter.create_up_down_counter(
-    name="starter_app.tasks.high_priority.active",
+    name="cml_cloud_manager.tasks.high_priority.active",
     description="Active high-priority tasks",
     unit="1"
 )
 
 task_completion_rate = meter.create_histogram(
-    name="starter_app.task.completion_time",
+    name="cml_cloud_manager.task.completion_time",
     description="Time from creation to completion",
     unit="hours"
 )

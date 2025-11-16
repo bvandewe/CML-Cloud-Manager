@@ -5,11 +5,11 @@ import pytest
 
 # Patterns representing the original starter branding variants.
 ORIGINAL_VARIANTS = [
-    "starter-app",
-    "starter_app",
-    "Starter App",
-    "StarterApp",
-    "STARTER_APP",
+    "cml-cloud-manager",
+    "cml_cloud_manager",
+    "Cml Cloud Manager",
+    "CmlCloudManager",
+    "CML_CLOUD_MANAGER",
 ]
 
 # File extensions to scan. Adjust as needed.
@@ -83,8 +83,8 @@ def test_no_starter_branding_left():
     """
     repo_root = Path(__file__).resolve().parents[1]
     # Auto-skip if still in original repo name unless forced
-    if repo_root.name == "starter-app" and os.getenv(FORCE_ENV) != "1":
-        pytest.skip("Repository still named starter-app; rename not yet applied.")
+    if repo_root.name == "cml-cloud-manager" and os.getenv(FORCE_ENV) != "1":
+        pytest.skip("Repository still named cml-cloud-manager; rename not yet applied.")
     offending = find_occurrences(repo_root)
     if offending:
         formatted = "\n".join(

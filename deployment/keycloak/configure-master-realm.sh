@@ -13,7 +13,7 @@ sleep 20
 
 # Configure kcadm credentials
 echo "📝 Configuring kcadm credentials..."
-docker exec starter-app-keycloak-1 /opt/keycloak/bin/kcadm.sh config credentials \
+docker exec cml-cloud-manager-keycloak-1 /opt/keycloak/bin/kcadm.sh config credentials \
   --server http://localhost:8080 \
   --realm master \
   --user admin \
@@ -21,7 +21,7 @@ docker exec starter-app-keycloak-1 /opt/keycloak/bin/kcadm.sh config credentials
 
 # Update master realm to disable SSL requirement
 echo "🔓 Disabling SSL requirement for master realm..."
-docker exec starter-app-keycloak-1 /opt/keycloak/bin/kcadm.sh update realms/master \
+docker exec cml-cloud-manager-keycloak-1 /opt/keycloak/bin/kcadm.sh update realms/master \
   -s sslRequired=NONE
 
 echo "✅ Master realm SSL configuration complete!"

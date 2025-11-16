@@ -62,7 +62,7 @@ nunjucks.configure('src/templates', { autoescape: true });
 
 // Render template
 const html = nunjucks.render('index.jinja', {
-    pageTitle: 'Starter App',
+    pageTitle: 'Cml Cloud Manager',
     environment: 'development'
 });
 

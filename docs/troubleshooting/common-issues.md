@@ -299,7 +299,7 @@ docker compose exec redis redis-cli KEYS "session:*"
 
 **Check Keycloak client config**:
 
-- Admin Console → Clients → starter-app-client
+- Admin Console → Clients → cml-cloud-manager-client
 - Valid Redirect URIs: `http://localhost:8020/*`
 - Web Origins: `http://localhost:8020`
 
@@ -337,7 +337,7 @@ docker compose exec mongodb mongosh -u root -p neuroglia123
 1. Verify connection string format:
 
    ```
-   mongodb://root:neuroglia123@mongodb:27017/starter_app?authSource=admin
+   mongodb://root:neuroglia123@mongodb:27017/cml_cloud_manager?authSource=admin
    ```
 
 2. Check network connectivity:

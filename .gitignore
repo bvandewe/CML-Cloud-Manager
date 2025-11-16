@@ -13,7 +13,7 @@ venv/
 ENV/
 env/
 .env
-.env.*
+# .env.*
 
 # Python distribution / packaging
 build/
@@ -117,3 +117,4 @@ Desktop.ini
 # MkDocs
 site/
 .mkdocs_cache/
+.memory

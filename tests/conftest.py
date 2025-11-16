@@ -115,7 +115,7 @@ async def mongo_db(
     mongo_client: AsyncIOMotorClient,
 ) -> AsyncGenerator[AgnosticDatabase, None]:
     """Provide a test database that is cleaned after each test."""
-    test_db_name: str = "test_starter_app"
+    test_db_name: str = "test_cml_cloud_manager"
     db: AgnosticDatabase = mongo_client[test_db_name]
     yield db
     # Cleanup: drop all collections after test
