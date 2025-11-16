@@ -20,7 +20,7 @@ graph TB
         B --> C[Scan for @backgroundjob classes]
         C --> D[Register as HostedService]
     end
-    
+
     subgraph "Job Scheduling"
         E[WorkerMonitoringScheduler] --> F[BackgroundTasksBus]
         F --> G[BackgroundTaskScheduler]
@@ -28,12 +28,12 @@ graph TB
         H -->|Scheduled| I[One-time execution]
         H -->|Recurrent| J[Periodic execution]
     end
-    
+
     subgraph "Job Persistence"
         G --> K[(Redis/MongoDB)]
         K --> L[Job Recovery on Restart]
     end
-    
+
     subgraph "Job Execution"
         I --> M[run_at method]
         J --> N[run_every method]
@@ -96,12 +96,12 @@ from application.services import RecurrentBackgroundJob, backgroundjob
 class MyPeriodicJob(RecurrentBackgroundJob):
     def __init__(self, resource_id: str):
         self.resource_id = resource_id
-        
+
     def configure(self, service_provider=None, **kwargs):
         """Called after deserialization to inject dependencies"""
         if service_provider:
             self.repository = service_provider.get_required_service(MyRepository)
-    
+
     async def run_every(self, *args, **kwargs):
         """Executed at each interval"""
         # Job logic here
@@ -137,7 +137,7 @@ class Settings(ApplicationSettings):
         "redis_host": "redis",
         "redis_port": 6379,
         "redis_db": 1,  # Separate from session storage (DB 0)
-        
+
         # Alternative: MongoDB configuration
         # "mongo_uri": "mongodb://root:pass@mongodb:27017/?authSource=admin",  # pragma: allowlist secret
         # "mongo_db": "cml_cloud_manager",
@@ -248,7 +248,7 @@ Jobs check for worker state and terminate gracefully:
 ```python
 async def run_every(self, *args, **kwargs):
     worker = await self.worker_repository.get_by_id_async(self.worker_id)
-    
+
     if not worker or worker.state.status == CMLWorkerStatus.TERMINATED:
         raise Exception(f"Worker terminated - stopping job")
 ```
