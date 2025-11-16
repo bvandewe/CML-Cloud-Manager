@@ -59,8 +59,29 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
         """
         self.worker_id = worker_id
         self.aws_ec2_client = aws_ec2_client
-        self.worker_repository = worker_repository
-        self._observers: List[Callable[[Dict[str, Any]], None]] = []
+        self._service_provider = None  # Will be set during configure()
+        self._observers: List[Callable[[Dict[str, Any]], None]] = (
+            []
+        )  # Always initialize
+
+    def __getstate__(self):
+        """Custom pickle serialization - exclude unpicklable objects."""
+        state = self.__dict__.copy()
+        # Remove unpicklable attributes
+        state["_observers"] = []  # Don't serialize observers
+        state["_notification_handler"] = (
+            None  # Don't serialize handler (will be re-resolved)
+        )
+        state["aws_ec2_client"] = None  # Don't serialize client (will be re-injected)
+        state["_service_provider"] = None  # Don't serialize service provider
+        return state
+
+    def __setstate__(self, state):
+        """Custom pickle deserialization - restore state."""
+        self.__dict__.update(state)
+        # Ensure lists are initialized
+        if "_observers" not in self.__dict__:
+            self._observers = []
 
     def configure(self, service_provider=None, **kwargs):
         """Configure the background job with dependencies.
@@ -72,25 +93,52 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
             service_provider: Service provider for dependency injection
             **kwargs: Additional configuration parameters
         """
-        # Inject dependencies from service provider if not already set
+        logger.info(
+            f"🔧 Configuring WorkerMetricsCollectionJob for worker {self.worker_id if hasattr(self, 'worker_id') else 'UNKNOWN'}"
+        )
+
+        # Store service provider for creating scopes when needed
         if service_provider:
-            if not self.aws_ec2_client:
+            self._service_provider = service_provider
+
+            # Inject singleton dependencies from service provider if not already set
+            if not hasattr(self, "aws_ec2_client") or not self.aws_ec2_client:
                 from integration.services.aws_ec2_api_client import AwsEc2Client
 
                 self.aws_ec2_client = service_provider.get_required_service(
                     AwsEc2Client
                 )
-                logger.debug(f"Injected AwsEc2Client for worker {self.worker_id}")
+                logger.info(f"✅ Injected AwsEc2Client for worker {self.worker_id}")
 
-            if not self.worker_repository:
-                from domain.repositories import CMLWorkerRepository
-
-                self.worker_repository = service_provider.get_required_service(
-                    CMLWorkerRepository
+            # Get notification handler from service provider (don't store it to avoid pickle issues)
+            # We'll look it up each time we need to notify
+            try:
+                from application.services.worker_notification_handler import (
+                    WorkerNotificationHandler,
                 )
+
+                self._notification_handler = service_provider.get_required_service(
+                    WorkerNotificationHandler
+                )
+                logger.info(
+                    f"✅ Resolved WorkerNotificationHandler for worker {self.worker_id}"
+                )
+            except Exception as e:
+                logger.warning(f"⚠️ Could not resolve WorkerNotificationHandler: {e}")
+                self._notification_handler = None
+
+            # Ensure _observers list exists (for backwards compatibility)
+            if not hasattr(self, "_observers"):
+                self._observers = []
                 logger.debug(
-                    f"Injected CMLWorkerRepository for worker {self.worker_id}"
+                    f"✅ Initialized _observers list for worker {self.worker_id}"
                 )
+
+            logger.info(f"✅ Configuration complete for worker {self.worker_id}")
+        else:
+            logger.warning(
+                f"⚠️ configure() called without service_provider for worker {self.worker_id if hasattr(self, 'worker_id') else 'UNKNOWN'}"
+            )
 
     def subscribe(self, observer: Callable[[Dict[str, Any]], None]) -> None:
         """Subscribe an observer to metrics events.
@@ -125,16 +173,26 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
         6. Emit metrics events to observers
         """
         # Ensure dependencies are injected
-        assert self.worker_repository is not None, "worker_repository not injected"
-        assert self.aws_ec2_client is not None, "aws_ec2_client not injected"
+        assert (
+            hasattr(self, "aws_ec2_client") and self.aws_ec2_client is not None
+        ), "aws_ec2_client not injected"
+        assert (
+            hasattr(self, "_service_provider") and self._service_provider is not None
+        ), "service_provider not configured"
 
         with tracer.start_as_current_span("collect_worker_metrics") as span:
             span.set_attribute("worker_id", self.worker_id)
             span.set_attribute("job_id", self.__task_id__ or "unknown")
 
+            # Create a scope to access scoped services
+            scope = self._service_provider.create_scope()
             try:
+                from domain.repositories import CMLWorkerRepository
+
+                worker_repository = scope.get_required_service(CMLWorkerRepository)
+
                 # 1. Load worker from repository
-                worker = await self.worker_repository.get_by_id_async(self.worker_id)
+                worker = await worker_repository.get_by_id_async(self.worker_id)
                 if not worker:
                     logger.warning(
                         f"⚠️ Worker {self.worker_id} not found in repository - stopping job"
@@ -244,7 +302,7 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
                         )
 
                 # 6. Persist changes to repository
-                await self.worker_repository.update_async(worker)
+                await worker_repository.update_async(worker)
 
                 # 7. Build metrics event payload
                 metrics_data: Dict[str, Any] = {
@@ -266,13 +324,27 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
                         "end_time": metrics.end_time.isoformat(),
                     }
 
-                # 8. Notify all observers (synchronous callbacks)
+                # 8. Notify observers and notification handler
+                # First notify old-style observers (for backwards compatibility)
                 for observer in self._observers:
                     try:
                         observer(metrics_data)
                     except Exception as e:
                         logger.error(
                             f"❌ Observer failed to handle metrics: {e}", exc_info=True
+                        )
+
+                # Then notify the notification handler from service provider
+                if (
+                    hasattr(self, "_notification_handler")
+                    and self._notification_handler
+                ):
+                    try:
+                        self._notification_handler(metrics_data)
+                    except Exception as e:
+                        logger.error(
+                            f"❌ WorkerNotificationHandler failed to handle metrics: {e}",
+                            exc_info=True,
                         )
 
                 logger.debug(
@@ -287,6 +359,9 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
                 )
                 span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
                 raise  # Let APScheduler handle retry logic
+            finally:
+                # Dispose the scope to release scoped services
+                scope.dispose()
 
     def _map_ec2_state_to_cml_status(self, ec2_state: str) -> CMLWorkerStatus:
         """Map EC2 instance state to CML Worker status.
@@ -308,4 +383,5 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
 
         return state_mapping.get(ec2_state, CMLWorkerStatus.UNKNOWN)
 
+        return state_mapping.get(ec2_state, CMLWorkerStatus.UNKNOWN)
         return state_mapping.get(ec2_state, CMLWorkerStatus.UNKNOWN)

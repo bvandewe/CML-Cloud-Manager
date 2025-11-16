@@ -161,9 +161,15 @@ class BackgroundTaskSchedulerOptions:
         return self.type_maps.get(name)
 
 
-async def scheduled_job_wrapper(task: ScheduledBackgroundJob, **kwargs):
-    """Wrapper function for scheduled jobs."""
+async def scheduled_job_wrapper(
+    task: ScheduledBackgroundJob, service_provider=None, **kwargs
+):
+    """Wrapper function for scheduled (one-time) jobs."""
     try:
+        # Configure dependencies if task supports it (for jobs loaded from persistence)
+        if hasattr(task, "configure") and service_provider:
+            task.configure(service_provider=service_provider)
+
         log.debug(
             f"Executing scheduled job: {task.__task_name__} (ID: {task.__task_id__})"
         )
@@ -173,9 +179,15 @@ async def scheduled_job_wrapper(task: ScheduledBackgroundJob, **kwargs):
         raise
 
 
-async def recurrent_job_wrapper(task: RecurrentBackgroundJob, **kwargs):
+async def recurrent_job_wrapper(
+    task: RecurrentBackgroundJob, service_provider=None, **kwargs
+):
     """Wrapper function for recurrent jobs."""
     try:
+        # Configure dependencies if task supports it (for jobs loaded from persistence)
+        if hasattr(task, "configure") and service_provider:
+            task.configure(service_provider=service_provider)
+
         log.debug(
             f"Executing recurrent job: {task.__task_name__} (ID: {task.__task_id__})"
         )
@@ -360,6 +372,8 @@ class BackgroundTaskScheduler(HostedService):
                 log.debug(
                     f"Scheduling one-time job: {task.__task_name__} at {task.__scheduled_at__}"
                 )
+                # Add service_provider to kwargs for dependency injection
+                kwargs["service_provider"] = self._service_provider
                 self._scheduler.add_job(
                     scheduled_job_wrapper,
                     trigger="date",
@@ -374,6 +388,8 @@ class BackgroundTaskScheduler(HostedService):
                 log.debug(
                     f"Scheduling recurrent job: {task.__task_name__} every {task.__interval__} seconds"
                 )
+                # Add service_provider to kwargs for dependency injection
+                kwargs["service_provider"] = self._service_provider
                 self._scheduler.add_job(
                     recurrent_job_wrapper,
                     trigger="interval",
@@ -484,11 +500,15 @@ class BackgroundTaskScheduler(HostedService):
                 if all(key in job_store_config for key in redis_keys):
                     if RedisJobStore is not None:
                         jobstores["default"] = RedisJobStore(
+                            db=job_store_config["redis_db"],
+                            jobs_key="apscheduler.jobs",
+                            run_times_key="apscheduler.run_times",
                             host=job_store_config["redis_host"],
                             port=job_store_config["redis_port"],
-                            db=job_store_config["redis_db"],
                         )
-                        log.info("Configured Redis job store for background tasks")
+                        log.info(
+                            f"Configured Redis job store for background tasks (host={job_store_config['redis_host']}, db={job_store_config['redis_db']})"
+                        )
                     else:
                         log.warning(
                             "Redis job store requested but Redis dependencies not available"
