@@ -1,6 +1,8 @@
 """Main application entry point with SubApp mounting."""
 
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -51,36 +53,24 @@ log = logging.getLogger(__name__)
 _monitoring_scheduler: WorkerMonitoringScheduler | None = None
 
 
-def configure_worker_monitoring(
-    app: FastAPI,
-) -> None:
-    """Configure worker monitoring services and lifecycle hooks.
+@asynccontextmanager
+async def lifespan_with_monitoring(app: FastAPI) -> AsyncIterator[None]:
+    """Lifespan context manager for worker monitoring startup and shutdown.
 
-    Registers BackgroundTaskScheduler and WorkerMonitoringScheduler with
-    their dependencies. Adds startup/shutdown hooks for the monitoring system.
+    Manages the lifecycle of the worker monitoring scheduler:
+    - Startup: Creates and starts the monitoring scheduler with scoped dependencies
+    - Shutdown: Stops the monitoring scheduler
 
     Args:
         app: FastAPI application instance with configured services
+
+    Yields:
+        Control to the application during its runtime
     """
-    if not app_settings.worker_monitoring_enabled:
-        log.info("⚠️ Worker monitoring disabled in settings")
-        return
+    global _monitoring_scheduler
 
-    log.info("📊 Configuring worker monitoring system with APScheduler...")
-
-    # Add lifecycle hooks
-    @app.on_event("startup")
-    async def start_monitoring() -> None:
-        """Start worker monitoring on application startup.
-
-        Creates monitoring scheduler with scoped dependencies and starts it.
-        BackgroundTaskScheduler starts automatically as a HostedService.
-        """
-        global _monitoring_scheduler
-
-        if not app_settings.worker_monitoring_enabled:
-            return
-
+    # Startup
+    if app_settings.worker_monitoring_enabled:
         log.info("🚀 Starting worker monitoring scheduler...")
 
         # Create a scope to access scoped services like repositories
@@ -115,17 +105,36 @@ def configure_worker_monitoring(
             # Start the scheduler
             await _monitoring_scheduler.start_async()
 
-    @app.on_event("shutdown")
-    async def stop_monitoring() -> None:
-        """Stop worker monitoring on application shutdown.
+        log.info("✅ Worker monitoring scheduler started")
+    else:
+        log.info("⚠️ Worker monitoring disabled in settings")
 
-        BackgroundTaskScheduler stops automatically as a HostedService.
-        This just stops the monitoring jobs.
-        """
-        if _monitoring_scheduler:
-            log.info("🛑 Stopping worker monitoring scheduler...")
-            await _monitoring_scheduler.stop_async()
+    yield  # Application runs
 
+    # Shutdown
+    if _monitoring_scheduler:
+        log.info("🛑 Stopping worker monitoring scheduler...")
+        await _monitoring_scheduler.stop_async()
+        log.info("✅ Worker monitoring scheduler stopped")
+
+
+def configure_worker_monitoring(
+    app: FastAPI,
+) -> None:
+    """Configure worker monitoring services and lifecycle hooks.
+
+    Note: This function is now a placeholder for backwards compatibility.
+    The actual lifecycle management is handled by the lifespan_with_monitoring
+    context manager which is integrated into the application build process.
+
+    Args:
+        app: FastAPI application instance with configured services
+    """
+    if not app_settings.worker_monitoring_enabled:
+        log.info("⚠️ Worker monitoring disabled in settings")
+        return
+
+    log.info("📊 Worker monitoring will be configured via lifespan events")
     log.info("✅ Worker monitoring services configured with APScheduler")
 
 
@@ -247,6 +256,14 @@ def create_app() -> FastAPI:
         version="1.0.0",
         debug=True,
     )
+
+    # Integrate worker monitoring lifespan
+    # Since build_app_with_lifespan already manages core lifespan,
+    # we add monitoring as an additional router with lifespan
+    from fastapi import APIRouter
+
+    monitoring_router = APIRouter(lifespan=lifespan_with_monitoring)
+    app.include_router(monitoring_router)
 
     # Configure OpenAPI path prefixes for all mounted sub-apps
     configure_mounted_apps_openapi_prefix(app)
