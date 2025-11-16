@@ -4,13 +4,16 @@
  */
 
 import * as workersApi from '../api/workers.js';
+import * as systemApi from '../api/system.js';
 import { showToast } from './notifications.js';
+import { isAdmin, isAdminOrManager } from '../utils/roles.js';
 import * as bootstrap from 'bootstrap';
 
 // Store current user and workers data
 let currentUser = null;
 let workersData = [];
 let currentRegion = 'us-east-1';
+let currentWorkerDetails = null; // Store current worker for refresh
 
 /**
  * Initialize workers view based on user role
@@ -56,6 +59,13 @@ function hasAdminAccess(user) {
  */
 function initializeAdminView() {
     console.log('Initializing admin view for workers');
+
+    // Hide admin-only buttons for managers
+    if (!isAdmin()) {
+        document.querySelectorAll('.admin-only-element').forEach(el => {
+            el.style.display = 'none';
+        });
+    }
 }
 
 /**
@@ -111,6 +121,7 @@ function setupEventListeners() {
     setupImportWorkerModal();
     setupLicenseModal();
     setupTabHandlers();
+    setupRefreshButton();
 }
 
 /**
@@ -637,9 +648,12 @@ async function showWorkerDetails(workerId, region) {
         return;
     }
 
+    // Store current worker for refresh
+    currentWorkerDetails = { id: workerId, region: region };
+
     // Show/hide admin-only tabs based on user role
     const adminTabs = document.querySelectorAll('.admin-only-tab');
-    if (hasAdminAccess(currentUser)) {
+    if (isAdmin()) {
         adminTabs.forEach(tab => (tab.style.display = 'block'));
     } else {
         adminTabs.forEach(tab => (tab.style.display = 'none'));
@@ -842,28 +856,158 @@ async function loadEC2Tab() {
 }
 
 /**
- * Load jobs tab data (admin only)
+ * Load jobs tab data
  */
 async function loadJobsTab() {
     const jobsContent = document.getElementById('worker-details-jobs');
 
     jobsContent.innerHTML = '<div class="text-center py-4"><div class="spinner-border"></div><p class="mt-2">Loading scheduler jobs...</p></div>';
 
-    // Placeholder for scheduler jobs endpoint
-    setTimeout(() => {
-        jobsContent.innerHTML = `
-            <div class="alert alert-warning">
-                <i class="bi bi-tools"></i> Scheduler jobs integration coming soon
-            </div>
-            <p class="text-muted">This will show APScheduler jobs related to this worker including:</p>
-            <ul class="text-muted">
-                <li>Monitoring jobs</li>
-                <li>Metrics collection jobs</li>
-                <li>Health check jobs</li>
-                <li>Reconciliation jobs</li>
-            </ul>
+    try {
+        const jobs = await systemApi.getSchedulerJobs();
+
+        if (!Array.isArray(jobs) || jobs.length === 0) {
+            jobsContent.innerHTML = `
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> No scheduler jobs found
+                </div>
+            `;
+            return;
+        }
+
+        let html = `
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Job ID</th>
+                            <th>Name</th>
+                            <th>Next Run</th>
+                            <th>Trigger</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
         `;
-    }, 500);
+
+        jobs.forEach(job => {
+            const nextRun = job.next_run_time || 'N/A';
+            const statusBadge = job.pending ? '<span class="badge bg-warning">Pending</span>' : '<span class="badge bg-success">Scheduled</span>';
+
+            html += `
+                <tr>
+                    <td><code class="small">${escapeHtml(job.id)}</code></td>
+                    <td>${escapeHtml(job.name || job.func || 'Unknown')}</td>
+                    <td>${escapeHtml(nextRun)}</td>
+                    <td><small class="text-muted">${escapeHtml(job.trigger || 'N/A')}</small></td>
+                    <td>${statusBadge}</td>
+                </tr>
+            `;
+        });
+
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        jobsContent.innerHTML = html;
+    } catch (error) {
+        console.error('Failed to load scheduler jobs:', error);
+        jobsContent.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-circle"></i> ${escapeHtml(error.message || 'Failed to load scheduler jobs')}
+            </div>
+        `;
+    }
+}
+
+/**
+ * Load monitoring tab data
+ */
+async function loadMonitoringTab() {
+    const monitoringContent = document.getElementById('worker-details-monitoring');
+
+    monitoringContent.innerHTML = '<div class="text-center py-4"><div class="spinner-border"></div><p class="mt-2">Loading monitoring status...</p></div>';
+
+    try {
+        const status = await systemApi.getWorkerMonitoringStatus();
+
+        let html = `
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-subtitle mb-2 text-muted">Scheduler Status</h6>
+                            <p class="card-text">
+                                <strong>Running:</strong>
+                                <span class="badge ${status.scheduler_running ? 'bg-success' : 'bg-danger'}">
+                                    ${status.scheduler_running ? 'Yes' : 'No'}
+                                </span>
+                            </p>
+                            <p class="card-text">
+                                <strong>Status:</strong>
+                                <span class="badge ${status.status === 'active' ? 'bg-success' : status.status === 'inactive' ? 'bg-secondary' : 'bg-danger'}">
+                                    ${escapeHtml(status.status)}
+                                </span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-subtitle mb-2 text-muted">Monitoring Jobs</h6>
+                            <p class="card-text">
+                                <strong>Active Jobs:</strong> ${status.monitoring_job_count || 0}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        if (status.jobs && Array.isArray(status.jobs) && status.jobs.length > 0) {
+            html += `
+                <h6 class="mb-3">Active Monitoring Jobs</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead>
+                            <tr>
+                                <th>Job ID</th>
+                                <th>Name</th>
+                                <th>Next Run</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            status.jobs.forEach(job => {
+                html += `
+                    <tr>
+                        <td><code class="small">${escapeHtml(job.id)}</code></td>
+                        <td>${escapeHtml(job.name)}</td>
+                        <td>${escapeHtml(job.next_run_time || 'N/A')}</td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        monitoringContent.innerHTML = html;
+    } catch (error) {
+        console.error('Failed to load monitoring status:', error);
+        monitoringContent.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-circle"></i> ${escapeHtml(error.message || 'Failed to load monitoring status')}
+            </div>
+        `;
+    }
 }
 
 /**
@@ -898,6 +1042,7 @@ function setupTabHandlers() {
     const metricsTab = document.getElementById('metrics-tab');
     const ec2Tab = document.getElementById('ec2-tab');
     const jobsTab = document.getElementById('jobs-tab');
+    const monitoringTab = document.getElementById('monitoring-tab');
     const eventsTab = document.getElementById('events-tab');
 
     if (metricsTab) {
@@ -912,8 +1057,53 @@ function setupTabHandlers() {
         jobsTab.addEventListener('shown.bs.tab', loadJobsTab);
     }
 
+    if (monitoringTab) {
+        monitoringTab.addEventListener('shown.bs.tab', loadMonitoringTab);
+    }
+
     if (eventsTab) {
         eventsTab.addEventListener('shown.bs.tab', loadEventsTab);
+    }
+}
+
+/**
+ * Setup refresh button handler
+ */
+function setupRefreshButton() {
+    const refreshBtn = document.getElementById('refresh-worker-details');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', async () => {
+            if (currentWorkerDetails) {
+                const { id, region } = currentWorkerDetails;
+
+                // Disable button during refresh
+                refreshBtn.disabled = true;
+                const originalHtml = refreshBtn.innerHTML;
+                refreshBtn.innerHTML = '<i class="bi bi-arrow-clockwise spinner-border spinner-border-sm"></i> Refreshing...';
+
+                try {
+                    showToast('Refreshing worker state from AWS...', 'info');
+
+                    // Call refresh endpoint - this will:
+                    // 1. Query AWS for latest worker status
+                    // 2. Update DB with current state
+                    // 3. Start monitoring if not already active
+                    const refreshedWorker = await workersApi.refreshWorker(region, id);
+
+                    showToast('Worker state refreshed successfully', 'success');
+
+                    // Reload the worker details modal with fresh data
+                    await showWorkerDetails(id, region);
+                } catch (error) {
+                    console.error('Failed to refresh worker:', error);
+                    showToast(error.message || 'Failed to refresh worker state', 'error');
+                } finally {
+                    // Re-enable button
+                    refreshBtn.disabled = false;
+                    refreshBtn.innerHTML = originalHtml;
+                }
+            }
+        });
     }
 }
 
@@ -930,6 +1120,11 @@ function showLicenseModal(workerId, region) {
  * Start a worker
  */
 async function startWorker(workerId, region) {
+    if (!isAdmin()) {
+        showToast('Permission denied. Only administrators can start workers.', 'error');
+        return;
+    }
+
     if (!confirm('Are you sure you want to start this worker?')) return;
 
     try {
@@ -946,6 +1141,11 @@ async function startWorker(workerId, region) {
  * Stop a worker
  */
 async function stopWorker(workerId, region) {
+    if (!isAdmin()) {
+        showToast('Permission denied. Only administrators can stop workers.', 'error');
+        return;
+    }
+
     if (!confirm('Are you sure you want to stop this worker?')) return;
 
     try {
@@ -962,6 +1162,11 @@ async function stopWorker(workerId, region) {
  * Confirm and terminate a worker
  */
 async function confirmTerminateWorker(workerId, region, name) {
+    if (!isAdmin()) {
+        showToast('Permission denied. Only administrators can terminate workers.', 'error');
+        return;
+    }
+
     if (!confirm(`Are you sure you want to TERMINATE "${name}"? This action cannot be undone!`)) {
         return;
     }

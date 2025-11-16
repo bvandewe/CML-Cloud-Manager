@@ -166,10 +166,16 @@
                             <i class="bi bi-hdd-stack"></i> EC2 Instance
                         </button>
                     </li>
-                    <li class="nav-item admin-only-tab" role="presentation" style="display: none;">
+                    <li class="nav-item" role="presentation">
                         <button class="nav-link" id="jobs-tab" data-bs-toggle="tab" data-bs-target="#jobs-panel"
                             type="button" role="tab">
                             <i class="bi bi-clock-history"></i> Scheduler Jobs
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="monitoring-tab" data-bs-toggle="tab"
+                            data-bs-target="#monitoring-panel" type="button" role="tab">
+                            <i class="bi bi-activity"></i> Monitoring
                         </button>
                     </li>
                     <li class="nav-item admin-only-tab" role="presentation" style="display: none;">
@@ -212,12 +218,22 @@
                         </div>
                     </div>
 
-                    <!-- Jobs Tab (Admin Only) -->
+                    <!-- Jobs Tab -->
                     <div class="tab-pane fade" id="jobs-panel" role="tabpanel">
                         <div id="worker-details-jobs">
                             <div class="text-center py-5 text-muted">
                                 <i class="bi bi-clock-history fs-1 d-block mb-3"></i>
                                 <p>Scheduler jobs will appear here</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Monitoring Tab -->
+                    <div class="tab-pane fade" id="monitoring-panel" role="tabpanel">
+                        <div id="worker-details-monitoring">
+                            <div class="text-center py-5 text-muted">
+                                <i class="bi bi-activity fs-1 d-block mb-3"></i>
+                                <p>Worker monitoring status will appear here</p>
                             </div>
                         </div>
                     </div>
@@ -234,6 +250,9 @@
                 </div>
             </div>
             <div class="modal-footer">
+                <button type="button" class="btn btn-primary" id="refresh-worker-details">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
