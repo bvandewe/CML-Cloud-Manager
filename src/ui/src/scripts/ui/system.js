@@ -98,14 +98,30 @@ async function loadSchedulerStatus() {
     } catch (error) {
         console.error('Failed to load scheduler status:', error);
         const container = document.getElementById('scheduler-status');
-        if (container && error.message && error.message.includes('Permission denied')) {
-            container.innerHTML = `
-                <div class="alert alert-warning">
-                    <i class="bi bi-shield-lock me-2"></i>
-                    ${error.message}
-                </div>
-            `;
-        } else {
+
+        // Check if it's a permission error
+        const isPermissionError = error.message && error.message.includes('Permission denied');
+
+        if (container) {
+            if (isPermissionError) {
+                container.innerHTML = `
+                    <div class="alert alert-warning">
+                        <i class="bi bi-shield-lock me-2"></i>
+                        ${error.message}
+                    </div>
+                `;
+            } else {
+                container.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-circle me-2"></i>
+                        Failed to load scheduler status
+                    </div>
+                `;
+            }
+        }
+
+        // Only show toast for non-permission errors
+        if (!isPermissionError) {
             showToast('Failed to load scheduler status', 'error');
         }
     }
@@ -180,14 +196,30 @@ async function loadWorkerMonitoring() {
     } catch (error) {
         console.error('Failed to load worker monitoring:', error);
         const container = document.getElementById('worker-monitoring');
-        if (container && error.message && error.message.includes('Permission denied')) {
-            container.innerHTML = `
-                <div class="alert alert-warning">
-                    <i class="bi bi-shield-lock me-2"></i>
-                    ${error.message}
-                </div>
-            `;
-        } else {
+
+        // Check if it's a permission error
+        const isPermissionError = error.message && error.message.includes('Permission denied');
+
+        if (container) {
+            if (isPermissionError) {
+                container.innerHTML = `
+                    <div class="alert alert-warning">
+                        <i class="bi bi-shield-lock me-2"></i>
+                        ${error.message}
+                    </div>
+                `;
+            } else {
+                container.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-circle me-2"></i>
+                        Failed to load worker monitoring
+                    </div>
+                `;
+            }
+        }
+
+        // Only show toast for non-permission errors
+        if (!isPermissionError) {
             showToast('Failed to load worker monitoring', 'error');
         }
     }
@@ -207,14 +239,30 @@ async function loadMetricsCollectors() {
     } catch (error) {
         console.error('Failed to load metrics collectors:', error);
         const container = document.getElementById('metrics-collectors');
-        if (container && error.message && error.message.includes('Permission denied')) {
-            container.innerHTML = `
-                <div class="alert alert-warning">
-                    <i class="bi bi-shield-lock me-2"></i>
-                    ${error.message}
-                </div>
-            `;
-        } else {
+
+        // Check if it's a permission error
+        const isPermissionError = error.message && error.message.includes('Permission denied');
+
+        if (container) {
+            if (isPermissionError) {
+                container.innerHTML = `
+                    <div class="alert alert-warning">
+                        <i class="bi bi-shield-lock me-2"></i>
+                        ${error.message}
+                    </div>
+                `;
+            } else {
+                container.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-circle me-2"></i>
+                        Failed to load metrics collectors
+                    </div>
+                `;
+            }
+        }
+
+        // Only show toast for non-permission errors
+        if (!isPermissionError) {
             showToast('Failed to load metrics collectors', 'error');
         }
     }
