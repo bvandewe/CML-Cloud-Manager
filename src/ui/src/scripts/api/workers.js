@@ -117,6 +117,19 @@ export async function registerLicense(region, workerId, licenseToken) {
 }
 
 /**
+ * Refresh worker state from AWS and ensure monitoring is active
+ * @param {string} region - AWS region
+ * @param {string} workerId - Worker UUID
+ * @returns {Promise<Object>}
+ */
+export async function refreshWorker(region, workerId) {
+    const response = await apiRequest(`/api/workers/region/${region}/workers/${workerId}/refresh`, {
+        method: 'POST',
+    });
+    return await response.json();
+}
+
+/**
  * Update worker tags
  * @param {string} region - AWS region
  * @param {string} workerId - Worker UUID

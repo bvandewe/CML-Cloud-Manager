@@ -303,6 +303,56 @@ class WorkersController(ControllerBase):
         return self.process(await self.mediator.execute_async(command))
 
     @post(
+        "/region/{aws_region}/workers/{worker_id}/refresh",
+        response_model=Any,
+        status_code=200,
+        responses=ControllerBase.error_responses,
+    )
+    async def refresh_worker(
+        self,
+        aws_region: aws_region_annotation,
+        worker_id: worker_id_annotation,
+        token: str = Depends(get_current_user),
+    ) -> Any:
+        """Refreshes worker state from AWS and ensures monitoring is active.
+
+        This endpoint:
+        1. Queries AWS for the latest worker status and metrics
+        2. Updates the worker state in the database
+        3. Starts monitoring if not already active (for running/pending workers)
+
+        (**Requires valid token.**)"""
+        logger.info(f"Refreshing CML worker {worker_id} in region {aws_region}")
+
+        # First, query the latest worker details
+        query = GetCMLWorkerByIdQuery(worker_id=worker_id)
+        worker_result = await self.mediator.execute_async(query)
+
+        if not worker_result or not worker_result.is_success():
+            raise HTTPException(status_code=404, detail=f"Worker {worker_id} not found")
+
+        # Update status from AWS
+        status_command = UpdateCMLWorkerStatusCommand(worker_id=worker_id)
+        await self.mediator.execute_async(status_command)
+
+        # Get the monitoring scheduler from main module
+        from main import _monitoring_scheduler
+
+        # If monitoring is enabled and scheduler exists, ensure worker is being monitored
+        if _monitoring_scheduler:
+            try:
+                await _monitoring_scheduler.start_monitoring_worker_async(worker_id)
+                logger.info(f"✅ Monitoring started/verified for worker {worker_id}")
+            except Exception as e:
+                logger.warning(
+                    f"⚠️ Could not start monitoring for worker {worker_id}: {e}"
+                )
+
+        # Return the refreshed worker details
+        refreshed_query = GetCMLWorkerByIdQuery(worker_id=worker_id)
+        return self.process(await self.mediator.execute_async(refreshed_query))
+
+    @post(
         "/region/{aws_region}/workers/{worker_id}/license",
         response_model=Any,
         status_code=200,
