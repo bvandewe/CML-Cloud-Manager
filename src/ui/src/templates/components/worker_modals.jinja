@@ -1,0 +1,278 @@
+<!-- Worker Modals -->
+
+<!-- Create Worker Modal -->
+<div class="modal fade" id="createWorkerModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-plus-circle"></i> Create New CML Worker
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="create-worker-form">
+                    <div class="mb-3">
+                        <label for="worker-name" class="form-label">Worker Name *</label>
+                        <input type="text" class="form-control" id="worker-name" required
+                            placeholder="e.g., cml-worker-prod-01">
+                        <small class="text-muted">Human-readable name for the worker</small>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="worker-region" class="form-label">AWS Region *</label>
+                            <select class="form-select" id="worker-region" required>
+                                <option value="">Select Region</option>
+                                <option value="us-east-1">us-east-1</option>
+                                <option value="us-west-2">us-west-2</option>
+                                <option value="eu-west-1">eu-west-1</option>
+                                <option value="ap-southeast-1">ap-southeast-1</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="worker-instance-type" class="form-label">Instance Type *</label>
+                            <select class="form-select" id="worker-instance-type" required>
+                                <option value="">Select Type</option>
+                                <option value="c5.xlarge">c5.xlarge (4 vCPU, 8GB)</option>
+                                <option value="c5.2xlarge">c5.2xlarge (8 vCPU, 16GB)</option>
+                                <option value="c5.4xlarge">c5.4xlarge (16 vCPU, 32GB)</option>
+                                <option value="m5zn.metal">m5zn.metal (48 vCPU, 192GB)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="worker-ami" class="form-label">AMI ID</label>
+                        <input type="text" class="form-control" id="worker-ami"
+                            placeholder="ami-xxxxxxxxxxxxxxxxx (optional)">
+                        <small class="text-muted">Leave empty to use regional default</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="worker-cml-version" class="form-label">CML Version</label>
+                        <input type="text" class="form-control" id="worker-cml-version" placeholder="e.g., 2.7.0">
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Note:</strong> Creating a worker will provision a new EC2 instance.
+                        This may take several minutes.
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="submit-create-worker-btn">
+                    <i class="bi bi-plus-circle"></i> Create Worker
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Import Worker Modal -->
+<div class="modal fade" id="importWorkerModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-box-arrow-in-down"></i> Import Existing Worker
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="import-worker-form">
+                    <div class="mb-3">
+                        <label for="import-region" class="form-label">AWS Region *</label>
+                        <select class="form-select" id="import-region" required>
+                            <option value="">Select Region</option>
+                            <option value="us-east-1">us-east-1</option>
+                            <option value="us-west-2">us-west-2</option>
+                            <option value="eu-west-1">eu-west-1</option>
+                            <option value="ap-southeast-1">ap-southeast-1</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Import Method</label>
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="import-method" id="import-by-instance" checked>
+                            <label class="btn btn-outline-primary" for="import-by-instance">Instance ID</label>
+
+                            <input type="radio" class="btn-check" name="import-method" id="import-by-ami">
+                            <label class="btn btn-outline-primary" for="import-by-ami">AMI Name</label>
+                        </div>
+                    </div>
+
+                    <div id="instance-id-group" class="mb-3">
+                        <label for="import-instance-id" class="form-label">Instance ID</label>
+                        <input type="text" class="form-control" id="import-instance-id"
+                            placeholder="i-xxxxxxxxxxxxxxxxx">
+                    </div>
+
+                    <div id="ami-name-group" class="mb-3" style="display: none;">
+                        <label for="import-ami-name" class="form-label">AMI Name Pattern</label>
+                        <input type="text" class="form-control" id="import-ami-name"
+                            placeholder="e.g., cisco-cml2.9-lablet-*">
+                        <small class="text-muted">Will import first matching instance</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="import-worker-name" class="form-label">Worker Name (optional)</label>
+                        <input type="text" class="form-control" id="import-worker-name"
+                            placeholder="Optional friendly name">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="submit-import-worker-btn">
+                    <i class="bi bi-box-arrow-in-down"></i> Import Worker
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Worker Details Modal -->
+<div class="modal fade" id="workerDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-info-circle"></i> Worker Details
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Navigation Tabs -->
+                <ul class="nav nav-tabs mb-3" id="workerDetailsTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="overview-tab" data-bs-toggle="tab"
+                            data-bs-target="#overview-panel" type="button" role="tab">
+                            <i class="bi bi-grid"></i> Overview
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="metrics-tab" data-bs-toggle="tab" data-bs-target="#metrics-panel"
+                            type="button" role="tab">
+                            <i class="bi bi-graph-up"></i> Metrics
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="ec2-tab" data-bs-toggle="tab" data-bs-target="#ec2-panel"
+                            type="button" role="tab">
+                            <i class="bi bi-hdd-stack"></i> EC2 Instance
+                        </button>
+                    </li>
+                    <li class="nav-item admin-only-tab" role="presentation" style="display: none;">
+                        <button class="nav-link" id="jobs-tab" data-bs-toggle="tab" data-bs-target="#jobs-panel"
+                            type="button" role="tab">
+                            <i class="bi bi-clock-history"></i> Scheduler Jobs
+                        </button>
+                    </li>
+                    <li class="nav-item admin-only-tab" role="presentation" style="display: none;">
+                        <button class="nav-link" id="events-tab" data-bs-toggle="tab" data-bs-target="#events-panel"
+                            type="button" role="tab">
+                            <i class="bi bi-bell"></i> Events
+                        </button>
+                    </li>
+                </ul>
+
+                <!-- Tab Content -->
+                <div class="tab-content" id="workerDetailsTabContent">
+                    <!-- Overview Tab -->
+                    <div class="tab-pane fade show active" id="overview-panel" role="tabpanel">
+                        <div id="worker-details-overview">
+                            <div class="text-center py-5">
+                                <div class="spinner-border" role="status"></div>
+                                <p class="mt-3 text-muted">Loading worker details...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Metrics Tab -->
+                    <div class="tab-pane fade" id="metrics-panel" role="tabpanel">
+                        <div id="worker-details-metrics">
+                            <div class="text-center py-5 text-muted">
+                                <i class="bi bi-graph-up fs-1 d-block mb-3"></i>
+                                <p>Worker metrics will appear here</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- EC2 Instance Tab -->
+                    <div class="tab-pane fade" id="ec2-panel" role="tabpanel">
+                        <div id="worker-details-ec2">
+                            <div class="text-center py-5 text-muted">
+                                <i class="bi bi-hdd-stack fs-1 d-block mb-3"></i>
+                                <p>EC2 instance details will appear here</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Jobs Tab (Admin Only) -->
+                    <div class="tab-pane fade" id="jobs-panel" role="tabpanel">
+                        <div id="worker-details-jobs">
+                            <div class="text-center py-5 text-muted">
+                                <i class="bi bi-clock-history fs-1 d-block mb-3"></i>
+                                <p>Scheduler jobs will appear here</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Events Tab (Admin Only) -->
+                    <div class="tab-pane fade" id="events-panel" role="tabpanel">
+                        <div id="worker-details-events">
+                            <div class="text-center py-5 text-muted">
+                                <i class="bi bi-bell fs-1 d-block mb-3"></i>
+                                <p>Events will appear here</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Register License Modal -->
+<div class="modal fade" id="registerLicenseModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-key"></i> Register CML License
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="register-license-form">
+                    <input type="hidden" id="license-worker-id">
+                    <input type="hidden" id="license-worker-region">
+
+                    <div class="mb-3">
+                        <label for="license-token" class="form-label">License Token *</label>
+                        <textarea class="form-control" id="license-token" rows="4" required
+                            placeholder="Paste your CML license token here"></textarea>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        The license will be applied to the worker. Make sure the worker is running.
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="submit-register-license-btn">
+                    <i class="bi bi-key"></i> Register License
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
