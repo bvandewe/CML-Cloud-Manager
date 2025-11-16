@@ -28,6 +28,11 @@ export async function apiRequest(url, options = {}) {
         throw new Error('Authentication required');
     }
 
+    if (response.status === 403) {
+        // Forbidden - user doesn't have required permissions
+        throw new Error('Permission denied: You do not have access to this resource');
+    }
+
     return response;
 }
 

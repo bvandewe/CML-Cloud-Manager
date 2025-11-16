@@ -91,13 +91,23 @@ async function loadSchedulerStatus() {
     try {
         const status = await systemApi.getSchedulerStatus();
 
-        const countElement = document.getElementById('scheduler-job-count');
-        if (countElement) {
-            const badge = status.running ? `<span class="badge bg-success">${status.job_count} Jobs</span>` : `<span class="badge bg-danger">Stopped</span>`;
-            countElement.innerHTML = badge;
+        const container = document.getElementById('scheduler-status');
+        if (container) {
+            container.innerHTML = renderSchedulerStatus(status);
         }
     } catch (error) {
         console.error('Failed to load scheduler status:', error);
+        const container = document.getElementById('scheduler-status');
+        if (container && error.message && error.message.includes('Permission denied')) {
+            container.innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="bi bi-shield-lock me-2"></i>
+                    ${error.message}
+                </div>
+            `;
+        } else {
+            showToast('Failed to load scheduler status', 'error');
+        }
     }
 }
 
@@ -110,6 +120,18 @@ async function loadSchedulerJobs() {
 
         const container = document.getElementById('scheduler-jobs');
         if (container) {
+            // Ensure jobs is an array
+            if (!Array.isArray(jobs)) {
+                console.warn('Jobs response is not an array:', jobs);
+                container.innerHTML = `
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        Unable to load scheduler jobs
+                    </div>
+                `;
+                return;
+            }
+
             if (jobs.length === 0) {
                 container.innerHTML = `
                     <div class="alert alert-info">
@@ -123,7 +145,24 @@ async function loadSchedulerJobs() {
         }
     } catch (error) {
         console.error('Failed to load scheduler jobs:', error);
-        showToast('Failed to load scheduler jobs', 'error');
+        const container = document.getElementById('scheduler-jobs');
+        if (container) {
+            if (error.message && error.message.includes('Permission denied')) {
+                container.innerHTML = `
+                    <div class="alert alert-warning">
+                        <i class="bi bi-shield-lock me-2"></i>
+                        ${error.message}
+                    </div>
+                `;
+            } else {
+                container.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-circle me-2"></i>
+                        Failed to load scheduler jobs
+                    </div>
+                `;
+            }
+        }
     }
 }
 
@@ -132,23 +171,25 @@ async function loadSchedulerJobs() {
  */
 async function loadWorkerMonitoring() {
     try {
-        const monitoring = await systemApi.getWorkerMonitoringStatus();
+        const status = await systemApi.getWorkerMonitoringStatus();
 
-        // Update card
-        const statusElement = document.getElementById('monitoring-status');
-        if (statusElement) {
-            const badge = monitoring.scheduler_running ? `<span class="badge bg-success">Active</span>` : `<span class="badge bg-warning">Inactive</span>`;
-            statusElement.innerHTML = badge;
-        }
-
-        // Update details panel
-        const detailsContainer = document.getElementById('monitoring-details');
-        if (detailsContainer) {
-            detailsContainer.innerHTML = renderMonitoringDetails(monitoring);
+        const container = document.getElementById('worker-monitoring');
+        if (container) {
+            container.innerHTML = renderWorkerMonitoring(status);
         }
     } catch (error) {
         console.error('Failed to load worker monitoring:', error);
-        showToast('Failed to load worker monitoring status', 'error');
+        const container = document.getElementById('worker-monitoring');
+        if (container && error.message && error.message.includes('Permission denied')) {
+            container.innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="bi bi-shield-lock me-2"></i>
+                    ${error.message}
+                </div>
+            `;
+        } else {
+            showToast('Failed to load worker monitoring', 'error');
+        }
     }
 }
 
@@ -157,23 +198,25 @@ async function loadWorkerMonitoring() {
  */
 async function loadMetricsCollectors() {
     try {
-        const collectors = await systemApi.getMetricsCollectorsStatus();
+        const data = await systemApi.getMetricsCollectorsStatus();
 
-        // Update card
-        const countElement = document.getElementById('collectors-count');
-        if (countElement) {
-            const badge = `<span class="badge bg-success">${collectors.active_collectors}/${collectors.total_collectors}</span>`;
-            countElement.innerHTML = badge;
-        }
-
-        // Update details panel
-        const listContainer = document.getElementById('collectors-list');
-        if (listContainer) {
-            listContainer.innerHTML = renderCollectorsList(collectors.collectors || []);
+        const container = document.getElementById('metrics-collectors');
+        if (container) {
+            container.innerHTML = renderMetricsCollectors(data);
         }
     } catch (error) {
         console.error('Failed to load metrics collectors:', error);
-        showToast('Failed to load metrics collectors', 'error');
+        const container = document.getElementById('metrics-collectors');
+        if (container && error.message && error.message.includes('Permission denied')) {
+            container.innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="bi bi-shield-lock me-2"></i>
+                    ${error.message}
+                </div>
+            `;
+        } else {
+            showToast('Failed to load metrics collectors', 'error');
+        }
     }
 }
 
