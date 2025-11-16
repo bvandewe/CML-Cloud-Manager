@@ -203,4 +203,10 @@ def configure_logging(log_level: str = "INFO") -> None:
     # Set third-party loggers to WARNING to reduce noise
     logging.getLogger("uvicorn").setLevel(logging.WARNING)
     logging.getLogger("fastapi").setLevel(logging.WARNING)
-    logging.getLogger("fastapi").setLevel(logging.WARNING)
+
+    # Suppress verbose pymongo logs that cause OpenTelemetry encoding errors
+    # pymongo.topology logs contain custom LogMessage objects that can't be serialized
+    logging.getLogger("pymongo").setLevel(logging.WARNING)
+    logging.getLogger("pymongo.topology").setLevel(logging.WARNING)
+    logging.getLogger("pymongo.connection").setLevel(logging.WARNING)
+    logging.getLogger("pymongo.serverSelection").setLevel(logging.WARNING)
