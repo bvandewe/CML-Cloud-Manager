@@ -6,6 +6,12 @@
 import { checkAuth } from './api/client.js';
 import { login, logout, showLoginForm, showDashboard } from './ui/auth.js';
 import { loadTasks, handleCreateTask, handleUpdateTask } from './ui/tasks.js';
+import { initializeWorkersView } from './ui/workers.js';
+import { initializeSystemView } from './ui/system.js';
+
+// Current user and active view
+let currentUser = null;
+let activeView = 'tasks';
 
 /**
  * Initialize the application
@@ -16,11 +22,61 @@ async function initializeApp() {
 
     if (user) {
         // User is logged in - show dashboard
+        currentUser = user;
         showDashboard(user);
-        await loadTasks();
+
+        // Show navigation
+        const mainNav = document.getElementById('main-nav');
+        if (mainNav) {
+            mainNav.style.display = 'flex';
+        }
+
+        // Show default view
+        showView('tasks');
     } else {
         // Not logged in - show login button
         showLoginForm();
+    }
+}
+
+/**
+ * Show specific view
+ * @param {string} view - View name: 'tasks', 'workers', or 'system'
+ */
+function showView(view) {
+    activeView = view;
+
+    // Hide all sections
+    const dashboardSection = document.getElementById('dashboard-section');
+    const workersSection = document.getElementById('workers-section');
+    const systemSection = document.getElementById('system-view');
+
+    if (dashboardSection) dashboardSection.style.display = 'none';
+    if (workersSection) workersSection.style.display = 'none';
+    if (systemSection) systemSection.style.display = 'none';
+
+    // Update nav links
+    const navTasks = document.getElementById('nav-tasks');
+    const navWorkers = document.getElementById('nav-workers');
+    const navSystem = document.getElementById('nav-system');
+
+    if (navTasks) navTasks.classList.remove('active');
+    if (navWorkers) navWorkers.classList.remove('active');
+    if (navSystem) navSystem.classList.remove('active');
+
+    // Show selected section
+    if (view === 'tasks') {
+        if (dashboardSection) dashboardSection.style.display = 'block';
+        if (navTasks) navTasks.classList.add('active');
+        loadTasks();
+    } else if (view === 'workers') {
+        if (workersSection) workersSection.style.display = 'block';
+        if (navWorkers) navWorkers.classList.add('active');
+        initializeWorkersView(currentUser);
+    } else if (view === 'system') {
+        if (systemSection) systemSection.style.display = 'block';
+        if (navSystem) navSystem.classList.add('active');
+        initializeSystemView();
     }
 }
 
@@ -38,6 +94,31 @@ function setupEventListeners() {
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) {
         logoutBtn.addEventListener('click', logout);
+    }
+
+    // Navigation links
+    const navTasks = document.getElementById('nav-tasks');
+    if (navTasks) {
+        navTasks.addEventListener('click', e => {
+            e.preventDefault();
+            showView('tasks');
+        });
+    }
+
+    const navWorkers = document.getElementById('nav-workers');
+    if (navWorkers) {
+        navWorkers.addEventListener('click', e => {
+            e.preventDefault();
+            showView('workers');
+        });
+    }
+
+    const navSystem = document.getElementById('nav-system');
+    if (navSystem) {
+        navSystem.addEventListener('click', e => {
+            e.preventDefault();
+            showView('system');
+        });
     }
 
     // Create task button

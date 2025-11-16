@@ -38,12 +38,17 @@ export function showDashboard(user) {
     document.getElementById('login-section').style.display = 'none';
     document.getElementById('dashboard-section').style.display = 'block';
     document.getElementById('logout-btn').style.display = 'block';
-    document.getElementById('user-info').textContent = `${user.preferred_username || user.email} (${
-        user.email
-    })`;
+    document.getElementById('user-info').textContent = `${user.preferred_username || user.email} (${user.email})`;
 
     // Store user roles in localStorage for UI role checks
     if (user.roles) {
         localStorage.setItem('user_roles', JSON.stringify(user.roles));
     }
+
+    // Show/hide nav items based on role
+    const isAdminOrManager = user.roles && (user.roles.includes('admin') || user.roles.includes('manager'));
+    const adminOnlyNavItems = document.querySelectorAll('.admin-only-nav');
+    adminOnlyNavItems.forEach(item => {
+        item.style.display = isAdminOrManager ? 'block' : 'none';
+    });
 }
