@@ -140,6 +140,8 @@ class Settings(ApplicationSettings):
     cml_worker_subnet_id: str = "subnet-0123456789abcdef0"
     cml_worker_key_name: str = "cml_worker_key_pair"
     cml_worker_username: str = "sys-admin"
+    cml_worker_api_username: str = "admin"  # CML API username for system_stats
+    cml_worker_api_password: str = "admin"  # CML API password (change in production)
     cml_worker_default_tags: dict[str, str] = {
         "Environment": "dev",
         "ApplicationName": "CML-Cloud-Manager",

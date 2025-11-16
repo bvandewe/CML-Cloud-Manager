@@ -18,12 +18,14 @@ from neuroglia.mediation import Command, CommandHandler, Mediator
 from neuroglia.observability.tracing import add_span_attributes
 from opentelemetry import trace
 
-from domain.enums import CMLWorkerStatus
+from application.settings import Settings
+from domain.enums import CMLServiceStatus, CMLWorkerStatus
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
 from integration.enums import (AwsRegion,
                                Ec2InstanceResourcesUtilizationRelativeStartTime)
 from integration.exceptions import IntegrationException
 from integration.services.aws_ec2_api_client import AwsEc2Client
+from integration.services.cml_api_client import CMLApiClient
 from observability.metrics import meter
 
 from .command_handler_base import CommandHandlerBase
@@ -88,6 +90,7 @@ class RefreshWorkerMetricsCommandHandler(
         cloud_event_publishing_options: CloudEventPublishingOptions,
         cml_worker_repository: CMLWorkerRepository,
         aws_ec2_client: AwsEc2Client,
+        settings: Settings,
     ):
         super().__init__(
             mediator,
@@ -97,6 +100,7 @@ class RefreshWorkerMetricsCommandHandler(
         )
         self.cml_worker_repository = cml_worker_repository
         self.aws_ec2_client = aws_ec2_client
+        self.settings = settings
 
     async def handle_async(
         self, request: RefreshWorkerMetricsCommand
@@ -245,6 +249,61 @@ class RefreshWorkerMetricsCommandHandler(
                         )
                         # Continue anyway - not critical
 
+            # 3.5 Query CML API for system stats (only if RUNNING and has endpoint)
+            if (
+                new_status == CMLWorkerStatus.RUNNING
+                and worker.state.https_endpoint
+                and worker.state.service_status == CMLServiceStatus.AVAILABLE
+            ):
+                with tracer.start_as_current_span("query_cml_api") as span:
+                    try:
+                        # Create CML API client for this worker
+                        cml_client = CMLApiClient(
+                            base_url=worker.state.https_endpoint,
+                            username=self.settings.cml_worker_api_username,
+                            password=self.settings.cml_worker_api_password,
+                            verify_ssl=False,  # CML typically uses self-signed certs
+                            timeout=15.0,
+                        )
+
+                        # Query system stats
+                        system_stats = await cml_client.get_system_stats()
+
+                        if system_stats:
+                            # Update CML metrics in worker aggregate
+                            worker.update_cml_metrics(
+                                system_info=system_stats.computes,
+                                ready=True,  # If we got stats, CML is ready
+                                uptime_seconds=None,  # Could parse from system_info if needed
+                                labs_count=system_stats.running_nodes,
+                            )
+
+                            span.set_attribute("cml.nodes_running", system_stats.running_nodes)
+                            span.set_attribute("cml.nodes_total", system_stats.total_nodes)
+                            span.set_attribute("cml.cpu_allocated", system_stats.allocated_cpus)
+
+                            log.info(
+                                f"Worker {command.worker_id} CML stats: "
+                                f"Nodes={system_stats.running_nodes}/{system_stats.total_nodes}, "
+                                f"CPUs allocated={system_stats.allocated_cpus}"
+                            )
+                        else:
+                            log.warning(
+                                f"CML API returned no stats for worker {command.worker_id}"
+                            )
+
+                    except IntegrationException as e:
+                        log.warning(
+                            f"Failed to collect CML metrics for worker {command.worker_id}: {e}"
+                        )
+                        # Update worker to mark CML as not ready
+                        worker.update_cml_metrics(
+                            system_info={},
+                            ready=False,
+                            uptime_seconds=None,
+                            labs_count=0,
+                        )
+
             # 4. Persist worker aggregate (publishes domain events)
             with tracer.start_as_current_span("persist_worker") as span:
                 await self.cml_worker_repository.update_async(worker)
@@ -294,9 +353,9 @@ class RefreshWorkerMetricsCommandHandler(
                 "status": worker.state.status.value,
                 "public_ip": worker.state.public_ip,
                 "private_ip": worker.state.private_ip,
-                "cpu_utilization": worker.state.cpu_utilization,
-                "memory_utilization": worker.state.memory_utilization,
-                "active_labs_count": worker.state.active_labs_count,
+                "cpu_utilization": worker.state.cloudwatch_cpu_utilization,
+                "memory_utilization": worker.state.cloudwatch_memory_utilization,
+                "labs_count": worker.state.cml_labs_count,
                 "https_endpoint": worker.state.https_endpoint,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
                 "metrics": metrics_summary,
