@@ -1,5 +1,6 @@
 import datetime
 from enum import Enum
+from typing import Union
 
 
 class Ec2InstanceStatus(str, Enum):
@@ -25,11 +26,13 @@ class Ec2InstanceResourcesUtilizationRelativeStartTime(Enum):
     TEN_MIN_AGO = "10m"
 
     @classmethod
-    def to_timedelta(cls, value: str | "Ec2InstanceResourcesUtilizationRelativeStartTime") -> datetime.timedelta:
+    def to_timedelta(
+        cls, value: Union[str, "Ec2InstanceResourcesUtilizationRelativeStartTime"]
+    ) -> datetime.timedelta:
         """Converts the enum value to a timedelta object."""
         if isinstance(value, cls):
             value = value.value
         time_dict = {"s": 1, "m": 60}
-        unit = value[-1]
-        delta = int(value[:-1]) * time_dict[unit]
+        unit = value[-1]  # type: ignore[index]
+        delta = int(value[:-1]) * time_dict[unit]  # type: ignore[index]
         return datetime.timedelta(seconds=delta)

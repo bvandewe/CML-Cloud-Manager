@@ -2,7 +2,7 @@ from enum import Enum
 
 
 class AwsRegion(str, Enum):
-    # NB: add all required regions and corresponding IOLVM AMI_ID in ENV_VARS!
+    # NB: add all required regions and corresponding CML Worker AMI_ID in ENV_VARS!
 
     US_EAST_1 = "us-east-1"  # Virginia
 
