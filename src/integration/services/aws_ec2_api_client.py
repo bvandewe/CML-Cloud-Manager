@@ -264,6 +264,7 @@ class AwsEc2Client:
                 SubnetId=subnet_id,
                 KeyName=key_name,
                 TagSpecifications=tag_specifications,
+                Monitoring={"Enabled": True},  # Enable detailed CloudWatch monitoring
             )
             instance = instances[0]
             log.info(
@@ -474,10 +475,12 @@ class AwsEc2Client:
 
             if response.get("InstanceStatuses"):
                 status = response["InstanceStatuses"][0]
+                monitoring_state = status.get("Monitoring", {}).get("State", "disabled")
                 return {
                     "instance_status_check": status["InstanceStatus"]["Status"],
                     "ec2_system_status_check": status["SystemStatus"]["Status"],
                     "instance_state": status["InstanceState"]["Name"],
+                    "monitoring_state": monitoring_state,
                 }
 
             # If no status returned, instance might not exist or be in a transitional state
@@ -488,6 +491,7 @@ class AwsEc2Client:
                 "instance_status_check": "unknown",
                 "ec2_system_status_check": "unknown",
                 "instance_state": "unknown",
+                "monitoring_state": "disabled",
             }
 
         except ParamValidationError as e:

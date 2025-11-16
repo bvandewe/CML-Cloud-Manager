@@ -13,6 +13,9 @@ from multipledispatch import dispatch
 from neuroglia.data.abstractions import AggregateRoot, AggregateState
 
 from domain.enums import CMLServiceStatus, CMLWorkerStatus, LicenseStatus
+from domain.events.cloudwatch_monitoring_updated_domain_event import (
+    CloudWatchMonitoringUpdatedDomainEvent,
+)
 from domain.events.cml_worker import (
     CMLServiceStatusUpdatedDomainEvent,
     CMLWorkerCreatedDomainEvent,
@@ -23,6 +26,11 @@ from domain.events.cml_worker import (
     CMLWorkerStatusUpdatedDomainEvent,
     CMLWorkerTelemetryUpdatedDomainEvent,
     CMLWorkerTerminatedDomainEvent,
+)
+from domain.events.worker_metrics_events import (
+    CloudWatchMetricsUpdatedDomainEvent,
+    CMLMetricsUpdatedDomainEvent,
+    EC2MetricsUpdatedDomainEvent,
 )
 
 
@@ -49,11 +57,23 @@ class CMLWorkerState(AggregateState[str]):
     public_ip: str | None
     private_ip: str | None
 
-    # Telemetry and monitoring
-    last_activity_at: datetime | None
-    active_labs_count: int
-    cpu_utilization: float | None
-    memory_utilization: float | None
+    # EC2 Metrics (from AWS EC2 API)
+    ec2_instance_state_detail: str | None  # e.g., "ok", "impaired", "insufficient-data"
+    ec2_system_status_check: str | None  # e.g., "ok", "impaired"
+    ec2_last_checked_at: datetime | None
+
+    # CloudWatch Metrics (from AWS CloudWatch API)
+    cloudwatch_cpu_utilization: float | None
+    cloudwatch_memory_utilization: float | None
+    cloudwatch_last_collected_at: datetime | None
+    cloudwatch_detailed_monitoring_enabled: bool
+
+    # CML Metrics (from CML API /api/v0/system_information)
+    cml_system_info: dict | None  # Full system info from CML
+    cml_ready: bool  # CML application ready state
+    cml_uptime_seconds: int | None  # CML uptime
+    cml_labs_count: int  # Number of labs from CML API
+    cml_last_synced_at: datetime | None  # Last successful CML API sync
 
     # Lifecycle timestamps
     created_at: datetime
@@ -84,10 +104,23 @@ class CMLWorkerState(AggregateState[str]):
         self.public_ip = None
         self.private_ip = None
 
-        self.last_activity_at = None
-        self.active_labs_count = 0
-        self.cpu_utilization = None
-        self.memory_utilization = None
+        # EC2 Metrics
+        self.ec2_instance_state_detail = None
+        self.ec2_system_status_check = None
+        self.ec2_last_checked_at = None
+
+        # CloudWatch Metrics
+        self.cloudwatch_cpu_utilization = None
+        self.cloudwatch_memory_utilization = None
+        self.cloudwatch_last_collected_at = None
+        self.cloudwatch_detailed_monitoring_enabled = False
+
+        # CML Metrics
+        self.cml_system_info = None
+        self.cml_ready = False
+        self.cml_uptime_seconds = None
+        self.cml_labs_count = 0
+        self.cml_last_synced_at = None
 
         now = datetime.now(timezone.utc)
         self.created_at = now
@@ -170,13 +203,40 @@ class CMLWorkerState(AggregateState[str]):
         self.license_token = event.license_token
         self.updated_at = event.updated_at
 
+    @dispatch(EC2MetricsUpdatedDomainEvent)
+    def on(self, event: EC2MetricsUpdatedDomainEvent) -> None:  # type: ignore[override]
+        """Apply EC2 metrics event to the state."""
+        self.ec2_instance_state_detail = event.instance_state_detail
+        self.ec2_system_status_check = event.system_status_check
+        self.ec2_last_checked_at = event.checked_at
+        self.updated_at = event.updated_at
+
+    @dispatch(CloudWatchMetricsUpdatedDomainEvent)
+    def on(self, event: CloudWatchMetricsUpdatedDomainEvent) -> None:  # type: ignore[override]
+        """Apply CloudWatch metrics event to the state."""
+        self.cloudwatch_cpu_utilization = event.cpu_utilization
+        self.cloudwatch_memory_utilization = event.memory_utilization
+        self.cloudwatch_last_collected_at = event.collected_at
+        self.updated_at = event.updated_at
+
+    @dispatch(CMLMetricsUpdatedDomainEvent)
+    def on(self, event: CMLMetricsUpdatedDomainEvent) -> None:  # type: ignore[override]
+        """Apply CML API metrics event to the state."""
+        self.cml_system_info = event.system_info
+        self.cml_ready = event.ready
+        self.cml_uptime_seconds = event.uptime_seconds
+        self.cml_labs_count = event.labs_count
+        self.cml_last_synced_at = event.synced_at
+        self.updated_at = event.updated_at
+
     @dispatch(CMLWorkerTelemetryUpdatedDomainEvent)
     def on(self, event: CMLWorkerTelemetryUpdatedDomainEvent) -> None:  # type: ignore[override]
-        """Apply the telemetry updated event to the state."""
-        self.last_activity_at = event.last_activity_at
-        self.active_labs_count = event.active_labs_count
-        self.cpu_utilization = event.cpu_utilization
-        self.memory_utilization = event.memory_utilization
+        """Apply the telemetry updated event to the state (DEPRECATED - for backward compatibility)."""
+        # Keep for backward compatibility with existing events in event store
+        self.cloudwatch_cpu_utilization = event.cpu_utilization
+        self.cloudwatch_memory_utilization = event.memory_utilization
+        self.cloudwatch_last_collected_at = event.last_activity_at
+        self.cml_labs_count = event.active_labs_count
         self.updated_at = event.updated_at
 
     @dispatch(CMLWorkerEndpointUpdatedDomainEvent)
@@ -195,6 +255,12 @@ class CMLWorkerState(AggregateState[str]):
         self.terminated_at = event.terminated_at
         self.terminated_by = event.terminated_by
         self.updated_at = event.terminated_at
+
+    @dispatch(CloudWatchMonitoringUpdatedDomainEvent)
+    def on(self, event: CloudWatchMonitoringUpdatedDomainEvent) -> None:  # type: ignore[override]
+        """Apply the CloudWatch monitoring updated event to the state."""
+        self.cloudwatch_detailed_monitoring_enabled = event.enabled
+        self.updated_at = event.updated_at
 
 
 class CMLWorker(AggregateRoot[CMLWorkerState, str]):
@@ -437,6 +503,87 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
         )
         return True
 
+    def update_ec2_metrics(
+        self,
+        instance_state_detail: str,
+        system_status_check: str,
+        checked_at: datetime | None = None,
+    ) -> None:
+        """Update EC2 instance health metrics from AWS EC2 API.
+
+        Args:
+            instance_state_detail: Instance status check (e.g., "ok", "impaired")
+            system_status_check: System status check (e.g., "ok", "impaired")
+            checked_at: Timestamp of the status check
+        """
+        self.state.on(
+            self.register_event(  # type: ignore
+                EC2MetricsUpdatedDomainEvent(
+                    aggregate_id=self.id(),
+                    instance_state_detail=instance_state_detail,
+                    system_status_check=system_status_check,
+                    checked_at=checked_at or datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc),
+                )
+            )
+        )
+
+    def update_cloudwatch_metrics(
+        self,
+        cpu_utilization: float,
+        memory_utilization: float,
+        collected_at: datetime | None = None,
+    ) -> None:
+        """Update CloudWatch metrics from AWS CloudWatch API.
+
+        Args:
+            cpu_utilization: CPU utilization percentage (0-100)
+            memory_utilization: Memory utilization percentage (0-100)
+            collected_at: Timestamp when metrics were collected
+        """
+        self.state.on(
+            self.register_event(  # type: ignore
+                CloudWatchMetricsUpdatedDomainEvent(
+                    aggregate_id=self.id(),
+                    cpu_utilization=cpu_utilization,
+                    memory_utilization=memory_utilization,
+                    collected_at=collected_at or datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc),
+                )
+            )
+        )
+
+    def update_cml_metrics(
+        self,
+        system_info: dict,
+        ready: bool,
+        uptime_seconds: int | None,
+        labs_count: int,
+        synced_at: datetime | None = None,
+    ) -> None:
+        """Update CML application metrics from CML API.
+
+        Args:
+            system_info: Full system information dictionary from CML
+            ready: CML application ready state
+            uptime_seconds: CML uptime in seconds
+            labs_count: Number of labs from CML API
+            synced_at: Timestamp when data was synced from CML API
+        """
+        self.state.on(
+            self.register_event(  # type: ignore
+                CMLMetricsUpdatedDomainEvent(
+                    aggregate_id=self.id(),
+                    system_info=system_info,
+                    ready=ready,
+                    uptime_seconds=uptime_seconds,
+                    labs_count=labs_count,
+                    synced_at=synced_at or datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc),
+                )
+            )
+        )
+
     def update_telemetry(
         self,
         last_activity_at: datetime,
@@ -444,7 +591,12 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
         cpu_utilization: float | None = None,
         memory_utilization: float | None = None,
     ) -> None:
-        """Update worker telemetry data.
+        """Update worker telemetry data (DEPRECATED - use source-specific methods).
+
+        This method is kept for backward compatibility. New code should use:
+        - update_ec2_metrics() for EC2 instance status
+        - update_cloudwatch_metrics() for CPU/memory metrics
+        - update_cml_metrics() for CML application data
 
         Args:
             last_activity_at: Timestamp of last detected activity
@@ -490,6 +642,29 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
                     aggregate_id=self.id(),
                     https_endpoint=https_endpoint,
                     public_ip=public_ip,
+                    updated_at=datetime.now(timezone.utc),
+                )
+            )
+        )
+        return True
+
+    def update_cloudwatch_monitoring(self, enabled: bool) -> bool:
+        """Update the worker's CloudWatch detailed monitoring status.
+
+        Args:
+            enabled: Whether detailed monitoring is enabled
+
+        Returns:
+            True if monitoring status was updated, False if unchanged
+        """
+        if self.state.cloudwatch_detailed_monitoring_enabled == enabled:
+            return False
+
+        self.state.on(
+            self.register_event(  # type: ignore
+                CloudWatchMonitoringUpdatedDomainEvent(
+                    aggregate_id=self.id(),
+                    enabled=enabled,
                     updated_at=datetime.now(timezone.utc),
                 )
             )

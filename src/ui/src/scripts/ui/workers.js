@@ -16,32 +16,44 @@ let currentRegion = 'us-east-1';
 let currentWorkerDetails = null; // Store current worker for refresh
 
 /**
- * Initialize workers view based on user role
+ * Initialize the workers view
  * @param {Object} user - Current authenticated user
  */
 export function initializeWorkersView(user) {
+    console.log('[initializeWorkersView] ========================================');
+    console.log('[initializeWorkersView] Called with user:', user);
+
     currentUser = user;
     const workersSection = document.getElementById('workers-section');
     const adminView = document.getElementById('workers-admin-view');
     const userView = document.getElementById('workers-user-view');
 
-    if (!workersSection) return;
+    if (!workersSection) {
+        console.error('[initializeWorkersView] workers-section not found!');
+        return;
+    }
+    console.log('[initializeWorkersView] workers-section found');
 
     workersSection.style.display = 'block';
 
     // Show appropriate view based on role
     if (hasAdminAccess(user)) {
+        console.log('[initializeWorkersView] User has admin access');
         adminView.style.display = 'block';
         userView.style.display = 'none';
         initializeAdminView();
     } else {
+        console.log('[initializeWorkersView] User has regular access');
         adminView.style.display = 'none';
         userView.style.display = 'block';
         initializeUserView();
     }
 
+    console.log('[initializeWorkersView] Calling setupEventListeners()');
     setupEventListeners();
+    console.log('[initializeWorkersView] Calling loadWorkers()');
     loadWorkers();
+    console.log('[initializeWorkersView] Initialization complete');
 }
 
 /**
@@ -79,6 +91,9 @@ function initializeUserView() {
  * Setup event listeners
  */
 function setupEventListeners() {
+    console.log('[setupEventListeners] ========================================');
+    console.log('[setupEventListeners] Called');
+
     // Filter and search handlers
     const filterRegion = document.getElementById('filter-region');
     const filterStatus = document.getElementById('filter-status');
@@ -117,11 +132,15 @@ function setupEventListeners() {
     }
 
     // Modal handlers
+    console.log('[setupEventListeners] Setting up modal handlers');
     setupCreateWorkerModal();
     setupImportWorkerModal();
     setupLicenseModal();
     setupTabHandlers();
+
+    console.log('[setupEventListeners] Calling setupRefreshButton()');
     setupRefreshButton();
+    console.log('[setupEventListeners] All event listeners set up');
 }
 
 /**
@@ -632,24 +651,35 @@ function setupLicenseModal() {
  * Show worker details modal
  */
 async function showWorkerDetails(workerId, region) {
+    console.log('[showWorkerDetails] ========================================');
+    console.log('[showWorkerDetails] Called with workerId:', workerId, 'region:', region);
+
     const modalElement = document.getElementById('workerDetailsModal');
     if (!modalElement) {
-        console.error('Worker details modal element not found');
+        console.error('[showWorkerDetails] Worker details modal element not found');
         showToast('Failed to open worker details: modal not found', 'error');
         return;
     }
+    console.log('[showWorkerDetails] Modal element found:', modalElement);
 
     const modal = new bootstrap.Modal(modalElement);
     const overviewContent = document.getElementById('worker-details-overview');
 
     if (!overviewContent) {
-        console.error('Worker details overview content element not found');
+        console.error('[showWorkerDetails] Worker details overview content element not found');
         showToast('Failed to open worker details: content area not found', 'error');
         return;
     }
+    console.log('[showWorkerDetails] Overview content element found');
 
     // Store current worker for refresh
     currentWorkerDetails = { id: workerId, region: region };
+    console.log('[showWorkerDetails] Set currentWorkerDetails to:', currentWorkerDetails);
+
+    // Re-setup refresh button to ensure it's attached
+    console.log('[showWorkerDetails] Calling setupRefreshButton()');
+    setupRefreshButton();
+    console.log('[showWorkerDetails] setupRefreshButton() completed');
 
     // Show/hide admin-only tabs based on user role
     const adminTabs = document.querySelectorAll('.admin-only-tab');
@@ -1070,40 +1100,74 @@ function setupTabHandlers() {
  * Setup refresh button handler
  */
 function setupRefreshButton() {
+    console.log('[setupRefreshButton] Function called');
     const refreshBtn = document.getElementById('refresh-worker-details');
+    console.log('[setupRefreshButton] Button element:', refreshBtn);
+    console.log('[setupRefreshButton] Button parent:', refreshBtn?.parentNode);
+    console.log('[setupRefreshButton] Current worker details:', currentWorkerDetails);
+
     if (refreshBtn) {
-        refreshBtn.addEventListener('click', async () => {
+        console.log('[setupRefreshButton] Attaching event listener to button');
+
+        // Remove any existing listeners by cloning the button
+        const newBtn = refreshBtn.cloneNode(true);
+        console.log('[setupRefreshButton] Button cloned, replacing in DOM');
+        refreshBtn.parentNode.replaceChild(newBtn, refreshBtn);
+        console.log('[setupRefreshButton] Button replaced in DOM');
+
+        const clickHandler = async e => {
+            console.log('[CLICK HANDLER] ========================================');
+            console.log('[CLICK HANDLER] Refresh button clicked!');
+            console.log('[CLICK HANDLER] Event:', e);
+            console.log('[CLICK HANDLER] currentWorkerDetails:', currentWorkerDetails);
+            console.log('[CLICK HANDLER] workersApi:', workersApi);
+
             if (currentWorkerDetails) {
                 const { id, region } = currentWorkerDetails;
+                console.log('[CLICK HANDLER] Worker ID:', id, 'Region:', region);
 
                 // Disable button during refresh
-                refreshBtn.disabled = true;
-                const originalHtml = refreshBtn.innerHTML;
-                refreshBtn.innerHTML = '<i class="bi bi-arrow-clockwise spinner-border spinner-border-sm"></i> Refreshing...';
+                newBtn.disabled = true;
+                const originalHtml = newBtn.innerHTML;
+                newBtn.innerHTML = '<i class="bi bi-arrow-clockwise spinner-border spinner-border-sm"></i> Refreshing...';
+                console.log('[CLICK HANDLER] Button disabled and text updated');
 
                 try {
+                    console.log('[CLICK HANDLER] Showing info toast');
                     showToast('Refreshing worker state from AWS...', 'info');
 
-                    // Call refresh endpoint - this will:
-                    // 1. Query AWS for latest worker status
-                    // 2. Update DB with current state
-                    // 3. Start monitoring if not already active
+                    console.log('[CLICK HANDLER] Calling workersApi.refreshWorker');
                     const refreshedWorker = await workersApi.refreshWorker(region, id);
+                    console.log('[CLICK HANDLER] Refresh response:', refreshedWorker);
 
                     showToast('Worker state refreshed successfully', 'success');
 
                     // Reload the worker details modal with fresh data
+                    console.log('[CLICK HANDLER] Reloading worker details modal');
                     await showWorkerDetails(id, region);
                 } catch (error) {
-                    console.error('Failed to refresh worker:', error);
+                    console.error('[CLICK HANDLER] Error during refresh:', error);
                     showToast(error.message || 'Failed to refresh worker state', 'error');
                 } finally {
                     // Re-enable button
-                    refreshBtn.disabled = false;
-                    refreshBtn.innerHTML = originalHtml;
+                    newBtn.disabled = false;
+                    newBtn.innerHTML = originalHtml;
+                    console.log('[CLICK HANDLER] Button re-enabled');
                 }
+            } else {
+                console.warn('[CLICK HANDLER] No currentWorkerDetails available for refresh');
+                showToast('Unable to refresh: worker details not loaded', 'error');
             }
-        });
+        };
+
+        newBtn.addEventListener('click', clickHandler);
+        console.log('[setupRefreshButton] Click event listener attached');
+
+        // Test: trigger a click programmatically to verify it works
+        console.log('[setupRefreshButton] Test: Button onclick property:', newBtn.onclick);
+    } else {
+        console.error('[setupRefreshButton] ERROR: Refresh button not found in DOM!');
+        console.error('[setupRefreshButton] Available buttons:', document.querySelectorAll('button'));
     }
 }
 

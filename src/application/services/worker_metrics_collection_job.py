@@ -10,12 +10,16 @@ from typing import Any, Callable, Dict, List, Optional
 
 from opentelemetry import trace
 
-from application.services.background_scheduler import (RecurrentBackgroundJob,
-                                                       backgroundjob)
+from application.services.background_scheduler import (
+    RecurrentBackgroundJob,
+    backgroundjob,
+)
 from domain.enums import CMLWorkerStatus
 from domain.repositories import CMLWorkerRepository
-from integration.enums import (AwsRegion,
-                               Ec2InstanceResourcesUtilizationRelativeStartTime)
+from integration.enums import (
+    AwsRegion,
+    Ec2InstanceResourcesUtilizationRelativeStartTime,
+)
 from integration.services.aws_ec2_api_client import AwsEc2Client
 
 logger = logging.getLogger(__name__)
@@ -82,52 +86,84 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
     def configure(self, service_provider=None, **kwargs):
         """Configure the background job with dependencies.
 
-        This is called by the BackgroundTaskScheduler during job deserialization
-        to inject dependencies that weren't serialized.
+        This is called by the BackgroundTaskScheduler during job deserialization.
+        For horizontal scaling, this method reconstructs dependencies directly
+        from module-level imports rather than relying on a service provider.
 
         Args:
-            service_provider: Service provider for dependency injection
+            service_provider: (Optional) Service provider for dependency injection.
+                             If not provided, dependencies are instantiated directly.
             **kwargs: Additional configuration parameters
         """
         logger.info(
             f"🔧 Configuring WorkerMetricsCollectionJob for worker {self.worker_id if hasattr(self, 'worker_id') else 'UNKNOWN'}"
         )
 
-        # Store service provider for creating scopes when needed
+        # If service provider is provided, use it (for backwards compatibility)
+        # Otherwise, reconstruct dependencies directly (for horizontal scaling)
         if service_provider:
             self._service_provider = service_provider
+        else:
+            # No service provider - directly instantiate dependencies
+            # This ensures the job can run on any worker instance
+            self._service_provider = None
 
-            # Inject singleton dependencies from service provider if not already set
-            if not hasattr(self, "aws_ec2_client") or not self.aws_ec2_client:
-                from integration.services.aws_ec2_api_client import AwsEc2Client
+        # Inject or instantiate AwsEc2Client
+        if not hasattr(self, "aws_ec2_client") or not self.aws_ec2_client:
+            from integration.services.aws_ec2_api_client import AwsEc2Client
 
-                self.aws_ec2_client = service_provider.get_required_service(
+            if self._service_provider:
+                # Use service provider if available
+                self.aws_ec2_client = self._service_provider.get_required_service(
                     AwsEc2Client
                 )
-                logger.info(f"✅ Injected AwsEc2Client for worker {self.worker_id}")
-
-            # Get notification handler from service provider (don't store it to avoid pickle issues)
-            # We'll look it up each time we need to notify
-            try:
-                from application.services.worker_notification_handler import \
-                    WorkerNotificationHandler
-
-                self._notification_handler = service_provider.get_required_service(
-                    WorkerNotificationHandler
+            else:
+                # Directly instantiate for horizontal scaling
+                # Get credentials from settings
+                from application.settings import app_settings
+                from integration.services.aws_ec2_api_client import (
+                    AwsAccountCredentials,
                 )
-                logger.info(
-                    f"✅ Resolved WorkerNotificationHandler for worker {self.worker_id}"
-                )
-            except Exception as e:
-                logger.warning(f"⚠️ Could not resolve WorkerNotificationHandler: {e}")
-                self._notification_handler = None
 
-            # Ensure _observers list exists (for backwards compatibility)
-            if not hasattr(self, "_observers"):
-                self._observers = []
-                logger.debug(
-                    f"✅ Initialized _observers list for worker {self.worker_id}"
+                credentials = AwsAccountCredentials(
+                    aws_access_key_id=app_settings.aws_access_key_id,
+                    aws_secret_access_key=app_settings.aws_secret_access_key,
                 )
+                self.aws_ec2_client = AwsEc2Client(aws_account_credentials=credentials)
+
+            logger.info(f"✅ Configured AwsEc2Client for worker {self.worker_id}")
+
+        # Get or instantiate notification handler
+        try:
+            from application.services.worker_notification_handler import (
+                WorkerNotificationHandler,
+            )
+
+            if self._service_provider:
+                self._notification_handler = (
+                    self._service_provider.get_required_service(
+                        WorkerNotificationHandler
+                    )
+                )
+            else:
+                # Directly instantiate for horizontal scaling
+                # Use same thresholds as configured in main.py
+                self._notification_handler = WorkerNotificationHandler(
+                    cpu_threshold=90.0,
+                    memory_threshold=90.0,
+                )
+
+            logger.info(
+                f"✅ Configured WorkerNotificationHandler for worker {self.worker_id}"
+            )
+        except Exception as e:
+            logger.warning(f"⚠️ Could not configure WorkerNotificationHandler: {e}")
+            self._notification_handler = None
+
+        # Ensure _observers list exists (for backwards compatibility)
+        if not hasattr(self, "_observers"):
+            self._observers = []
+            logger.debug(f"✅ Initialized _observers list for worker {self.worker_id}")
 
             logger.info(f"✅ Configuration complete for worker {self.worker_id}")
         else:
@@ -171,20 +207,51 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
         assert (
             hasattr(self, "aws_ec2_client") and self.aws_ec2_client is not None
         ), "aws_ec2_client not injected"
-        assert (
-            hasattr(self, "_service_provider") and self._service_provider is not None
-        ), "service_provider not configured"
+
+        # Service provider should have been configured during job setup
+        if not hasattr(self, "_service_provider") or not self._service_provider:
+            logger.error(
+                f"❌ Worker {self.worker_id}: service_provider not configured - job cannot execute"
+            )
+            # Try to reconfigure
+            try:
+                logger.info(f"🔧 Attempting to reconfigure worker {self.worker_id} job")
+                self.configure()  # No service provider - will instantiate dependencies directly
+                if not hasattr(self, "_service_provider") or not self._service_provider:
+                    logger.warning(
+                        f"⚠️ Worker {self.worker_id}: Still no service provider after reconfigure, continuing anyway"
+                    )
+            except Exception as e:
+                logger.error(
+                    f"❌ Failed to reconfigure worker {self.worker_id} job: {e}"
+                )
+                return
 
         with tracer.start_as_current_span("collect_worker_metrics") as span:
             span.set_attribute("worker_id", self.worker_id)
             span.set_attribute("job_id", self.__task_id__ or "unknown")
 
-            # Create a scope to access scoped services
-            scope = self._service_provider.create_scope()
+            # Create a scope to access scoped services if service provider available
+            if self._service_provider:
+                scope = self._service_provider.create_scope()
+            else:
+                scope = None
+
             try:
                 from domain.repositories import CMLWorkerRepository
 
-                worker_repository = scope.get_required_service(CMLWorkerRepository)
+                if scope:
+                    worker_repository = scope.get_required_service(CMLWorkerRepository)
+                else:
+                    # Fallback: get from main app - this should work even without service provider in job
+                    from main import app
+
+                    temp_scope = app.state.services.create_scope()
+                    worker_repository = temp_scope.get_required_service(
+                        CMLWorkerRepository
+                    )
+                    if not scope:
+                        scope = temp_scope  # Use this scope for cleanup
 
                 # 1. Load worker from repository
                 worker = await worker_repository.get_by_id_async(self.worker_id)
@@ -356,7 +423,8 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
                 raise  # Let APScheduler handle retry logic
             finally:
                 # Dispose the scope to release scoped services
-                scope.dispose()
+                if scope:
+                    scope.dispose()
 
     def _map_ec2_state_to_cml_status(self, ec2_state: str) -> CMLWorkerStatus:
         """Map EC2 instance state to CML Worker status.

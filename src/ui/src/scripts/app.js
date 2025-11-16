@@ -31,8 +31,9 @@ async function initializeApp() {
             mainNav.style.display = 'flex';
         }
 
-        // Show default view
-        showView('tasks');
+        // Show default view - changed to workers for debugging
+        console.log('[APP] Showing default view: workers');
+        showView('workers');
     } else {
         // Not logged in - show login button
         showLoginForm();
@@ -44,6 +45,7 @@ async function initializeApp() {
  * @param {string} view - View name: 'tasks', 'workers', or 'system'
  */
 function showView(view) {
+    console.log('[APP showView] Called with view:', view);
     activeView = view;
 
     // Hide all sections
@@ -66,14 +68,19 @@ function showView(view) {
 
     // Show selected section
     if (view === 'tasks') {
+        console.log('[APP showView] Showing tasks view');
         if (dashboardSection) dashboardSection.style.display = 'block';
         if (navTasks) navTasks.classList.add('active');
         loadTasks();
     } else if (view === 'workers') {
+        console.log('[APP showView] Showing workers view');
         if (workersSection) workersSection.style.display = 'block';
         if (navWorkers) navWorkers.classList.add('active');
+        console.log('[APP showView] Calling initializeWorkersView with user:', currentUser);
         initializeWorkersView(currentUser);
+        console.log('[APP showView] initializeWorkersView completed');
     } else if (view === 'system') {
+        console.log('[APP showView] Showing system view');
         if (systemSection) systemSection.style.display = 'block';
         if (navSystem) navSystem.classList.add('active');
         initializeSystemView();

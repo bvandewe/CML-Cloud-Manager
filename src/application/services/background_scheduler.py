@@ -166,34 +166,46 @@ async def scheduled_job_wrapper(
     task_id: str,
     task_data: dict,
     scheduled_at: datetime.datetime,
-    service_provider=None,
     **kwargs,
 ):
     """Wrapper function for scheduled (one-time) jobs.
+
+    This wrapper reconstructs the task from minimal serialized data.
+    Tasks must implement their own dependency reconstruction in configure()
+    without relying on unpicklable service providers.
 
     Args:
         task_type_name: Name of the task type to instantiate
         task_id: Unique ID for this task instance
         task_data: Serialized task data (minimal attributes only)
         scheduled_at: When the task was scheduled to run
-        service_provider: Service provider for dependency injection
         **kwargs: Additional keyword arguments passed to the task
     """
     try:
-        # Get scheduler options from service provider to find task type
-        from application.services import BackgroundTaskScheduler
+        # Reconstruct task directly - no service provider needed
+        # Each worker will execute this independently
 
-        scheduler = (
-            service_provider.get_required_service(BackgroundTaskScheduler)
-            if service_provider
-            else None
+        # Create a temporary options instance to access registered task types
+        # This avoids needing the service provider
+        options = BackgroundTaskSchedulerOptions()
+
+        # Re-scan for registered tasks (they're registered via @backgroundjob decorator)
+        import inspect
+
+        from neuroglia.core import ModuleLoader, TypeFinder
+
+        module = ModuleLoader.load("application.services")
+        background_tasks = TypeFinder.get_types(
+            module,
+            lambda cls: inspect.isclass(cls)
+            and hasattr(cls, "__background_task_class_name__"),
         )
-        if not scheduler:
-            raise BackgroundTaskException(
-                "BackgroundTaskScheduler not available in service provider"
-            )
 
-        task_type = scheduler._options.get_task_type(task_type_name)
+        for background_task in background_tasks:
+            task_name = background_task.__background_task_class_name__
+            options.register_task_type(task_name, background_task)
+
+        task_type = options.get_task_type(task_type_name)
         if not task_type:
             raise BackgroundTaskException(
                 f"Task type '{task_type_name}' not registered"
@@ -209,9 +221,10 @@ async def scheduled_job_wrapper(
         task.__task_type__ = "ScheduledTaskDescriptor"
         task.__scheduled_at__ = scheduled_at
 
-        # Configure dependencies
-        if hasattr(task, "configure") and service_provider:
-            task.configure(service_provider=service_provider)
+        # Let the task configure its own dependencies
+        # Tasks should reconstruct dependencies from module-level imports, not service provider
+        if hasattr(task, "configure"):
+            task.configure()  # No service provider - task handles its own dependencies
 
         log.debug(
             f"Executing scheduled job: {task.__task_name__} (ID: {task.__task_id__})"
@@ -229,7 +242,6 @@ async def recurrent_job_wrapper(
     task_id: str,
     task_data: dict,
     interval: int,
-    service_provider=None,
     **kwargs,
 ):
     """Wrapper function for recurrent jobs.
@@ -239,24 +251,33 @@ async def recurrent_job_wrapper(
         task_id: Unique ID for this task instance
         task_data: Serialized task data (minimal attributes only)
         interval: Interval in seconds between executions
-        service_provider: Service provider for dependency injection
         **kwargs: Additional keyword arguments passed to the task
     """
     try:
-        # Get scheduler options from service provider to find task type
-        from application.services import BackgroundTaskScheduler
+        # Reconstruct task directly - no service provider needed
+        # Each worker will execute this independently
 
-        scheduler = (
-            service_provider.get_required_service(BackgroundTaskScheduler)
-            if service_provider
-            else None
+        # Create a temporary options instance to access registered task types
+        # This avoids needing the service provider
+        options = BackgroundTaskSchedulerOptions()
+
+        # Re-scan for registered tasks (they're registered via @backgroundjob decorator)
+        import inspect
+
+        from neuroglia.core import ModuleLoader, TypeFinder
+
+        module = ModuleLoader.load("application.services")
+        background_tasks = TypeFinder.get_types(
+            module,
+            lambda cls: inspect.isclass(cls)
+            and hasattr(cls, "__background_task_class_name__"),
         )
-        if not scheduler:
-            raise BackgroundTaskException(
-                "BackgroundTaskScheduler not available in service provider"
-            )
 
-        task_type = scheduler._options.get_task_type(task_type_name)
+        for background_task in background_tasks:
+            task_name = background_task.__background_task_class_name__
+            options.register_task_type(task_name, background_task)
+
+        task_type = options.get_task_type(task_type_name)
         if not task_type:
             raise BackgroundTaskException(
                 f"Task type '{task_type_name}' not registered"
@@ -272,9 +293,10 @@ async def recurrent_job_wrapper(
         task.__task_type__ = "RecurrentTaskDescriptor"
         task.__interval__ = interval
 
-        # Configure dependencies
-        if hasattr(task, "configure") and service_provider:
-            task.configure(service_provider=service_provider)
+        # Let the task configure its own dependencies
+        # Tasks should reconstruct dependencies from module-level imports, not service provider
+        if hasattr(task, "configure"):
+            task.configure()  # No service provider - task handles its own dependencies
 
         log.debug(
             f"Executing recurrent job: {task.__task_name__} (ID: {task.__task_id__})"
@@ -322,13 +344,14 @@ class BackgroundTaskScheduler(HostedService):
         self._options = options
         self._background_task_bus = background_task_bus
         self._service_provider = service_provider
+        self._started = False
+
         if scheduler:
             self._scheduler = scheduler
         elif AsyncIOExecutor is not None:
             self._scheduler = AsyncIOScheduler(executors={"default": AsyncIOExecutor()})
         else:
             raise BackgroundTaskException("APScheduler dependencies not available")
-        self._started = False
 
     async def start_async(self):
         """Start the background task scheduler."""
@@ -434,17 +457,9 @@ class BackgroundTaskScheduler(HostedService):
                 task.__interval__ = task_descriptor.interval  # type: ignore
                 task.__task_type__ = "RecurrentTaskDescriptor"
 
-            # Call configure() to inject dependencies from service provider
-            if hasattr(task, "configure") and self._service_provider:
-                try:
-                    task.configure(service_provider=self._service_provider)
-                    log.debug(
-                        f"Configured task '{task_descriptor.name}' with dependencies from service provider"
-                    )
-                except Exception as config_ex:
-                    log.warning(
-                        f"Failed to configure task '{task_descriptor.name}': {config_ex}"
-                    )
+            # DON'T call configure() here - it will inject unpicklable dependencies!
+            # Configuration happens in the job wrappers after APScheduler deserializes the job.
+            # This allows us to keep task_data minimal and serializable.
 
             return task
 
@@ -460,10 +475,28 @@ class BackgroundTaskScheduler(HostedService):
         to reconstruct it is serialized.
         """
         try:
-            # Extract only serializable data (exclude private attributes and methods)
-            task_data = {
-                k: v for k, v in task.__dict__.items() if not k.startswith("_")
-            }
+            # Extract only serializable data (exclude private attributes, methods, and complex objects)
+            # Only include primitive types (str, int, float, bool, dict, list) and datetime
+            task_data = {}
+            for k, v in task.__dict__.items():
+                if k.startswith("_"):
+                    continue
+                # Only include serializable primitive types
+                if isinstance(
+                    v,
+                    (str, int, float, bool, type(None), dict, list, datetime.datetime),
+                ):
+                    task_data[k] = v
+                else:
+                    # Log what we're skipping for debugging
+                    log.debug(
+                        f"Skipping non-serializable attribute '{k}' of type {type(v).__name__} in task {task.__task_name__}"
+                    )
+                # Skip complex objects like aws_ec2_client, worker_repository, etc.
+
+            log.debug(
+                f"Serializable task_data for {task.__task_name__}: {list(task_data.keys())}"
+            )
 
             if isinstance(task, ScheduledBackgroundJob):
                 log.debug(
@@ -480,7 +513,8 @@ class BackgroundTaskScheduler(HostedService):
                         "task_id": task.__task_id__,
                         "task_data": task_data,
                         "scheduled_at": task.__scheduled_at__,
-                        "service_provider": self._service_provider,
+                        # Don't pass service_provider - it's unpicklable!
+                        # Wrappers will get it from _global_scheduler instance
                     },
                     misfire_grace_time=None,
                 )
@@ -500,7 +534,8 @@ class BackgroundTaskScheduler(HostedService):
                         "task_id": task.__task_id__,
                         "task_data": task_data,
                         "interval": task.__interval__,
-                        "service_provider": self._service_provider,
+                        # Don't pass service_provider - it's unpicklable!
+                        # Wrappers will get it from _global_scheduler instance
                     },
                     misfire_grace_time=None,
                 )

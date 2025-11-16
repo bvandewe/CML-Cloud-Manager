@@ -9,18 +9,31 @@ from neuroglia.mediation.mediator import Mediator
 from neuroglia.mvc.controller_base import ControllerBase
 
 from api.dependencies import get_current_user, require_roles
-from api.models import (CreateCMLWorkerRequest, ImportCMLWorkerRequest,
-                        RegisterLicenseRequest, UpdateCMLWorkerTagsRequest)
-from application.commands import (CreateCMLWorkerCommand, ImportCMLWorkerCommand,
-                                  StartCMLWorkerCommand, StopCMLWorkerCommand,
-                                  TerminateCMLWorkerCommand,
-                                  UpdateCMLWorkerStatusCommand,
-                                  UpdateCMLWorkerTagsCommand)
-from application.queries import (GetCMLWorkerByIdQuery, GetCMLWorkerResourcesQuery,
-                                 GetCMLWorkersQuery)
+from api.models import (
+    CreateCMLWorkerRequest,
+    ImportCMLWorkerRequest,
+    RegisterLicenseRequest,
+    UpdateCMLWorkerTagsRequest,
+)
+from application.commands import (
+    CreateCMLWorkerCommand,
+    ImportCMLWorkerCommand,
+    StartCMLWorkerCommand,
+    StopCMLWorkerCommand,
+    TerminateCMLWorkerCommand,
+    UpdateCMLWorkerStatusCommand,
+    UpdateCMLWorkerTagsCommand,
+)
+from application.queries import (
+    GetCMLWorkerByIdQuery,
+    GetCMLWorkerResourcesQuery,
+    GetCMLWorkersQuery,
+)
 from domain.enums import CMLWorkerStatus
-from integration.enums import (AwsRegion,
-                               Ec2InstanceResourcesUtilizationRelativeStartTime)
+from integration.enums import (
+    AwsRegion,
+    Ec2InstanceResourcesUtilizationRelativeStartTime,
+)
 from integration.services.aws_ec2_api_client import Ec2InstanceResourcesUtilization
 
 logger = logging.getLogger(__name__)
@@ -116,7 +129,7 @@ class WorkersController(ControllerBase):
         self,
         aws_region: aws_region_annotation,
         worker_id: worker_id_annotation,
-        relative_start_time: Ec2InstanceResourcesUtilizationRelativeStartTime,
+        start_time: Ec2InstanceResourcesUtilizationRelativeStartTime,
         token: str = Depends(get_current_user),
     ) -> Any:
         """Queries AWS CloudWatch for CML Worker instance resource utilization.
@@ -125,7 +138,7 @@ class WorkersController(ControllerBase):
         query = GetCMLWorkerResourcesQuery(
             worker_id=worker_id,
             aws_region=aws_region,
-            relative_start_time=relative_start_time,
+            relative_start_time=start_time,
         )
         return self.process(await self.mediator.execute_async(query))
 
@@ -304,46 +317,26 @@ class WorkersController(ControllerBase):
         """Refreshes worker state from AWS and ensures monitoring is active.
 
         This endpoint:
-        1. Queries the latest worker details from the database
-        2. Triggers immediate metrics collection from AWS EC2/CloudWatch
-        3. Updates the worker state in the database (emitting domain events)
+        1. Dispatches RefreshWorkerMetricsCommand to collect latest AWS data
+        2. Command handler updates worker aggregate (emitting domain events)
+        3. Command handler updates OTEL metrics
         4. Starts monitoring if not already active (for running/pending workers)
 
         (**Requires valid token.**)"""
         logger.info(f"Refreshing CML worker {worker_id} in region {aws_region}")
 
-        # First, query the latest worker details
-        query = GetCMLWorkerByIdQuery(worker_id=worker_id)
-        worker_result = await self.mediator.execute_async(query)
+        # Dispatch command to refresh metrics
+        from application.commands import RefreshWorkerMetricsCommand
 
-        if not worker_result or not worker_result.is_success():
-            raise HTTPException(status_code=404, detail=f"Worker {worker_id} not found")
+        command = RefreshWorkerMetricsCommand(worker_id=worker_id)
+        refresh_result = await self.mediator.execute_async(command)
 
-        # Trigger immediate metrics collection by executing the job directly
-        try:
-            # Import required services
-            from application.services.worker_metrics_collection_job import \
-                WorkerMetricsCollectionJob
-
-            # Create a temporary job instance for immediate execution
-            job = WorkerMetricsCollectionJob(worker_id=worker_id)
-
-            # Configure it with dependencies from service provider
-            job.configure(service_provider=self.service_provider)
-
-            # Execute the metrics collection immediately
-            await job.run_every()
-
-            logger.info(
-                f"✅ Immediate metrics collection completed for worker {worker_id}"
+        # Check if refresh succeeded
+        if not refresh_result or not refresh_result.is_success:
+            logger.error(f"Failed to refresh worker {worker_id}: {refresh_result}")
+            raise HTTPException(
+                status_code=500, detail="Failed to refresh worker metrics"
             )
-
-        except Exception as e:
-            logger.warning(
-                f"⚠️ Immediate metrics collection failed for worker {worker_id}: {e}",
-                exc_info=True,
-            )
-            # Continue anyway - monitoring scheduler will retry later
 
         # Get the monitoring scheduler from main module
         from main import _monitoring_scheduler
@@ -361,6 +354,43 @@ class WorkersController(ControllerBase):
         # Return the refreshed worker details
         refreshed_query = GetCMLWorkerByIdQuery(worker_id=worker_id)
         return self.process(await self.mediator.execute_async(refreshed_query))
+
+    @post(
+        "/region/{aws_region}/workers/{worker_id}/monitoring",
+        response_model=Any,
+        status_code=200,
+        responses=ControllerBase.error_responses,
+    )
+    async def enable_detailed_monitoring(
+        self,
+        aws_region: aws_region_annotation,
+        worker_id: worker_id_annotation,
+        token: str = Depends(require_roles("admin")),
+    ) -> Any:
+        """Enables detailed CloudWatch monitoring on a CML Worker instance.
+
+        This enables 1-minute metric granularity instead of 5-minute (costs ~$2.10/month).
+
+        (**Requires `admin` role!**)"""
+        logger.info(
+            f"Enabling detailed monitoring for CML worker {worker_id} in region {aws_region}"
+        )
+
+        from application.commands import EnableWorkerDetailedMonitoringCommand
+
+        command = EnableWorkerDetailedMonitoringCommand(worker_id=worker_id)
+        result = await self.mediator.execute_async(command)
+
+        if not result or not result.is_success:
+            logger.error(
+                f"Failed to enable monitoring for worker {worker_id}: {result}"
+            )
+            raise HTTPException(
+                status_code=500, detail="Failed to enable detailed monitoring"
+            )
+
+        logger.info(f"✅ Successfully enabled monitoring for worker {worker_id}")
+        return self.process(result)
 
     @post(
         "/region/{aws_region}/workers/{worker_id}/license",

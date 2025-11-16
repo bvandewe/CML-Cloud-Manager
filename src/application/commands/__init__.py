@@ -7,9 +7,17 @@ from .create_cml_worker_command import (
 )
 from .create_task_command import CreateTaskCommand, CreateTaskCommandHandler
 from .delete_task_command import DeleteTaskCommand, DeleteTaskCommandHandler
+from .enable_worker_detailed_monitoring_command import (
+    EnableWorkerDetailedMonitoringCommand,
+    EnableWorkerDetailedMonitoringCommandHandler,
+)
 from .import_cml_worker_command import (
     ImportCMLWorkerCommand,
     ImportCMLWorkerCommandHandler,
+)
+from .refresh_worker_metrics_command import (
+    RefreshWorkerMetricsCommand,
+    RefreshWorkerMetricsCommandHandler,
 )
 from .start_cml_worker_command import (
     StartCMLWorkerCommand,
@@ -38,8 +46,12 @@ __all__ = [
     "CreateTaskCommandHandler",
     "DeleteTaskCommand",
     "DeleteTaskCommandHandler",
+    "EnableWorkerDetailedMonitoringCommand",
+    "EnableWorkerDetailedMonitoringCommandHandler",
     "ImportCMLWorkerCommand",
     "ImportCMLWorkerCommandHandler",
+    "RefreshWorkerMetricsCommand",
+    "RefreshWorkerMetricsCommandHandler",
     "StartCMLWorkerCommand",
     "StartCMLWorkerCommandHandler",
     "StopCMLWorkerCommand",
