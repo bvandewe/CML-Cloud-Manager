@@ -62,51 +62,57 @@ def configure_worker_monitoring(
     Args:
         app: FastAPI application instance with configured services
     """
-    global _monitoring_scheduler
-
     if not app_settings.worker_monitoring_enabled:
         log.info("⚠️ Worker monitoring disabled in settings")
         return
 
     log.info("📊 Configuring worker monitoring system with APScheduler...")
 
-    # Get required dependencies from service provider
-    worker_repository = app.state.services.get_required_service(CMLWorkerRepository)
-    aws_client = app.state.services.get_required_service(AwsEc2Client)
-    background_task_bus = app.state.services.get_required_service(BackgroundTasksBus)
-    background_task_scheduler = app.state.services.get_required_service(
-        BackgroundTaskScheduler
-    )
-
-    # Create notification handler (reactive observer)
-    notification_handler = WorkerNotificationHandler(
-        cpu_threshold=90.0,
-        memory_threshold=90.0,
-    )
-
-    # Create monitoring scheduler
-    scheduler = WorkerMonitoringScheduler(
-        worker_repository=worker_repository,
-        aws_client=aws_client,
-        notification_handler=notification_handler,
-        background_task_bus=background_task_bus,
-        background_task_scheduler=background_task_scheduler,
-        poll_interval=app_settings.worker_metrics_poll_interval,
-    )
-
-    # Store reference for lifecycle management
-    _monitoring_scheduler = scheduler
-
     # Add lifecycle hooks
     @app.on_event("startup")
     async def start_monitoring() -> None:
         """Start worker monitoring on application startup.
 
+        Creates monitoring scheduler with scoped dependencies and starts it.
         BackgroundTaskScheduler starts automatically as a HostedService.
-        This just discovers active workers and schedules monitoring jobs.
         """
-        if _monitoring_scheduler:
-            log.info("🚀 Starting worker monitoring scheduler...")
+        global _monitoring_scheduler
+
+        if not app_settings.worker_monitoring_enabled:
+            return
+
+        log.info("🚀 Starting worker monitoring scheduler...")
+
+        # Create a scope to access scoped services like repositories
+        async with app.state.services.create_scope() as scope:
+            # Get required dependencies from scoped service provider
+            worker_repository = scope.get_required_service(CMLWorkerRepository)
+            aws_client = scope.get_required_service(AwsEc2Client)
+            background_task_bus = scope.get_required_service(BackgroundTasksBus)
+            background_task_scheduler = scope.get_required_service(
+                BackgroundTaskScheduler
+            )
+
+            # Create notification handler (reactive observer)
+            notification_handler = WorkerNotificationHandler(
+                cpu_threshold=90.0,
+                memory_threshold=90.0,
+            )
+
+            # Create monitoring scheduler
+            scheduler = WorkerMonitoringScheduler(
+                worker_repository=worker_repository,
+                aws_client=aws_client,
+                notification_handler=notification_handler,
+                background_task_bus=background_task_bus,
+                background_task_scheduler=background_task_scheduler,
+                poll_interval=app_settings.worker_metrics_poll_interval,
+            )
+
+            # Store reference for lifecycle management
+            _monitoring_scheduler = scheduler
+
+            # Start the scheduler
             await _monitoring_scheduler.start_async()
 
     @app.on_event("shutdown")
