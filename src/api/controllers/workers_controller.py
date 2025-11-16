@@ -9,31 +9,18 @@ from neuroglia.mediation.mediator import Mediator
 from neuroglia.mvc.controller_base import ControllerBase
 
 from api.dependencies import get_current_user, require_roles
-from api.models import (
-    CreateCMLWorkerRequest,
-    ImportCMLWorkerRequest,
-    RegisterLicenseRequest,
-    UpdateCMLWorkerTagsRequest,
-)
-from application.commands import (
-    CreateCMLWorkerCommand,
-    ImportCMLWorkerCommand,
-    StartCMLWorkerCommand,
-    StopCMLWorkerCommand,
-    TerminateCMLWorkerCommand,
-    UpdateCMLWorkerStatusCommand,
-    UpdateCMLWorkerTagsCommand,
-)
-from application.queries import (
-    GetCMLWorkerByIdQuery,
-    GetCMLWorkerResourcesQuery,
-    GetCMLWorkersQuery,
-)
+from api.models import (CreateCMLWorkerRequest, ImportCMLWorkerRequest,
+                        RegisterLicenseRequest, UpdateCMLWorkerTagsRequest)
+from application.commands import (CreateCMLWorkerCommand, ImportCMLWorkerCommand,
+                                  StartCMLWorkerCommand, StopCMLWorkerCommand,
+                                  TerminateCMLWorkerCommand,
+                                  UpdateCMLWorkerStatusCommand,
+                                  UpdateCMLWorkerTagsCommand)
+from application.queries import (GetCMLWorkerByIdQuery, GetCMLWorkerResourcesQuery,
+                                 GetCMLWorkersQuery)
 from domain.enums import CMLWorkerStatus
-from integration.enums import (
-    AwsRegion,
-    Ec2InstanceResourcesUtilizationRelativeStartTime,
-)
+from integration.enums import (AwsRegion,
+                               Ec2InstanceResourcesUtilizationRelativeStartTime)
 from integration.services.aws_ec2_api_client import Ec2InstanceResourcesUtilization
 
 logger = logging.getLogger(__name__)
@@ -317,9 +304,10 @@ class WorkersController(ControllerBase):
         """Refreshes worker state from AWS and ensures monitoring is active.
 
         This endpoint:
-        1. Queries AWS for the latest worker status and metrics
-        2. Updates the worker state in the database
-        3. Starts monitoring if not already active (for running/pending workers)
+        1. Queries the latest worker details from the database
+        2. Triggers immediate metrics collection from AWS EC2/CloudWatch
+        3. Updates the worker state in the database (emitting domain events)
+        4. Starts monitoring if not already active (for running/pending workers)
 
         (**Requires valid token.**)"""
         logger.info(f"Refreshing CML worker {worker_id} in region {aws_region}")
@@ -331,9 +319,31 @@ class WorkersController(ControllerBase):
         if not worker_result or not worker_result.is_success():
             raise HTTPException(status_code=404, detail=f"Worker {worker_id} not found")
 
-        # Update status from AWS
-        status_command = UpdateCMLWorkerStatusCommand(worker_id=worker_id)
-        await self.mediator.execute_async(status_command)
+        # Trigger immediate metrics collection by executing the job directly
+        try:
+            # Import required services
+            from application.services.worker_metrics_collection_job import \
+                WorkerMetricsCollectionJob
+
+            # Create a temporary job instance for immediate execution
+            job = WorkerMetricsCollectionJob(worker_id=worker_id)
+
+            # Configure it with dependencies from service provider
+            job.configure(service_provider=self.service_provider)
+
+            # Execute the metrics collection immediately
+            await job.run_every()
+
+            logger.info(
+                f"✅ Immediate metrics collection completed for worker {worker_id}"
+            )
+
+        except Exception as e:
+            logger.warning(
+                f"⚠️ Immediate metrics collection failed for worker {worker_id}: {e}",
+                exc_info=True,
+            )
+            # Continue anyway - monitoring scheduler will retry later
 
         # Get the monitoring scheduler from main module
         from main import _monitoring_scheduler

@@ -162,11 +162,54 @@ class BackgroundTaskSchedulerOptions:
 
 
 async def scheduled_job_wrapper(
-    task: ScheduledBackgroundJob, service_provider=None, **kwargs
+    task_type_name: str,
+    task_id: str,
+    task_data: dict,
+    scheduled_at: datetime.datetime,
+    service_provider=None,
+    **kwargs,
 ):
-    """Wrapper function for scheduled (one-time) jobs."""
+    """Wrapper function for scheduled (one-time) jobs.
+
+    Args:
+        task_type_name: Name of the task type to instantiate
+        task_id: Unique ID for this task instance
+        task_data: Serialized task data (minimal attributes only)
+        scheduled_at: When the task was scheduled to run
+        service_provider: Service provider for dependency injection
+        **kwargs: Additional keyword arguments passed to the task
+    """
     try:
-        # Configure dependencies if task supports it (for jobs loaded from persistence)
+        # Get scheduler options from service provider to find task type
+        from application.services import BackgroundTaskScheduler
+
+        scheduler = (
+            service_provider.get_required_service(BackgroundTaskScheduler)
+            if service_provider
+            else None
+        )
+        if not scheduler:
+            raise BackgroundTaskException(
+                "BackgroundTaskScheduler not available in service provider"
+            )
+
+        task_type = scheduler._options.get_task_type(task_type_name)
+        if not task_type:
+            raise BackgroundTaskException(
+                f"Task type '{task_type_name}' not registered"
+            )
+
+        # Create new instance without calling __init__
+        task: ScheduledBackgroundJob = object.__new__(task_type)
+
+        # Restore task state
+        task.__dict__.update(task_data)
+        task.__task_id__ = task_id
+        task.__task_name__ = task_type_name
+        task.__task_type__ = "ScheduledTaskDescriptor"
+        task.__scheduled_at__ = scheduled_at
+
+        # Configure dependencies
         if hasattr(task, "configure") and service_provider:
             task.configure(service_provider=service_provider)
 
@@ -175,16 +218,61 @@ async def scheduled_job_wrapper(
         )
         return await task.run_at(**kwargs)
     except Exception as ex:
-        log.error(f"Error executing scheduled job {task.__task_name__}: {ex}")
+        log.error(
+            f"Error executing scheduled job {task_type_name}: {ex}", exc_info=True
+        )
         raise
 
 
 async def recurrent_job_wrapper(
-    task: RecurrentBackgroundJob, service_provider=None, **kwargs
+    task_type_name: str,
+    task_id: str,
+    task_data: dict,
+    interval: int,
+    service_provider=None,
+    **kwargs,
 ):
-    """Wrapper function for recurrent jobs."""
+    """Wrapper function for recurrent jobs.
+
+    Args:
+        task_type_name: Name of the task type to instantiate
+        task_id: Unique ID for this task instance
+        task_data: Serialized task data (minimal attributes only)
+        interval: Interval in seconds between executions
+        service_provider: Service provider for dependency injection
+        **kwargs: Additional keyword arguments passed to the task
+    """
     try:
-        # Configure dependencies if task supports it (for jobs loaded from persistence)
+        # Get scheduler options from service provider to find task type
+        from application.services import BackgroundTaskScheduler
+
+        scheduler = (
+            service_provider.get_required_service(BackgroundTaskScheduler)
+            if service_provider
+            else None
+        )
+        if not scheduler:
+            raise BackgroundTaskException(
+                "BackgroundTaskScheduler not available in service provider"
+            )
+
+        task_type = scheduler._options.get_task_type(task_type_name)
+        if not task_type:
+            raise BackgroundTaskException(
+                f"Task type '{task_type_name}' not registered"
+            )
+
+        # Create new instance without calling __init__
+        task: RecurrentBackgroundJob = object.__new__(task_type)
+
+        # Restore task state
+        task.__dict__.update(task_data)
+        task.__task_id__ = task_id
+        task.__task_name__ = task_type_name
+        task.__task_type__ = "RecurrentTaskDescriptor"
+        task.__interval__ = interval
+
+        # Configure dependencies
         if hasattr(task, "configure") and service_provider:
             task.configure(service_provider=service_provider)
 
@@ -193,7 +281,9 @@ async def recurrent_job_wrapper(
         )
         return await task.run_every(**kwargs)
     except Exception as ex:
-        log.error(f"Error executing recurrent job {task.__task_name__}: {ex}")
+        log.error(
+            f"Error executing recurrent job {task_type_name}: {ex}", exc_info=True
+        )
         raise
 
 
@@ -363,41 +453,56 @@ class BackgroundTaskScheduler(HostedService):
             raise BackgroundTaskException(f"Failed to deserialize task: {ex}")
 
     async def enqueue_task_async(self, task: BackgroundJob):
-        """Enqueue a task to be scheduled by the background task scheduler."""
+        """Enqueue a task to be scheduled by the background task scheduler.
+
+        This method extracts minimal serializable data from the task and passes it to
+        APScheduler. The task object itself is NOT pickled - only the minimal data needed
+        to reconstruct it is serialized.
+        """
         try:
-            # Extract kwargs from task attributes (excluding private attributes)
-            kwargs = {k: v for k, v in task.__dict__.items() if not k.startswith("_")}
+            # Extract only serializable data (exclude private attributes and methods)
+            task_data = {
+                k: v for k, v in task.__dict__.items() if not k.startswith("_")
+            }
 
             if isinstance(task, ScheduledBackgroundJob):
                 log.debug(
                     f"Scheduling one-time job: {task.__task_name__} at {task.__scheduled_at__}"
                 )
-                # Add service_provider to kwargs for dependency injection
-                kwargs["service_provider"] = self._service_provider
+
                 self._scheduler.add_job(
                     scheduled_job_wrapper,
                     trigger="date",
                     run_date=task.__scheduled_at__,
                     id=task.__task_id__,
-                    kwargs=kwargs,
+                    kwargs={
+                        "task_type_name": task.__task_name__,
+                        "task_id": task.__task_id__,
+                        "task_data": task_data,
+                        "scheduled_at": task.__scheduled_at__,
+                        "service_provider": self._service_provider,
+                    },
                     misfire_grace_time=None,
-                    args=(task,),
                 )
 
             elif isinstance(task, RecurrentBackgroundJob):
                 log.debug(
                     f"Scheduling recurrent job: {task.__task_name__} every {task.__interval__} seconds"
                 )
-                # Add service_provider to kwargs for dependency injection
-                kwargs["service_provider"] = self._service_provider
+
                 self._scheduler.add_job(
                     recurrent_job_wrapper,
                     trigger="interval",
                     seconds=task.__interval__,
                     id=task.__task_id__,
-                    kwargs=kwargs,
+                    kwargs={
+                        "task_type_name": task.__task_name__,
+                        "task_id": task.__task_id__,
+                        "task_data": task_data,
+                        "interval": task.__interval__,
+                        "service_provider": self._service_provider,
+                    },
                     misfire_grace_time=None,
-                    args=(task,),
                 )
             else:
                 raise BackgroundTaskException(f"Unknown task type: {type(task)}")

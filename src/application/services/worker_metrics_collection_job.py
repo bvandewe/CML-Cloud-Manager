@@ -10,16 +10,12 @@ from typing import Any, Callable, Dict, List, Optional
 
 from opentelemetry import trace
 
-from application.services.background_scheduler import (
-    RecurrentBackgroundJob,
-    backgroundjob,
-)
+from application.services.background_scheduler import (RecurrentBackgroundJob,
+                                                       backgroundjob)
 from domain.enums import CMLWorkerStatus
 from domain.repositories import CMLWorkerRepository
-from integration.enums import (
-    AwsRegion,
-    Ec2InstanceResourcesUtilizationRelativeStartTime,
-)
+from integration.enums import (AwsRegion,
+                               Ec2InstanceResourcesUtilizationRelativeStartTime)
 from integration.services.aws_ec2_api_client import AwsEc2Client
 
 logger = logging.getLogger(__name__)
@@ -113,9 +109,8 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
             # Get notification handler from service provider (don't store it to avoid pickle issues)
             # We'll look it up each time we need to notify
             try:
-                from application.services.worker_notification_handler import (
-                    WorkerNotificationHandler,
-                )
+                from application.services.worker_notification_handler import \
+                    WorkerNotificationHandler
 
                 self._notification_handler = service_provider.get_required_service(
                     WorkerNotificationHandler
@@ -381,7 +376,4 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
             "terminated": CMLWorkerStatus.TERMINATED,
         }
 
-        return state_mapping.get(ec2_state, CMLWorkerStatus.UNKNOWN)
-
-        return state_mapping.get(ec2_state, CMLWorkerStatus.UNKNOWN)
         return state_mapping.get(ec2_state, CMLWorkerStatus.UNKNOWN)

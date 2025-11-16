@@ -39,11 +39,12 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 - **Worker Refresh Endpoint**: Manual worker state synchronization and monitoring restart
   - POST `/region/{aws_region}/workers/{worker_id}/refresh` endpoint
-  - Queries AWS EC2 for latest instance status and metrics
-  - Updates worker state in database with current AWS data
+  - Triggers immediate metrics collection from AWS EC2/CloudWatch
+  - Updates worker state in database with current AWS data (emits domain events on changes)
   - Automatically starts monitoring if worker is running/pending and not monitored
   - Returns refreshed worker details to UI
   - Refresh button in Worker Details modal with loading state and notifications
+  - Comprehensive error handling and user feedback
 
 #### Configuration
 
@@ -51,7 +52,7 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
   - `worker_monitoring_enabled`: Enable/disable automated monitoring (default: true)
   - `worker_metrics_poll_interval`: Metrics collection interval in seconds (default: 300)
   - `worker_notification_webhooks`: List of webhook URLs for alerts (placeholder)
-  
+
 - **Background Job Store Settings**:
   - `background_job_store`: Redis or MongoDB configuration for job persistence
   - Separate Redis database for job storage (DB 1) vs sessions (DB 0)
@@ -104,6 +105,19 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 - Added `apscheduler = "^3.11.1"` for background task scheduling
 
 ### Fixed
+
+- **APScheduler Pickle Serialization**: Fixed "Can't pickle local object" errors preventing background job persistence
+  - Modified job wrappers to accept only serializable parameters (task_type_name, task_id, task_data)
+  - Job wrappers reconstruct task objects from minimal data using service provider
+  - Eliminated unpicklable references (JsonSerializer lambdas) from job arguments
+  - Enables Redis/MongoDB job stores to persist scheduled and recurrent jobs successfully
+
+- **Enhanced Worker Refresh**: Refresh endpoint now triggers immediate metrics collection
+  - Creates and executes WorkerMetricsCollectionJob instance on-demand
+  - Collects EC2 status and CloudWatch metrics instantly
+  - Worker aggregate emits domain events for any state changes (status, IP, telemetry)
+  - Domain event handlers can react asynchronously to worker updates
+  - Ensures monitoring scheduler tracks worker after refresh
 
 - Fixed dependency injection for authentication middleware to properly resolve service provider
 - Fixed configuration issues in CI workflow for Git LFS checkout to ensure GitHub Pages deployment includes LFS assets
