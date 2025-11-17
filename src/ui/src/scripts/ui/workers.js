@@ -2355,6 +2355,10 @@ function setupRefreshButton() {
     if (refreshBtn) {
         console.log('[setupRefreshButton] Attaching event listener to button');
 
+        // Always ensure button is enabled and has correct content
+        refreshBtn.disabled = false;
+        refreshBtn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Refresh';
+
         // Remove any existing listeners by cloning the button
         const newBtn = refreshBtn.cloneNode(true);
         console.log('[setupRefreshButton] Button cloned, replacing in DOM');
