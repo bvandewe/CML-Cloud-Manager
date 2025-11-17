@@ -516,7 +516,7 @@ function renderWorkersTable() {
     if (workersData.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="10" class="text-center text-muted py-4">
+                <td colspan="9" class="text-center text-muted py-4">
                     <i class="bi bi-inbox fs-1 d-block mb-2"></i>
                     No workers found
                 </td>
@@ -574,11 +574,6 @@ function renderWorkersTable() {
                 }
             </td>
             <td>
-                <span class="badge ${getLicenseStatusBadgeClass(worker.license_status)}">
-                    ${worker.license_status}
-                </span>
-            </td>
-            <td>
                 <div class="btn-group btn-group-sm" role="group">
                     <button class="btn btn-outline-primary" onclick="window.workersApp.showWorkerDetails('${worker.id}', '${worker.aws_region}')"
                             title="View Details">
@@ -601,10 +596,10 @@ function renderWorkersTable() {
                             : ''
                     }
                     ${
-                        worker.license_status === 'unregistered'
-                            ? `<button class="btn btn-outline-info" onclick="window.workersApp.showLicenseModal('${worker.id}', '${worker.aws_region}')"
-                                title="Register License">
-                            <i class="bi bi-key"></i>
+                        worker.status === 'running'
+                            ? `<button class="btn btn-outline-secondary refresh-btn" data-worker-id="${worker.id}" data-region="${worker.aws_region}"
+                                title="Refresh Metrics">
+                            <i class="bi bi-arrow-clockwise"></i>
                         </button>`
                             : ''
                     }
