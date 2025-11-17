@@ -9,6 +9,9 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+# Import for type hint only to avoid circular dependency
+from typing import TYPE_CHECKING
+
 from neuroglia.core import OperationResult
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_bus import CloudEventBus
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import (
@@ -33,6 +36,9 @@ from integration.services.cml_api_client import CMLApiClient
 from observability.metrics import meter
 
 from .command_handler_base import CommandHandlerBase
+
+if TYPE_CHECKING:
+    from application.services import WorkerMonitoringScheduler
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -96,6 +102,7 @@ class RefreshWorkerMetricsCommandHandler(
         aws_ec2_client: AwsEc2Client,
         settings: Settings,
         sse_relay: SSEEventRelay,
+        monitoring_scheduler: "WorkerMonitoringScheduler | None" = None,
     ):
         super().__init__(
             mediator,
@@ -107,6 +114,7 @@ class RefreshWorkerMetricsCommandHandler(
         self.aws_ec2_client = aws_ec2_client
         self.settings = settings
         self._sse_relay = sse_relay
+        self._monitoring_scheduler = monitoring_scheduler
 
     async def handle_async(
         self, request: RefreshWorkerMetricsCommand
@@ -610,16 +618,46 @@ class RefreshWorkerMetricsCommandHandler(
 
             # 7. Broadcast event to SSE clients for real-time UI updates
             try:
+                event_data = {
+                    "worker_id": command.worker_id,
+                    "status": worker.state.status.value,
+                    "cpu_utilization": worker.state.cloudwatch_cpu_utilization,
+                    "memory_utilization": worker.state.cloudwatch_memory_utilization,
+                    "labs_count": worker.state.cml_labs_count,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+
+                # Try to get scheduling info from monitoring scheduler if available
+                if self._monitoring_scheduler:
+                    try:
+                        job_id = f"worker-metrics-{command.worker_id}"
+                        job = self._monitoring_scheduler._background_task_scheduler.get_job(
+                            job_id
+                        )
+                        if job and hasattr(job, "next_run_time") and job.next_run_time:
+                            event_data["next_refresh_at"] = (
+                                job.next_run_time.isoformat() + "Z"
+                            )
+                            # Calculate interval from trigger if available
+                            if hasattr(job, "trigger") and hasattr(
+                                job.trigger, "interval"
+                            ):
+                                event_data["poll_interval"] = int(
+                                    job.trigger.interval.total_seconds()
+                                )
+                            else:
+                                # Fallback to configured poll interval
+                                event_data["poll_interval"] = (
+                                    self._monitoring_scheduler._poll_interval
+                                )
+                    except Exception as e:
+                        log.debug(
+                            f"Could not get scheduling info for worker {command.worker_id}: {e}"
+                        )
+
                 await self._sse_relay.broadcast_event(
                     event_type="worker.metrics.updated",
-                    data={
-                        "worker_id": command.worker_id,
-                        "status": worker.state.status.value,
-                        "cpu_utilization": worker.state.cloudwatch_cpu_utilization,
-                        "memory_utilization": worker.state.cloudwatch_memory_utilization,
-                        "labs_count": worker.state.cml_labs_count,
-                        "updated_at": datetime.now(timezone.utc).isoformat(),
-                    },
+                    data=event_data,
                 )
             except Exception as e:
                 # Don't fail the command if SSE broadcast fails

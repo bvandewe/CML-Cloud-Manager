@@ -363,7 +363,7 @@ function setupSSEHandlers() {
         // If worker details modal is open for this worker, reload it
         if (currentWorkerDetails && currentWorkerDetails.id === data.worker_id) {
             console.log('[SSE] Reloading open worker details modal');
-            loadWorkerDetails(data.worker_id, currentWorkerDetails.region);
+            showWorkerDetails(data.worker_id, currentWorkerDetails.region);
             // Reset the countdown timer when metrics are updated
             resetMetricsCountdown(data);
         }
