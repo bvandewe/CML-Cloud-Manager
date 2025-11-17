@@ -575,13 +575,13 @@ function renderWorkersTable() {
             </td>
             <td>
                 <div class="btn-group btn-group-sm" role="group">
-                    <button class="btn btn-outline-primary" onclick="window.workersApp.showWorkerDetails('${worker.id}', '${worker.aws_region}')"
+                    <button class="btn btn-outline-primary" onclick="event.stopPropagation(); window.workersApp.showWorkerDetails('${worker.id}', '${worker.aws_region}')"
                             title="View Details">
                         <i class="bi bi-info-circle"></i>
                     </button>
                     ${
                         worker.status === 'stopped'
-                            ? `<button class="btn btn-outline-success" onclick="window.workersApp.startWorker('${worker.id}', '${worker.aws_region}')"
+                            ? `<button class="btn btn-outline-success" onclick="event.stopPropagation(); window.workersApp.showStartConfirmation('${worker.id}', '${worker.aws_region}', '${escapeHtml(worker.name)}')"
                                 title="Start">
                             <i class="bi bi-play-fill"></i>
                         </button>`
@@ -589,7 +589,7 @@ function renderWorkersTable() {
                     }
                     ${
                         worker.status === 'running'
-                            ? `<button class="btn btn-outline-warning" onclick="window.workersApp.stopWorker('${worker.id}', '${worker.aws_region}')"
+                            ? `<button class="btn btn-outline-warning" onclick="event.stopPropagation(); window.workersApp.showStopConfirmation('${worker.id}', '${worker.aws_region}', '${escapeHtml(worker.name)}')"
                                 title="Stop">
                             <i class="bi bi-stop-fill"></i>
                         </button>`
@@ -598,12 +598,12 @@ function renderWorkersTable() {
                     ${
                         worker.status === 'running'
                             ? `<button class="btn btn-outline-secondary refresh-btn" data-worker-id="${worker.id}" data-region="${worker.aws_region}"
-                                title="Refresh Metrics">
+                                title="Refresh Metrics" onclick="event.stopPropagation()">
                             <i class="bi bi-arrow-clockwise"></i>
                         </button>`
                             : ''
                     }
-                    <button class="btn btn-outline-danger admin-only" onclick="window.workersApp.showDeleteModal('${worker.id}', '${worker.aws_region}', '${escapeHtml(worker.name)}')"
+                    <button class="btn btn-outline-danger admin-only" onclick="event.stopPropagation(); window.workersApp.showDeleteModal('${worker.id}', '${worker.aws_region}', '${escapeHtml(worker.name)}')"
                             title="Delete Worker" style="display: none;">
                         <i class="bi bi-trash"></i>
                     </button>
@@ -2519,8 +2519,6 @@ async function startWorker(workerId, region) {
         return;
     }
 
-    if (!confirm('Are you sure you want to start this worker?')) return;
-
     try {
         await workersApi.startWorker(region, workerId);
         showToast('Worker start initiated', 'success');
@@ -2540,8 +2538,6 @@ async function stopWorker(workerId, region) {
         return;
     }
 
-    if (!confirm('Are you sure you want to stop this worker?')) return;
-
     try {
         await workersApi.stopWorker(region, workerId);
         showToast('Worker stop initiated', 'success');
@@ -2550,6 +2546,70 @@ async function stopWorker(workerId, region) {
         console.error('Failed to stop worker:', error);
         showToast(error.message || 'Failed to stop worker', 'error');
     }
+}
+
+/**
+ * Show confirmation modal for starting a worker
+ */
+function showStartConfirmation(workerId, region, workerName) {
+    if (!isAdmin()) {
+        showToast('Permission denied. Only administrators can start workers.', 'error');
+        return;
+    }
+
+    const modal = document.getElementById('confirmModal');
+    const title = document.getElementById('confirm-modal-title');
+    const message = document.getElementById('confirm-modal-message');
+    const actionBtn = document.getElementById('confirm-modal-action');
+
+    title.textContent = 'Start Worker';
+    message.textContent = `Are you sure you want to start worker "${workerName}"? This will boot up the EC2 instance and start the CML service.`;
+    actionBtn.textContent = 'Start Worker';
+    actionBtn.className = 'btn btn-success';
+
+    // Remove any existing event listeners
+    const newActionBtn = actionBtn.cloneNode(true);
+    actionBtn.parentNode.replaceChild(newActionBtn, actionBtn);
+
+    newActionBtn.addEventListener('click', async () => {
+        bootstrap.Modal.getInstance(modal).hide();
+        await startWorker(workerId, region);
+    });
+
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+}
+
+/**
+ * Show confirmation modal for stopping a worker
+ */
+function showStopConfirmation(workerId, region, workerName) {
+    if (!isAdmin()) {
+        showToast('Permission denied. Only administrators can stop workers.', 'error');
+        return;
+    }
+
+    const modal = document.getElementById('confirmModal');
+    const title = document.getElementById('confirm-modal-title');
+    const message = document.getElementById('confirm-modal-message');
+    const actionBtn = document.getElementById('confirm-modal-action');
+
+    title.textContent = 'Stop Worker';
+    message.textContent = `Are you sure you want to stop worker "${workerName}"? This will shut down the EC2 instance and stop the CML service. Any running labs will be affected.`;
+    actionBtn.textContent = 'Stop Worker';
+    actionBtn.className = 'btn btn-warning';
+
+    // Remove any existing event listeners
+    const newActionBtn = actionBtn.cloneNode(true);
+    actionBtn.parentNode.replaceChild(newActionBtn, actionBtn);
+
+    newActionBtn.addEventListener('click', async () => {
+        bootstrap.Modal.getInstance(modal).hide();
+        await stopWorker(workerId, region);
+    });
+
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
 }
 
 /**
@@ -2934,6 +2994,8 @@ window.workersApp = {
     showLicenseModal,
     showLicenseDetailsModal,
     showDeleteModal,
+    showStartConfirmation,
+    showStopConfirmation,
     startWorker,
     stopWorker,
     refreshWorkers,
