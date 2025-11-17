@@ -6,21 +6,15 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 import boto3  # type: ignore
 from botocore.exceptions import ClientError, ParamValidationError  # type: ignore
 
-from integration.enums import (
-    AwsRegion,
-    Ec2InstanceResourcesUtilizationRelativeStartTime,
-)
-from integration.exceptions import (
-    EC2AuthenticationException,
-    EC2InstanceCreationException,
-    EC2InstanceNotFoundException,
-    EC2InstanceOperationException,
-    EC2InvalidParameterException,
-    EC2QuotaExceededException,
-    EC2StatusCheckException,
-    EC2TagOperationException,
-    IntegrationException,
-)
+from integration.enums import (AwsRegion,
+                               Ec2InstanceResourcesUtilizationRelativeStartTime)
+from integration.exceptions import (EC2AuthenticationException,
+                                    EC2InstanceCreationException,
+                                    EC2InstanceNotFoundException,
+                                    EC2InstanceOperationException,
+                                    EC2InvalidParameterException,
+                                    EC2QuotaExceededException, EC2StatusCheckException,
+                                    EC2TagOperationException, IntegrationException)
 from integration.models import CMLWorkerInstanceDto
 from integration.services.relative_time import relative_time
 
@@ -55,6 +49,10 @@ class Ec2InstanceDescriptor:
 
     launch_time_relative: str
 
+    public_ip: Optional[str] = None
+
+    private_ip: Optional[str] = None
+
 
 @dataclass
 class Ec2InstanceResourcesUtilization:
@@ -64,9 +62,9 @@ class Ec2InstanceResourcesUtilization:
 
     relative_start_time: Ec2InstanceResourcesUtilizationRelativeStartTime
 
-    avg_cpu_utilization: str
+    avg_cpu_utilization: Optional[float]  # None if no data available
 
-    avg_memory_utilization: str
+    avg_memory_utilization: Optional[float]  # None if CloudWatch Agent not installed
 
     start_time: datetime.datetime
 
@@ -678,17 +676,29 @@ class AwsEc2Client:
             res_dict = ec2_client.describe_instances(InstanceIds=[instance_id])
             if res_dict and "Reservations" in res_dict:
                 instance = res_dict["Reservations"][0]["Instances"][0]
-                for tag in instance["Tags"]:
+
+                # Extract name from tags
+                name = None
+                for tag in instance.get("Tags", []):
                     if tag["Key"] == "Name":
-                        return Ec2InstanceDescriptor(
-                            id=instance["InstanceId"],
-                            type=instance["InstanceType"],
-                            state=instance["State"]["Name"],
-                            image_id=instance["ImageId"],
-                            name=tag["Value"],
-                            launch_timestamp=instance["LaunchTime"],
-                            launch_time_relative=relative_time(instance["LaunchTime"]),
-                        )
+                        name = tag["Value"]
+                        break
+
+                # Extract IPs (may be None if instance is stopped/stopping)
+                public_ip = instance.get("PublicIpAddress")
+                private_ip = instance.get("PrivateIpAddress")
+
+                return Ec2InstanceDescriptor(
+                    id=instance["InstanceId"],
+                    type=instance["InstanceType"],
+                    state=instance["State"]["Name"],
+                    image_id=instance["ImageId"],
+                    name=name or instance["InstanceId"],  # Fallback to instance ID if no Name tag
+                    launch_timestamp=instance["LaunchTime"],
+                    launch_time_relative=relative_time(instance["LaunchTime"]),
+                    public_ip=public_ip,
+                    private_ip=private_ip,
+                )
             return None
 
         except (ValueError, ParamValidationError, ClientError) as e:
@@ -860,7 +870,7 @@ class AwsEc2Client:
                 )
             )
 
-            # CPU Utilization
+            # CPU Utilization (available by default in AWS/EC2)
             cpu_metric = cloudwatch.get_metric_statistics(
                 Namespace="AWS/EC2",
                 MetricName="CPUUtilization",
@@ -873,12 +883,14 @@ class AwsEc2Client:
             if len(cpu_metric["Datapoints"]):
                 cpu_utilization = cpu_metric["Datapoints"][0]["Average"]
             else:
-                cpu_utilization = "unknown - enable CloudWatch..."
+                cpu_utilization = None
 
-            # Memory Utilization
+            # Memory Utilization (requires CloudWatch Agent to be installed and configured)
+            # Note: Memory metrics are NOT available in AWS/EC2 namespace by default
+            # They require CloudWatch Agent publishing to CWAgent namespace
             memory_metric = cloudwatch.get_metric_statistics(
-                Namespace="AWS/EC2",
-                MetricName="MemoryUtilization",
+                Namespace="CWAgent",  # Changed from AWS/EC2
+                MetricName="mem_used_percent",  # Standard CWAgent metric name
                 Dimensions=[{"Name": "InstanceId", "Value": instance_id}],
                 StartTime=start_time,
                 EndTime=now,
@@ -888,7 +900,8 @@ class AwsEc2Client:
             if len(memory_metric["Datapoints"]):
                 memory_utilization = memory_metric["Datapoints"][0]["Average"]
             else:
-                memory_utilization = "unknown - enable CloudWatch..."
+                # Fallback: No memory data means CloudWatch Agent not installed/configured
+                memory_utilization = None
 
             return Ec2InstanceResourcesUtilization(
                 region_name=aws_region,

@@ -517,6 +517,7 @@ class BackgroundTaskScheduler(HostedService):
                         # Wrappers will get it from _global_scheduler instance
                     },
                     misfire_grace_time=None,
+                    replace_existing=True,
                 )
 
             elif isinstance(task, RecurrentBackgroundJob):
@@ -538,6 +539,7 @@ class BackgroundTaskScheduler(HostedService):
                         # Wrappers will get it from _global_scheduler instance
                     },
                     misfire_grace_time=None,
+                    replace_existing=True,
                 )
             else:
                 raise BackgroundTaskException(f"Unknown task type: {type(task)}")
@@ -567,6 +569,21 @@ class BackgroundTaskScheduler(HostedService):
         except Exception as ex:
             log.error(f"Error stopping task '{task_id}': {ex}")
             return False
+
+    def get_job(self, task_id: str):
+        """Get a job by ID from the scheduler.
+
+        Args:
+            task_id: The ID of the job to retrieve
+
+        Returns:
+            The APScheduler job object if found, None otherwise
+        """
+        try:
+            return self._scheduler.get_job(task_id)
+        except Exception as ex:
+            log.debug(f"Error getting job '{task_id}': {ex}")
+            return None
 
     def get_task_info(self, task_id: str) -> Optional[dict]:
         """Get information about a specific task."""

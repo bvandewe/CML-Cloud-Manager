@@ -8,6 +8,40 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ### Added
 
+#### Lab Records and CQRS Pattern
+
+- **Lab Record Aggregate**: Event-sourced tracking of CML labs
+  - Lab metadata: title, description, state, owner, node/link counts
+  - Operation history: max 50 entries tracking state changes
+  - Domain events: `LabRecordCreatedDomainEvent`, `LabRecordUpdatedDomainEvent`, `LabStateChangedDomainEvent`
+  - MongoDB repository with worker_id+lab_id indexing
+  - Consistent event dispatch pattern using `multipledispatch.dispatch`
+
+- **CQRS Implementation for Labs**:
+  - **GetWorkerLabsQuery**: Read-only query for fetching labs from database
+    - Fast cached reads from `lab_records` collection
+    - Returns labs with last_synced timestamp
+    - Proper QueryHandler base class usage (instance methods)
+  - **RefreshWorkerLabsCommand**: Write operation for on-demand CML sync
+    - Fetches labs from CML API for specific worker
+    - Creates/updates lab records with change detection
+    - Lenient status validation (warns if not RUNNING)
+    - Returns summary: labs_synced, labs_created, labs_updated
+
+- **Labs Background Refresh**:
+  - **LabsRefreshJob**: Global 30-minute refresh cycle
+  - Processes all RUNNING workers with https_endpoint
+  - Runs at startup and periodically
+  - Updates lab_records collection for all workers
+
+- **UI Labs Integration**:
+  - Labs tab in worker details modal
+  - Refresh button triggers both metrics and labs refresh
+  - Visual feedback with warning toasts on failures
+  - Real-time lab state display with operation history
+
+### Added
+
 #### Worker Metrics Source Separation
 
 - **Multi-Source Metrics Architecture**: Clear separation of metrics by data source

@@ -7,6 +7,7 @@ import * as workersApi from '../api/workers.js';
 import * as systemApi from '../api/system.js';
 import { showToast } from './notifications.js';
 import { isAdmin, isAdminOrManager } from '../utils/roles.js';
+import { formatDateWithRelative, initializeDateTooltips } from '../utils/dates.js';
 import * as bootstrap from 'bootstrap';
 
 // Store current user and workers data
@@ -311,6 +312,9 @@ function renderWorkersTable() {
     `
         )
         .join('');
+
+    // Initialize Bootstrap tooltips for date icons
+    initializeDateTooltips();
 }
 
 /**
@@ -417,6 +421,9 @@ function renderWorkersCards() {
     `
         )
         .join('');
+
+    // Initialize Bootstrap tooltips for date icons
+    initializeDateTooltips();
 }
 
 /**
@@ -662,7 +669,15 @@ async function showWorkerDetails(workerId, region) {
     }
     console.log('[showWorkerDetails] Modal element found:', modalElement);
 
-    const modal = new bootstrap.Modal(modalElement);
+    // Get existing modal instance or create new one
+    let modal = bootstrap.Modal.getInstance(modalElement);
+    if (modal) {
+        // Dispose existing modal to clean up any leftover backdrops
+        modal.dispose();
+    }
+    // Create fresh modal instance
+    modal = new bootstrap.Modal(modalElement);
+
     const overviewContent = document.getElementById('worker-details-overview');
 
     if (!overviewContent) {
@@ -702,7 +717,11 @@ async function showWorkerDetails(workerId, region) {
                     <table class="table table-sm table-borderless">
                         <tr><td class="text-muted" width="40%">Name:</td><td><strong>${escapeHtml(worker.name)}</strong></td></tr>
                         <tr><td class="text-muted">Worker ID:</td><td><code class="small">${worker.id}</code></td></tr>
-                        <tr><td class="text-muted">Instance ID:</td><td><code class="small">${worker.aws_instance_id || 'N/A'}</code></td></tr>
+                        <tr><td class="text-muted">Instance ID:</td><td>${
+                            worker.aws_instance_id
+                                ? `<code class="small">${worker.aws_instance_id}</code> <a href="https://${worker.aws_region}.console.aws.amazon.com/ec2/home?region=${worker.aws_region}#InstanceDetails:instanceId=${worker.aws_instance_id}" target="_blank" class="text-decoration-none ms-1" title="View in AWS Console"><i class="bi bi-box-arrow-up-right text-primary"></i></a>`
+                                : '<span class="text-muted">N/A</span>'
+                        }</td></tr>
                         <tr><td class="text-muted">Region:</td><td><span class="badge bg-secondary">${worker.aws_region}</span></td></tr>
                         <tr><td class="text-muted">Instance Type:</td><td><span class="badge bg-info">${worker.instance_type}</span></td></tr>
                         <tr><td class="text-muted">Status:</td><td><span class="badge ${getStatusBadgeClass(worker.status)}">${worker.status}</span></td></tr>
@@ -710,58 +729,28 @@ async function showWorkerDetails(workerId, region) {
                     </table>
                 </div>
                 <div class="col-md-6">
-                    <h5 class="border-bottom pb-2 mb-3">Network & CML</h5>
+                    <h5 class="border-bottom pb-2 mb-3">Network</h5>
                     <table class="table table-sm table-borderless">
                         <tr><td class="text-muted" width="40%">Public IP:</td><td>${worker.public_ip || '<span class="text-muted">N/A</span>'}</td></tr>
                         <tr><td class="text-muted">Private IP:</td><td>${worker.private_ip || '<span class="text-muted">N/A</span>'}</td></tr>
                         <tr><td class="text-muted">HTTPS Endpoint:</td><td>${
                             worker.https_endpoint ? `<a href="${worker.https_endpoint}" target="_blank" class="text-decoration-none">${worker.https_endpoint} <i class="bi bi-box-arrow-up-right"></i></a>` : '<span class="text-muted">N/A</span>'
                         }</td></tr>
-                        <tr><td class="text-muted">CML Version:</td><td>${worker.cml_version || '<span class="text-muted">N/A</span>'}</td></tr>
-                        <tr><td class="text-muted">License Status:</td><td><span class="badge ${getLicenseStatusBadgeClass(worker.license_status)}">${worker.license_status}</span></td></tr>
-                        <tr><td class="text-muted">Active Labs:</td><td><strong>${worker.active_labs_count || 0}</strong></td></tr>
                     </table>
                 </div>
             </div>
             <div class="row mt-3">
-                <div class="col-md-6">
-                    <h5 class="border-bottom pb-2 mb-3">Resource Utilization</h5>
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between mb-1">
-                            <small class="text-muted">CPU Usage</small>
-                            <small><strong>${worker.cpu_utilization != null ? worker.cpu_utilization.toFixed(1) + '%' : 'N/A'}</strong></small>
+                <div class="col-md-12">
+                    <h5 class="border-bottom pb-2 mb-3">Resource Utilization (Last 10 Minutes)</h5>
+                    <div id="cloudwatch-metrics-section">
+                        <div class="text-center py-3">
+                            <div class="spinner-border spinner-border-sm" role="status"></div>
+                            <span class="ms-2 text-muted">Loading CloudWatch metrics...</span>
                         </div>
-                        ${
-                            worker.cpu_utilization != null
-                                ? `
-                        <div class="progress" style="height: 20px;">
-                            <div class="progress-bar ${getCpuProgressClass(worker.cpu_utilization)}"
-                                 style="width: ${worker.cpu_utilization}%">
-                            </div>
-                        </div>`
-                                : '<div class="alert alert-sm alert-secondary py-1">No data available</div>'
-                        }
-                    </div>
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between mb-1">
-                            <small class="text-muted">Memory Usage</small>
-                            <small><strong>${worker.memory_utilization != null ? worker.memory_utilization.toFixed(1) + '%' : 'N/A'}</strong></small>
-                        </div>
-                        ${
-                            worker.memory_utilization != null
-                                ? `
-                        <div class="progress" style="height: 20px;">
-                            <div class="progress-bar ${getMemoryProgressClass(worker.memory_utilization)}"
-                                 style="width: ${worker.memory_utilization}%">
-                            </div>
-                        </div>`
-                                : '<div class="alert alert-sm alert-secondary py-1">No data available</div>'
-                        }
-                    </div>
-                    <div class="text-muted small">
-                        <i class="bi bi-clock"></i> Last Activity: ${worker.last_activity_at ? formatDate(worker.last_activity_at) : 'N/A'}
                     </div>
                 </div>
+            </div>
+            <div class="row mt-3">
                 <div class="col-md-6">
                     <h5 class="border-bottom pb-2 mb-3">Lifecycle</h5>
                     <table class="table table-sm table-borderless">
@@ -779,8 +768,42 @@ async function showWorkerDetails(workerId, region) {
                         </tr>
                     </table>
                 </div>
+                <div class="col-md-6">
+                    <h5 class="border-bottom pb-2 mb-3">Monitoring</h5>
+                    <table class="table table-sm table-borderless">
+                        <tr>
+                            <td class="text-muted" width="40%">Detailed Monitoring:</td>
+                            <td>
+                                ${worker.cloudwatch_detailed_monitoring_enabled ? '<span class="badge bg-success">Enabled</span>' : '<span class="badge bg-secondary">Disabled</span>'}
+                            </td>
+                        </tr>
+                    </table>
+                    ${
+                        !worker.cloudwatch_detailed_monitoring_enabled && isAdmin()
+                            ? `
+                    <button class="btn btn-sm btn-outline-primary" id="enable-monitoring-btn">
+                        <i class="bi bi-speedometer2"></i> Enable Detailed Monitoring
+                    </button>
+                    <div class="text-muted small mt-2">
+                        <i class="bi bi-info-circle"></i> Enables 1-minute metric granularity (~$2.10/month)
+                    </div>
+                    `
+                            : ''
+                    }
+                </div>
             </div>
         `;
+
+        // Load CloudWatch metrics
+        loadCloudWatchMetrics(workerId, region);
+
+        // Setup enable monitoring button handler
+        if (!worker.cloudwatch_detailed_monitoring_enabled && isAdmin()) {
+            setupEnableMonitoringButton(workerId, region);
+        }
+
+        // Initialize Bootstrap tooltips for date icons
+        initializeDateTooltips();
 
         // Store worker data for other tabs
         if (modalElement) {
@@ -801,88 +824,929 @@ async function showWorkerDetails(workerId, region) {
 }
 
 /**
- * Load metrics tab data
+ * Load CloudWatch metrics and display in overview
  */
-async function loadMetricsTab() {
-    const modal = document.getElementById('workerDetailsModal');
-    const workerId = modal.dataset.workerId;
-    const region = modal.dataset.workerRegion;
-    const metricsContent = document.getElementById('worker-details-metrics');
-
-    if (!workerId || !region) {
-        metricsContent.innerHTML = '<div class="alert alert-warning">No worker selected</div>';
-        return;
-    }
-
-    metricsContent.innerHTML = '<div class="text-center py-4"><div class="spinner-border"></div><p class="mt-2">Loading metrics...</p></div>';
+async function loadCloudWatchMetrics(workerId, region) {
+    const metricsSection = document.getElementById('cloudwatch-metrics-section');
+    if (!metricsSection) return;
 
     try {
         const resources = await workersApi.getWorkerResources(region, workerId, '10m');
 
-        metricsContent.innerHTML = `
-            <div class="alert alert-info">
-                <i class="bi bi-info-circle"></i> Metrics data for the last 10 minutes
+        const cpuValue = resources.avg_cpu_utilization;
+        const memValue = resources.avg_memory_utilization;
+
+        metricsSection.innerHTML = `
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <small class="text-muted"><i class="bi bi-cpu"></i> CPU Usage (avg)</small>
+                            <small><strong>${cpuValue != null ? cpuValue.toFixed(1) + '%' : 'N/A'}</strong></small>
+                        </div>
+                        ${
+                            cpuValue != null
+                                ? `
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar ${getCpuProgressClass(cpuValue)}"
+                                 style="width: ${cpuValue}%">
+                            </div>
+                        </div>`
+                                : '<div class="alert alert-sm alert-warning py-1 mb-0"><i class="bi bi-exclamation-triangle"></i> No CPU data available - enable detailed monitoring</div>'
+                        }
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <small class="text-muted"><i class="bi bi-memory"></i> Memory Usage (avg)</small>
+                            <small><strong>${memValue != null ? memValue.toFixed(1) + '%' : 'N/A'}</strong></small>
+                        </div>
+                        ${
+                            memValue != null
+                                ? `
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar ${getMemoryProgressClass(memValue)}"
+                                 style="width: ${memValue}%">
+                            </div>
+                        </div>`
+                                : '<div class="alert alert-sm alert-info py-1 mb-0"><i class="bi bi-info-circle"></i> Requires CloudWatch Agent installation</div>'
+                        }
+                    </div>
+                </div>
             </div>
-            <pre class="bg-light p-3 rounded"><code>${JSON.stringify(resources, null, 2)}</code></pre>
+            <div class="text-muted small">
+                <i class="bi bi-clock"></i> Period: ${new Date(resources.start_time).toLocaleTimeString()} - ${new Date(resources.end_time).toLocaleTimeString()}
+            </div>
         `;
     } catch (error) {
-        metricsContent.innerHTML = `
-            <div class="alert alert-danger">
-                <i class="bi bi-exclamation-triangle"></i> Failed to load metrics: ${error.message}
+        console.error('Failed to load CloudWatch metrics:', error);
+        metricsSection.innerHTML = `
+            <div class="alert alert-warning mb-0">
+                <i class="bi bi-exclamation-triangle"></i> Unable to load CloudWatch metrics: ${error.message}
             </div>
         `;
     }
 }
 
 /**
- * Load EC2 tab data
+ * Setup enable monitoring button handler
  */
-async function loadEC2Tab() {
+function setupEnableMonitoringButton(workerId, region) {
+    const btn = document.getElementById('enable-monitoring-btn');
+    if (!btn) return;
+
+    btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Enabling...';
+
+        try {
+            await workersApi.enableDetailedMonitoring(region, workerId);
+            showToast('Detailed monitoring enabled successfully', 'success');
+
+            // Reload worker details to update UI
+            await showWorkerDetails(workerId, region);
+        } catch (error) {
+            console.error('Failed to enable monitoring:', error);
+            showToast(error.message || 'Failed to enable detailed monitoring', 'error');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-speedometer2"></i> Enable Detailed Monitoring';
+        }
+    });
+}
+
+/**
+ * Load CML tab data - displays CML-specific application details
+ */
+async function loadCMLTab() {
     const modal = document.getElementById('workerDetailsModal');
     const workerId = modal.dataset.workerId;
     const region = modal.dataset.workerRegion;
-    const ec2Content = document.getElementById('worker-details-ec2');
+    const cmlContent = document.getElementById('worker-details-cml');
 
     if (!workerId || !region) {
-        ec2Content.innerHTML = '<div class="alert alert-warning">No worker selected</div>';
+        cmlContent.innerHTML = '<div class="alert alert-warning">No worker selected</div>';
         return;
     }
 
-    ec2Content.innerHTML = '<div class="text-center py-4"><div class="spinner-border"></div><p class="mt-2">Loading EC2 details...</p></div>';
+    cmlContent.innerHTML = '<div class="text-center py-4"><div class="spinner-border"></div><p class="mt-2">Loading CML details...</p></div>';
 
     try {
         const worker = await workersApi.getWorkerDetails(region, workerId);
 
-        ec2Content.innerHTML = `
-            <h5 class="border-bottom pb-2 mb-3">EC2 Instance Details</h5>
-            <div class="row">
+        // Parse system health data
+        const health = worker.cml_system_health || {};
+        const systemInfo = worker.cml_system_info || {};
+        const licenseInfo = worker.cml_license_info || null;
+
+        // Debug logging
+        console.log('Worker CML Data:', {
+            worker_id: worker.id,
+            status: worker.status,
+            service_status: worker.service_status,
+            https_endpoint: worker.https_endpoint,
+            has_health: !!worker.cml_system_health,
+            has_system_info: !!worker.cml_system_info,
+            has_license_info: !!worker.cml_license_info,
+            health_is_licensed: health.is_licensed,
+            health_is_enterprise: health.is_enterprise,
+            license_info_keys: licenseInfo ? Object.keys(licenseInfo) : null,
+            cml_last_synced_at: worker.cml_last_synced_at,
+        });
+
+        // systemInfo is the computes dictionary from system_stats
+        // Extract stats from first compute node
+        const firstCompute = Object.values(systemInfo)[0] || {};
+        const computeStats = firstCompute.stats || {};
+        const stats = {
+            cpu: computeStats.cpu || {},
+            memory: computeStats.memory || {},
+            disk: computeStats.disk || {},
+        };
+        const domInfo = computeStats.dominfo || null;
+
+        // Format uptime
+        let uptimeDisplay = 'Unknown';
+        if (worker.cml_uptime_seconds !== null && worker.cml_uptime_seconds !== undefined) {
+            const hours = Math.floor(worker.cml_uptime_seconds / 3600);
+            const minutes = Math.floor((worker.cml_uptime_seconds % 3600) / 60);
+            uptimeDisplay = `${hours}h ${minutes}m`;
+        }
+
+        // Format ready state
+        const readyBadge = worker.cml_ready ? 'success' : 'warning';
+        const readyText = worker.cml_ready ? 'Ready' : 'Not Ready';
+        const readyIcon = worker.cml_ready ? 'check-circle' : 'exclamation-triangle';
+
+        // License and Edition info - prefer license_info over health data
+        let isLicensed = false;
+        let isEnterprise = false;
+
+        if (licenseInfo && licenseInfo.product_license) {
+            // Use detailed license info if available
+            isEnterprise = licenseInfo.product_license.is_enterprise ?? false;
+            // Check registration status for licensed state
+            isLicensed = licenseInfo.registration?.status === 'COMPLETED' || licenseInfo.authorization?.status === 'IN_COMPLIANCE';
+        } else if (health.is_licensed !== undefined) {
+            // Fall back to health data
+            isLicensed = health.is_licensed ?? false;
+            isEnterprise = health.is_enterprise ?? false;
+        }
+
+        const licensedBadge = isLicensed ? 'success' : 'danger';
+        const editionBadge = isEnterprise ? 'primary' : 'info';
+        const editionText = isEnterprise ? 'Enterprise' : 'Community';
+
+        // System health overall status
+        const healthValid = health.valid ?? false;
+        const healthBadge = healthValid ? 'success' : 'danger';
+        const healthIcon = healthValid ? 'check-circle-fill' : 'x-circle-fill';
+
+        // Controller health
+        let controllerSection = '';
+        if (health.controller) {
+            const ctrl = health.controller;
+            const ctrlValidBadge = ctrl.valid ? 'success' : 'danger';
+
+            controllerSection = `
                 <div class="col-md-6">
-                    <table class="table table-sm">
-                        <tr><td class="text-muted" width="40%">Instance ID:</td><td><code>${worker.aws_instance_id || 'N/A'}</code></td></tr>
-                        <tr><td class="text-muted">Instance Type:</td><td>${worker.instance_type}</td></tr>
-                        <tr><td class="text-muted">Region:</td><td>${worker.aws_region}</td></tr>
-                        <tr><td class="text-muted">State:</td><td><span class="badge ${getStatusBadgeClass(worker.status)}">${worker.status}</span></td></tr>
-                    </table>
+                    <div class="card h-100">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0"><i class="bi bi-hdd-rack me-2"></i>Controller Status</h6>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tr>
+                                    <td class="text-muted" style="width: 50%;">Status</td>
+                                    <td><span class="badge bg-${ctrlValidBadge}">${ctrl.valid ? 'Valid' : 'Invalid'}</span></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Core Connected</td>
+                                    <td>${ctrl.core_connected ? '<i class="bi bi-check-circle text-success"></i> Yes' : '<i class="bi bi-x-circle text-danger"></i> No'}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Nodes Loaded</td>
+                                    <td>${ctrl.nodes_loaded ? '<i class="bi bi-check-circle text-success"></i> Yes' : '<i class="bi bi-x-circle text-danger"></i> No'}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Images Loaded</td>
+                                    <td>${ctrl.images_loaded ? '<i class="bi bi-check-circle text-success"></i> Yes' : '<i class="bi bi-x-circle text-danger"></i> No'}</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
                 </div>
-                <div class="col-md-6">
-                    <table class="table table-sm">
-                        <tr><td class="text-muted" width="40%">Public IP:</td><td>${worker.public_ip || 'N/A'}</td></tr>
-                        <tr><td class="text-muted">Private IP:</td><td>${worker.private_ip || 'N/A'}</td></tr>
-                        <tr><td class="text-muted">AMI ID:</td><td><code class="small">${worker.ami_id || 'N/A'}</code></td></tr>
-                    </table>
+            `;
+        }
+
+        // Compute/Node information
+        let computeSection = '';
+        if (health.computes && Object.keys(health.computes).length > 0) {
+            const firstComputeId = Object.keys(health.computes)[0];
+            const compute = health.computes[firstComputeId];
+            const admissionBadge = compute.admission_state === 'READY' ? 'success' : 'warning';
+            const isController = compute.is_controller ? '<span class="badge bg-primary">Controller</span>' : '';
+
+            computeSection = `
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0"><i class="bi bi-server me-2"></i>Compute Node Health</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <table class="table table-sm table-borderless mb-0">
+                                        <tr>
+                                            <td class="text-muted" style="width: 50%;">Hostname</td>
+                                            <td><strong>${escapeHtml(compute.hostname || 'unknown')}</strong> ${isController}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Admission State</td>
+                                            <td><span class="badge bg-${admissionBadge}">${escapeHtml(compute.admission_state || 'unknown')}</span></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Overall Valid</td>
+                                            <td>${compute.valid ? '<i class="bi bi-check-circle text-success"></i> Yes' : '<i class="bi bi-x-circle text-danger"></i> No'}</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                                <div class="col-md-6">
+                                    <table class="table table-sm table-borderless mb-0">
+                                        <tr>
+                                            <td class="text-muted" style="width: 50%;">KVM/VMX</td>
+                                            <td>${compute.kvm_vmx_enabled ? '<i class="bi bi-check-circle text-success"></i>' : '<i class="bi bi-x-circle text-danger"></i>'}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Libvirt</td>
+                                            <td>${compute.libvirt ? '<i class="bi bi-check-circle text-success"></i>' : '<i class="bi bi-x-circle text-danger"></i>'}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">LLD Connected</td>
+                                            <td>${compute.lld_connected ? '<i class="bi bi-check-circle text-success"></i>' : '<i class="bi bi-x-circle text-danger"></i>'} ${compute.lld_synced ? '(Synced)' : ''}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Refplat Images</td>
+                                            <td>${compute.refplat_images_available ? '<i class="bi bi-check-circle text-success"></i>' : '<i class="bi bi-x-circle text-danger"></i>'}</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </div>
-            <div class="alert alert-info mt-3">
-                <i class="bi bi-info-circle"></i> Additional EC2 metadata would be displayed here
+            `;
+        }
+
+        // System statistics
+        let statsSection = '';
+        if (stats.cpu || stats.memory || stats.disk || domInfo) {
+            // CPU percent is already 0-100 from CML API, don't multiply by 100
+            const cpuPercent = stats.cpu?.percent ? parseFloat(stats.cpu.percent).toFixed(1) : 0;
+            const cpuCount = stats.cpu?.count || 'N/A';
+
+            const memTotal = stats.memory?.total ? formatBytes(stats.memory.total) : 'N/A';
+            const memUsed = stats.memory?.used ? formatBytes(stats.memory.used) : 'N/A';
+            const memFree = stats.memory?.free ? formatBytes(stats.memory.free) : 'N/A';
+            const memPercent = stats.memory?.total && stats.memory?.used ? ((stats.memory.used / stats.memory.total) * 100).toFixed(1) : 0;
+
+            const diskTotal = stats.disk?.total ? formatBytes(stats.disk.total) : 'N/A';
+            const diskUsed = stats.disk?.used ? formatBytes(stats.disk.used) : 'N/A';
+            const diskFree = stats.disk?.free ? formatBytes(stats.disk.free) : 'N/A';
+            const diskPercent = stats.disk?.total && stats.disk?.used ? ((stats.disk.used / stats.disk.total) * 100).toFixed(1) : 0;
+
+            // Determine progress bar colors based on utilization
+            const cpuBarColor = cpuPercent > 80 ? 'danger' : cpuPercent > 60 ? 'warning' : 'success';
+            const memBarColor = memPercent > 80 ? 'danger' : memPercent > 60 ? 'warning' : 'success';
+            const diskBarColor = diskPercent > 80 ? 'danger' : diskPercent > 60 ? 'warning' : 'success';
+
+            statsSection = `
+                <div class="col-12 mt-3">
+                    <div class="card">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0"><i class="bi bi-speedometer2 me-2"></i>Resource Utilization</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-4">
+                                <div class="col-md-4">
+                                    <h6 class="text-muted mb-3"><i class="bi bi-cpu"></i> CPU</h6>
+                                    <div class="mb-2">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <small class="text-muted">Utilization</small>
+                                            <strong>${cpuPercent}%</strong>
+                                        </div>
+                                        <div class="progress" style="height: 20px;">
+                                            <div class="progress-bar bg-${cpuBarColor}" role="progressbar" style="width: ${cpuPercent}%;" aria-valuenow="${cpuPercent}" aria-valuemin="0" aria-valuemax="100"></div>
+                                        </div>
+                                    </div>
+                                    <table class="table table-sm table-borderless mb-0">
+                                        <tr>
+                                            <td class="text-muted" style="width: 50%;">Total Cores</td>
+                                            <td>${cpuCount}</td>
+                                        </tr>
+                                        ${
+                                            domInfo
+                                                ? `
+                                        <tr>
+                                            <td class="text-muted">Allocated vCPUs</td>
+                                            <td><strong>${domInfo.allocated_cpus || 0}</strong></td>
+                                        </tr>
+                                        `
+                                                : ''
+                                        }
+                                    </table>
+                                </div>
+                                <div class="col-md-4">
+                                    <h6 class="text-muted mb-3"><i class="bi bi-memory"></i> Memory</h6>
+                                    <div class="mb-2">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <small class="text-muted">Utilization</small>
+                                            <strong>${memPercent}%</strong>
+                                        </div>
+                                        <div class="progress" style="height: 20px;">
+                                            <div class="progress-bar bg-${memBarColor}" role="progressbar" style="width: ${memPercent}%;" aria-valuenow="${memPercent}" aria-valuemin="0" aria-valuemax="100"></div>
+                                        </div>
+                                    </div>
+                                    <table class="table table-sm table-borderless mb-0">
+                                        <tr>
+                                            <td class="text-muted" style="width: 50%;">Total</td>
+                                            <td>${memTotal}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Used</td>
+                                            <td><strong>${memUsed}</strong></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Free</td>
+                                            <td>${memFree}</td>
+                                        </tr>
+                                        ${
+                                            domInfo
+                                                ? `
+                                        <tr>
+                                            <td class="text-muted">VM Allocated</td>
+                                            <td><strong>${formatBytes((domInfo.allocated_memory || 0) * 1024)}</strong></td>
+                                        </tr>
+                                        `
+                                                : ''
+                                        }
+                                    </table>
+                                </div>
+                                <div class="col-md-4">
+                                    <h6 class="text-muted mb-3"><i class="bi bi-hdd"></i> Disk</h6>
+                                    <div class="mb-2">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <small class="text-muted">Utilization</small>
+                                            <strong>${diskPercent}%</strong>
+                                        </div>
+                                        <div class="progress" style="height: 20px;">
+                                            <div class="progress-bar bg-${diskBarColor}" role="progressbar" style="width: ${diskPercent}%;" aria-valuenow="${diskPercent}" aria-valuemin="0" aria-valuemax="100"></div>
+                                        </div>
+                                    </div>
+                                    <table class="table table-sm table-borderless mb-0">
+                                        <tr>
+                                            <td class="text-muted" style="width: 50%;">Total</td>
+                                            <td>${diskTotal}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Used</td>
+                                            <td><strong>${diskUsed}</strong></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Free</td>
+                                            <td>${diskFree}</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                            ${
+                                domInfo
+                                    ? `
+                            <div class="row mt-3">
+                                <div class="col-12">
+                                    <div class="border-top pt-3">
+                                        <h6 class="text-muted mb-3"><i class="bi bi-diagram-3"></i> Virtual Nodes Summary</h6>
+                                        <div class="row">
+                                            <div class="col-md-3">
+                                                <div class="text-center">
+                                                    <div class="display-6 text-success">${domInfo.running_nodes || 0}</div>
+                                                    <small class="text-muted">Running</small>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="text-center">
+                                                    <div class="display-6 text-primary">${domInfo.total_nodes || 0}</div>
+                                                    <small class="text-muted">Total</small>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="text-center">
+                                                    <div class="display-6 text-info">${domInfo.allocated_cpus || 0}</div>
+                                                    <small class="text-muted">vCPUs</small>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="text-center">
+                                                    <div class="display-6 text-info">${formatBytes((domInfo.allocated_memory || 0) * 1024, 0)}</div>
+                                                    <small class="text-muted">RAM</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            `
+                                    : ''
+                            }
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        cmlContent.innerHTML = `
+            <div class="row g-3">
+                <!-- System Information -->
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0"><i class="bi bi-info-circle me-2"></i>System Information</h6>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tr>
+                                    <td class="text-muted" style="width: 50%;">Version</td>
+                                    <td><strong>${escapeHtml(worker.cml_version || 'Unknown')}</strong></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Ready State</td>
+                                    <td><i class="bi bi-${readyIcon} text-${readyBadge}"></i> <span class="badge bg-${readyBadge}">${readyText}</span></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Uptime</td>
+                                    <td>${uptimeDisplay}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Active Nodes</td>
+                                    <td><strong>${domInfo?.running_nodes ?? (worker.cml_labs_count !== null ? worker.cml_labs_count : '—')}</strong> ${domInfo?.total_nodes ? `/ ${domInfo.total_nodes}` : ''}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Last Synced</td>
+                                    <td><small>${worker.cml_last_synced_at ? formatDate(worker.cml_last_synced_at) : 'Never'}</small></td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- License & Edition -->
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0"><i class="bi bi-key me-2"></i>License & Edition</h6>
+                            ${licenseInfo ? '<button class="btn btn-sm btn-outline-primary" onclick="workersUi.showLicenseDetailsModal()"><i class="bi bi-info-circle me-1"></i>Details</button>' : ''}
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tr>
+                                    <td class="text-muted" style="width: 50%;">Licensed</td>
+                                    <td><span class="badge bg-${licensedBadge}">${isLicensed ? 'Yes' : 'No'}</span></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Edition</td>
+                                    <td><span class="badge bg-${editionBadge}">${editionText}</span></td>
+                                </tr>
+                            </table>
+                            ${!health.is_licensed && !licenseInfo ? '<div class="alert alert-info alert-sm mt-2 mb-0 py-1 px-2"><small><i class="bi bi-info-circle"></i> Click Refresh to fetch latest license data</small></div>' : ''}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- System Health -->
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0"><i class="bi bi-heart-pulse me-2"></i>System Health</h6>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tr>
+                                    <td class="text-muted" style="width: 50%;">Overall Status</td>
+                                    <td><i class="bi bi-${healthIcon} text-${healthBadge}"></i> <span class="badge bg-${healthBadge}">${healthValid ? 'Valid' : 'Invalid'}</span></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Service Status</td>
+                                    <td>${worker.service_status ? `<span class="badge bg-${worker.service_status === 'available' ? 'success' : 'secondary'}">${escapeHtml(worker.service_status)}</span>` : '—'}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">HTTPS Endpoint</td>
+                                    <td class="font-monospace small">${worker.https_endpoint ? `<a href="${escapeHtml(worker.https_endpoint)}" target="_blank" class="text-decoration-none">${escapeHtml(worker.https_endpoint)}</a>` : 'Not set'}</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Controller Status (if available) -->
+                ${controllerSection}
+
+                <!-- Statistics -->
+                ${statsSection}
+
+                <!-- Compute Health (if available) -->
+                ${computeSection}
             </div>
         `;
     } catch (error) {
-        ec2Content.innerHTML = `
+        cmlContent.innerHTML = `
             <div class="alert alert-danger">
-                <i class="bi bi-exclamation-triangle"></i> Failed to load EC2 details: ${error.message}
+                <i class="bi bi-exclamation-triangle"></i> Failed to load CML details: ${escapeHtml(error.message)}
             </div>
         `;
     }
+}
+
+// Helper function to format bytes
+// Helper function to format bytes
+function formatBytes(bytes, decimals = 2) {
+    if (!bytes || bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)) + ' ' + sizes[i];
+}
+
+/**
+ * Load labs tab data
+ */
+async function loadLabsTab() {
+    const modal = document.getElementById('workerDetailsModal');
+    const workerId = modal.dataset.workerId;
+    const region = modal.dataset.workerRegion;
+    const labsContent = document.getElementById('worker-details-labs');
+
+    if (!workerId || !region) {
+        labsContent.innerHTML = '<div class="alert alert-warning">No worker selected</div>';
+        return;
+    }
+
+    labsContent.innerHTML = '<div class="text-center py-4"><div class="spinner-border"></div><p class="mt-2">Loading labs...</p></div>';
+
+    try {
+        const labs = await workersApi.getWorkerLabs(region, workerId);
+
+        if (!Array.isArray(labs) || labs.length === 0) {
+            labsContent.innerHTML = `
+                <div class="alert alert-info">
+                    <i class="bi bi-folder2-open"></i> No labs found on this worker
+                </div>
+            `;
+            return;
+        }
+
+        let html = '<div class="accordion accordion-flush" id="labs-accordion">';
+
+        labs.forEach((lab, index) => {
+            const collapseId = `lab-collapse-${index}`;
+            const headingId = `lab-heading-${index}`;
+
+            // State badge with color coding
+            let stateBadge = '';
+            switch (lab.state) {
+                case 'STARTED':
+                    stateBadge = '<span class="badge bg-success">Started</span>';
+                    break;
+                case 'STOPPED':
+                    stateBadge = '<span class="badge bg-secondary">Stopped</span>';
+                    break;
+                case 'DEFINED_ON_CORE':
+                    stateBadge = '<span class="badge bg-info">Defined</span>';
+                    break;
+                default:
+                    stateBadge = `<span class="badge bg-secondary">${escapeHtml(lab.state)}</span>`;
+            }
+
+            // Format dates with relative time
+            const created = lab.created ? formatDateWithRelative(lab.created) : 'N/A';
+            const modified = lab.modified ? formatDateWithRelative(lab.modified) : 'N/A';
+
+            html += `
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="${headingId}">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                data-bs-target="#${collapseId}" aria-expanded="false" aria-controls="${collapseId}">
+                            <div class="d-flex justify-content-between align-items-center w-100 pe-3">
+                                <div>
+                                    <i class="bi bi-folder2-open text-primary me-2"></i>
+                                    <strong>${escapeHtml(lab.title || lab.id)}</strong>
+                                </div>
+                                <div class="d-flex gap-2 align-items-center">
+                                    ${stateBadge}
+                                    <span class="badge bg-light text-dark">
+                                        <i class="bi bi-diagram-3"></i> ${lab.node_count || 0} nodes
+                                    </span>
+                                    <span class="badge bg-light text-dark">
+                                        <i class="bi bi-arrow-left-right"></i> ${lab.link_count || 0} links
+                                    </span>
+                                </div>
+                            </div>
+                        </button>
+                    </h2>
+                    <div id="${collapseId}" class="accordion-collapse collapse" aria-labelledby="${headingId}"
+                         data-bs-parent="#labs-accordion">
+                        <div class="accordion-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="card h-100">
+                                        <div class="card-body">
+                                            <h6 class="card-subtitle mb-3 text-muted">
+                                                <i class="bi bi-info-circle"></i> Lab Information
+                                            </h6>
+                                            <dl class="row mb-0">
+                                                <dt class="col-sm-4">Lab ID:</dt>
+                                                <dd class="col-sm-8"><code>${escapeHtml(lab.id)}</code></dd>
+
+                                                <dt class="col-sm-4">Title:</dt>
+                                                <dd class="col-sm-8">${escapeHtml(lab.title || 'N/A')}</dd>
+
+                                                <dt class="col-sm-4">Owner:</dt>
+                                                <dd class="col-sm-8">
+                                                    ${escapeHtml(lab.owner_username || 'N/A')}
+                                                    ${lab.owner ? `<br><small class="text-muted">${escapeHtml(lab.owner)}</small>` : ''}
+                                                </dd>
+
+                                                <dt class="col-sm-4">State:</dt>
+                                                <dd class="col-sm-8">${stateBadge}</dd>
+                                            </dl>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <div class="card h-100">
+                                        <div class="card-body">
+                                            <h6 class="card-subtitle mb-3 text-muted">
+                                                <i class="bi bi-clock-history"></i> Timestamps
+                                            </h6>
+                                            <dl class="row mb-0">
+                                                <dt class="col-sm-4">Created:</dt>
+                                                <dd class="col-sm-8">${created}</dd>
+
+                                                <dt class="col-sm-4">Modified:</dt>
+                                                <dd class="col-sm-8">${modified}</dd>
+
+                                                <dt class="col-sm-4">Nodes:</dt>
+                                                <dd class="col-sm-8">
+                                                    <span class="badge bg-primary">${lab.node_count || 0}</span>
+                                                </dd>
+
+                                                <dt class="col-sm-4">Links:</dt>
+                                                <dd class="col-sm-8">
+                                                    <span class="badge bg-primary">${lab.link_count || 0}</span>
+                                                </dd>
+                                            </dl>
+                                        </div>
+                                    </div>
+                                </div>
+            `;
+
+            // Description section (if available)
+            if (lab.description) {
+                html += `
+                                <div class="col-12">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h6 class="card-subtitle mb-2 text-muted">
+                                                <i class="bi bi-file-text"></i> Description
+                                            </h6>
+                                            <p class="mb-0">${escapeHtml(lab.description)}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                `;
+            }
+
+            // Notes section (if available)
+            if (lab.notes) {
+                html += `
+                                <div class="col-12">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h6 class="card-subtitle mb-2 text-muted">
+                                                <i class="bi bi-sticky"></i> Notes
+                                            </h6>
+                                            <pre class="mb-0" style="white-space: pre-wrap;">${escapeHtml(lab.notes)}</pre>
+                                        </div>
+                                    </div>
+                                </div>
+                `;
+            }
+
+            // Groups section (if available)
+            if (lab.groups && lab.groups.length > 0) {
+                html += `
+                                <div class="col-12">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h6 class="card-subtitle mb-2 text-muted">
+                                                <i class="bi bi-people"></i> Groups
+                                            </h6>
+                                            <div class="d-flex flex-wrap gap-1">
+                                                ${lab.groups.map(group => `<span class="badge bg-secondary">${escapeHtml(group)}</span>`).join('')}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                `;
+            }
+
+            // Control buttons section
+            const isStarted = lab.state === 'STARTED';
+            html += `
+                                <div class="col-12">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h6 class="card-subtitle mb-3 text-muted">
+                                                <i class="bi bi-gear"></i> Lab Controls
+                                            </h6>
+                                            <div class="btn-group" role="group">
+                                                <button type="button" class="btn btn-success ${isStarted ? 'disabled' : ''}"
+                                                        onclick="window.workersApp.handleStartLab('${region}', '${workerId}', '${escapeHtml(lab.id)}')"
+                                                        ${isStarted ? 'disabled' : ''}>
+                                                    <i class="bi bi-play-fill"></i> Start Lab
+                                                </button>
+                                                <button type="button" class="btn btn-warning ${!isStarted ? 'disabled' : ''}"
+                                                        onclick="window.workersApp.handleStopLab('${region}', '${workerId}', '${escapeHtml(lab.id)}', '${escapeHtml(lab.title || lab.id)}')"
+                                                        ${!isStarted ? 'disabled' : ''}>
+                                                    <i class="bi bi-stop-fill"></i> Stop Lab
+                                                </button>
+                                                <button type="button" class="btn btn-danger"
+                                                        onclick="window.workersApp.handleWipeLab('${region}', '${workerId}', '${escapeHtml(lab.id)}', '${escapeHtml(lab.title || lab.id)}')">
+                                                    <i class="bi bi-trash-fill"></i> Wipe Lab
+                                                </button>
+                                            </div>
+                                            <div class="mt-2">
+                                                <small class="text-muted">
+                                                    <i class="bi bi-info-circle"></i>
+                                                    Stop and Wipe operations require confirmation
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+            `;
+
+            html += `
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        html += '</div>';
+        labsContent.innerHTML = html;
+
+        // Initialize date tooltips after rendering
+        initializeDateTooltips();
+    } catch (error) {
+        labsContent.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i> Failed to load labs: ${escapeHtml(error.message)}
+            </div>
+        `;
+    }
+}
+
+/**
+ * Handle starting a lab
+ * @param {string} region - AWS region
+ * @param {string} workerId - Worker UUID
+ * @param {string} labId - Lab ID
+ */
+async function handleStartLab(region, workerId, labId) {
+    try {
+        showToast('Starting lab...', 'info');
+        await workersApi.startLab(region, workerId, labId);
+        showToast('Lab started successfully', 'success');
+        // Reload labs to update state
+        await loadLabsTab();
+    } catch (error) {
+        showToast(`Failed to start lab: ${error.message}`, 'danger');
+    }
+}
+
+/**
+ * Handle stopping a lab with confirmation
+ * @param {string} region - AWS region
+ * @param {string} workerId - Worker UUID
+ * @param {string} labId - Lab ID
+ * @param {string} labTitle - Lab title for display
+ */
+async function handleStopLab(region, workerId, labId, labTitle) {
+    const confirmed = await showConfirmDialog('Stop Lab', `Are you sure you want to stop lab "${labTitle}"?`, 'This will stop all running nodes in the lab.', 'warning');
+
+    if (!confirmed) return;
+
+    try {
+        showToast('Stopping lab...', 'info');
+        await workersApi.stopLab(region, workerId, labId);
+        showToast('Lab stopped successfully', 'success');
+        // Reload labs to update state
+        await loadLabsTab();
+    } catch (error) {
+        showToast(`Failed to stop lab: ${error.message}`, 'danger');
+    }
+}
+
+/**
+ * Handle wiping a lab with confirmation
+ * @param {string} region - AWS region
+ * @param {string} workerId - Worker UUID
+ * @param {string} labId - Lab ID
+ * @param {string} labTitle - Lab title for display
+ */
+async function handleWipeLab(region, workerId, labId, labTitle) {
+    const confirmed = await showConfirmDialog('Wipe Lab', `Are you sure you want to wipe lab "${labTitle}"?`, 'This will perform a factory reset on all nodes. This action cannot be undone!', 'danger');
+
+    if (!confirmed) return;
+
+    try {
+        showToast('Wiping lab...', 'info');
+        await workersApi.wipeLab(region, workerId, labId);
+        showToast('Lab wiped successfully', 'success');
+        // Reload labs to update state
+        await loadLabsTab();
+    } catch (error) {
+        showToast(`Failed to wipe lab: ${error.message}`, 'danger');
+    }
+}
+
+/**
+ * Show a confirmation dialog
+ * @param {string} title - Dialog title
+ * @param {string} message - Main message
+ * @param {string} details - Additional details
+ * @param {string} type - Type of dialog (warning, danger)
+ * @returns {Promise<boolean>} True if confirmed
+ */
+function showConfirmDialog(title, message, details, type = 'warning') {
+    return new Promise(resolve => {
+        const iconClass = type === 'danger' ? 'bi-exclamation-triangle-fill text-danger' : 'bi-exclamation-triangle text-warning';
+        const btnClass = type === 'danger' ? 'btn-danger' : 'btn-warning';
+
+        const modalHtml = `
+            <div class="modal fade" id="confirmDialog" tabindex="-1" aria-labelledby="confirmDialogLabel" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="confirmDialogLabel">
+                                <i class="bi ${iconClass} me-2"></i>${escapeHtml(title)}
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p><strong>${escapeHtml(message)}</strong></p>
+                            <p class="text-muted mb-0">${escapeHtml(details)}</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn ${btnClass}" id="confirmDialogBtn">Confirm</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Remove existing modal if any
+        const existingModal = document.getElementById('confirmDialog');
+        if (existingModal) {
+            existingModal.remove();
+        }
+
+        // Append new modal
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        const modalElement = document.getElementById('confirmDialog');
+        const modal = new bootstrap.Modal(modalElement);
+
+        // Handle confirm button
+        document.getElementById('confirmDialogBtn').addEventListener('click', () => {
+            modal.hide();
+            resolve(true);
+        });
+
+        // Handle cancel/close
+        modalElement.addEventListener(
+            'hidden.bs.modal',
+            () => {
+                modalElement.remove();
+                resolve(false);
+            },
+            { once: true }
+        );
+
+        modal.show();
+    });
 }
 
 /**
@@ -1069,18 +1933,18 @@ async function loadEventsTab() {
  * Setup tab change handlers
  */
 function setupTabHandlers() {
-    const metricsTab = document.getElementById('metrics-tab');
-    const ec2Tab = document.getElementById('ec2-tab');
+    const cmlTab = document.getElementById('cml-tab');
+    const labsTab = document.getElementById('labs-tab');
     const jobsTab = document.getElementById('jobs-tab');
     const monitoringTab = document.getElementById('monitoring-tab');
     const eventsTab = document.getElementById('events-tab');
 
-    if (metricsTab) {
-        metricsTab.addEventListener('shown.bs.tab', loadMetricsTab);
+    if (cmlTab) {
+        cmlTab.addEventListener('shown.bs.tab', loadCMLTab);
     }
 
-    if (ec2Tab) {
-        ec2Tab.addEventListener('shown.bs.tab', loadEC2Tab);
+    if (labsTab) {
+        labsTab.addEventListener('shown.bs.tab', loadLabsTab);
     }
 
     if (jobsTab) {
@@ -1140,19 +2004,56 @@ function setupRefreshButton() {
                     const refreshedWorker = await workersApi.refreshWorker(region, id);
                     console.log('[CLICK HANDLER] Refresh response:', refreshedWorker);
 
+                    // Also refresh labs data from CML API
+                    try {
+                        console.log('[CLICK HANDLER] Calling workersApi.refreshWorkerLabs');
+                        const labsRefresh = await workersApi.refreshWorkerLabs(region, id);
+                        console.log('[CLICK HANDLER] Labs refresh response:', labsRefresh);
+                        if (labsRefresh && labsRefresh.labs_synced !== undefined) {
+                            console.log(`[CLICK HANDLER] Labs synced: ${labsRefresh.labs_synced}, created: ${labsRefresh.labs_created}, updated: ${labsRefresh.labs_updated}`);
+                        }
+                    } catch (labsError) {
+                        // Don't fail the whole refresh if labs refresh fails
+                        console.warn('[CLICK HANDLER] Labs refresh failed (non-fatal):', labsError);
+                        // Show a warning toast but don't block the refresh
+                        showToast('Worker refreshed, but labs refresh failed: ' + (labsError.message || 'Unknown error'), 'warning');
+                    }
+
                     showToast('Worker state refreshed successfully', 'success');
+
+                    // Re-enable button before reloading modal (so it gets cloned in correct state)
+                    newBtn.disabled = false;
+                    newBtn.innerHTML = originalHtml;
+                    console.log('[CLICK HANDLER] Button re-enabled before reload');
+
+                    // TODO: Replace manual refresh with SSE (Server-Sent Events)
+                    // Once Labs tab and all metrics are finalized, implement real-time
+                    // updates via CloudEventBus streaming. This will auto-update the UI
+                    // when scheduled jobs complete (every 5 minutes) without user action.
+                    // See TODO.md for full SSE implementation plan.
+
+                    // Reload the workers list to reflect updated state
+                    console.log('[CLICK HANDLER] Reloading workers list');
+                    await loadWorkers();
 
                     // Reload the worker details modal with fresh data
                     console.log('[CLICK HANDLER] Reloading worker details modal');
                     await showWorkerDetails(id, region);
+
+                    // If Labs tab is active, reload it to show updated lab data
+                    const labsTab = document.querySelector('#worker-details-tabs button[data-bs-target="#worker-details-labs"]');
+                    if (labsTab && labsTab.classList.contains('active')) {
+                        console.log('[CLICK HANDLER] Labs tab is active, reloading labs data');
+                        await loadLabsTab();
+                    }
                 } catch (error) {
                     console.error('[CLICK HANDLER] Error during refresh:', error);
                     showToast(error.message || 'Failed to refresh worker state', 'error');
-                } finally {
-                    // Re-enable button
+
+                    // Re-enable button on error
                     newBtn.disabled = false;
                     newBtn.innerHTML = originalHtml;
-                    console.log('[CLICK HANDLER] Button re-enabled');
+                    console.log('[CLICK HANDLER] Button re-enabled after error');
                 }
             } else {
                 console.warn('[CLICK HANDLER] No currentWorkerDetails available for refresh');
@@ -1302,17 +2203,279 @@ function escapeHtml(text) {
 }
 
 function formatDate(dateString) {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleString();
+    // Use the utility function that includes relative time
+    return formatDateWithRelative(dateString);
+}
+
+/**
+ * Show license details modal with detailed licensing information
+ */
+async function showLicenseDetailsModal() {
+    const modal = document.getElementById('workerDetailsModal');
+    const workerId = modal.dataset.workerId;
+    const region = modal.dataset.workerRegion;
+
+    if (!workerId || !region) {
+        showToast('No worker selected', 'error');
+        return;
+    }
+
+    try {
+        const worker = await workersApi.getWorkerDetails(region, workerId);
+
+        if (!worker.cml_license_info) {
+            showToast('No license information available for this worker', 'warning');
+            return;
+        }
+
+        const licenseData = worker.cml_license_info;
+
+        // Check if license modal exists
+        const licenseModalElement = document.getElementById('licenseDetailsModal');
+        if (!licenseModalElement) {
+            console.error('License details modal not found in DOM');
+            showToast('License details modal not available. Please refresh the page.', 'error');
+            return;
+        }
+
+        // Check if content elements exist
+        const registrationContent = document.getElementById('license-registration-content');
+        const authorizationContent = document.getElementById('license-authorization-content');
+        const featuresContent = document.getElementById('license-features-content');
+        const transportContent = document.getElementById('license-transport-content');
+
+        if (!registrationContent || !authorizationContent || !featuresContent || !transportContent) {
+            console.error('License modal content elements not found:', {
+                registration: !!registrationContent,
+                authorization: !!authorizationContent,
+                features: !!featuresContent,
+                transport: !!transportContent,
+            });
+            showToast('License details modal not properly loaded. Please refresh the page.', 'error');
+            return;
+        }
+
+        // Populate tabs
+        registrationContent.innerHTML = renderRegistrationTab(licenseData.registration || {});
+        authorizationContent.innerHTML = renderAuthorizationTab(licenseData.authorization || {});
+        featuresContent.innerHTML = renderFeaturesTab(licenseData.features || []);
+        transportContent.innerHTML = renderTransportTab(licenseData.transport || {}, licenseData.udi || {});
+
+        // Show the modal
+        const licenseModal = new bootstrap.Modal(licenseModalElement);
+        licenseModal.show();
+    } catch (error) {
+        console.error('Error loading license details:', error);
+        showToast('Failed to load license details', 'error');
+    }
+}
+
+function renderRegistrationTab(registration) {
+    const status = registration.status || 'UNKNOWN';
+    const statusBadge = status === 'COMPLETED' ? 'success' : status === 'FAILED' ? 'danger' : 'warning';
+
+    return `
+        <div class="card">
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-2">Status</h6>
+                        <span class="badge bg-${statusBadge} fs-6">${status}</span>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-2">Expires</h6>
+                        <p class="mb-0">${registration.expires || 'N/A'}</p>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-2">Smart Account</h6>
+                        <p class="mb-0">${registration.smart_account || 'N/A'}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-2">Virtual Account</h6>
+                        <p class="mb-0">${registration.virtual_account || 'N/A'}</p>
+                    </div>
+                </div>
+
+                ${
+                    registration.register_time
+                        ? `
+                <div class="mt-4">
+                    <h6 class="text-muted mb-3">Register Time</h6>
+                    <table class="table table-sm table-borderless">
+                        <tr><td class="text-muted" style="width: 40%;">Attempted:</td><td>${registration.register_time.attempted || 'N/A'}</td></tr>
+                        <tr><td class="text-muted">Succeeded:</td><td>${registration.register_time.succeeded || 'N/A'}</td></tr>
+                        <tr><td class="text-muted">Status:</td><td><span class="badge bg-${registration.register_time.success === 'SUCCESS' ? 'success' : 'secondary'}">${registration.register_time.success || 'N/A'}</span></td></tr>
+                        <tr><td class="text-muted">Failure:</td><td>${registration.register_time.failure || 'N/A'}</td></tr>
+                    </table>
+                </div>
+                `
+                        : ''
+                }
+
+                ${
+                    registration.renew_time
+                        ? `
+                <div class="mt-4">
+                    <h6 class="text-muted mb-3">Renew Time</h6>
+                    <table class="table table-sm table-borderless">
+                        <tr><td class="text-muted" style="width: 40%;">Scheduled:</td><td>${registration.renew_time.scheduled || 'N/A'}</td></tr>
+                        <tr><td class="text-muted">Attempted:</td><td>${registration.renew_time.attempted || 'N/A'}</td></tr>
+                        <tr><td class="text-muted">Succeeded:</td><td>${registration.renew_time.succeeded || 'N/A'}</td></tr>
+                    </table>
+                </div>
+                `
+                        : ''
+                }
+            </div>
+        </div>
+    `;
+}
+
+function renderAuthorizationTab(authorization) {
+    const status = authorization.status || 'UNKNOWN';
+    const statusBadge = status === 'IN_COMPLIANCE' ? 'success' : status === 'OUT_OF_COMPLIANCE' ? 'danger' : 'warning';
+
+    return `
+        <div class="card">
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-2">Status</h6>
+                        <span class="badge bg-${statusBadge} fs-6">${status.replace('_', ' ')}</span>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-2">Expires</h6>
+                        <p class="mb-0">${authorization.expires || 'N/A'}</p>
+                    </div>
+                </div>
+
+                ${
+                    authorization.renew_time
+                        ? `
+                <div class="mt-4">
+                    <h6 class="text-muted mb-3">Renew Time</h6>
+                    <table class="table table-sm table-borderless">
+                        <tr><td class="text-muted" style="width: 40%;">Scheduled:</td><td>${authorization.renew_time.scheduled || 'N/A'}</td></tr>
+                        <tr><td class="text-muted">Attempted:</td><td>${authorization.renew_time.attempted || 'N/A'}</td></tr>
+                        <tr><td class="text-muted">Succeeded:</td><td>${authorization.renew_time.succeeded || 'N/A'}</td></tr>
+                        <tr><td class="text-muted">Status:</td><td><span class="badge bg-${authorization.renew_time.status === 'SUCCEEDED' ? 'success' : 'secondary'}">${authorization.renew_time.status || 'N/A'}</span></td></tr>
+                    </table>
+                </div>
+                `
+                        : ''
+                }
+            </div>
+        </div>
+    `;
+}
+
+function renderFeaturesTab(features) {
+    if (!features || features.length === 0) {
+        return '<div class="alert alert-info"><i class="bi bi-info-circle"></i> No features available</div>';
+    }
+
+    return `
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Feature Name</th>
+                        <th>Status</th>
+                        <th>In Use</th>
+                        <th>Range</th>
+                        <th>Version</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${features
+                        .map(feature => {
+                            const statusBadge = feature.status === 'IN_COMPLIANCE' ? 'success' : feature.status === 'INIT' ? 'secondary' : 'warning';
+                            return `
+                            <tr>
+                                <td>
+                                    <strong>${feature.name || 'Unknown'}</strong>
+                                    ${feature.description ? `<br><small class="text-muted">${feature.description}</small>` : ''}
+                                </td>
+                                <td><span class="badge bg-${statusBadge}">${feature.status || 'N/A'}</span></td>
+                                <td>${feature.in_use !== undefined ? feature.in_use : 'N/A'}</td>
+                                <td>${feature.min !== undefined && feature.max !== undefined ? `${feature.min} - ${feature.max}` : 'N/A'}</td>
+                                <td>${feature.version || 'N/A'}</td>
+                            </tr>
+                        `;
+                        })
+                        .join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+function renderTransportTab(transport, udi) {
+    return `
+        <div class="card mb-3">
+            <div class="card-header bg-light">
+                <h6 class="mb-0"><i class="bi bi-hdd-network me-2"></i>Smart Software Manager (SSM)</h6>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm table-borderless">
+                    <tr>
+                        <td class="text-muted" style="width: 30%;">SSMS URL:</td>
+                        <td class="font-monospace small">${transport.ssms || 'N/A'}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Default SSMS:</td>
+                        <td class="font-monospace small">${transport.default_ssms || 'N/A'}</td>
+                    </tr>
+                    ${
+                        transport.proxy && (transport.proxy.server || transport.proxy.port)
+                            ? `
+                    <tr>
+                        <td class="text-muted">Proxy:</td>
+                        <td>${transport.proxy.server || 'None'}${transport.proxy.port ? ':' + transport.proxy.port : ''}</td>
+                    </tr>
+                    `
+                            : ''
+                    }
+                </table>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header bg-light">
+                <h6 class="mb-0"><i class="bi bi-fingerprint me-2"></i>Unique Device Identifier (UDI)</h6>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm table-borderless">
+                    <tr>
+                        <td class="text-muted" style="width: 30%;">Hostname:</td>
+                        <td>${udi.hostname || 'N/A'}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">Product UUID:</td>
+                        <td class="font-monospace small">${udi.product_uuid || 'N/A'}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    `;
 }
 
 // Export functions to global scope for onclick handlers
 window.workersApp = {
     showWorkerDetails,
     showLicenseModal,
+    showLicenseDetailsModal,
     startWorker,
     stopWorker,
     confirmTerminateWorker,
     refreshWorkers,
+    handleStartLab,
+    handleStopLab,
+    handleWipeLab,
 };
+
+// Alias for UI component functions
+window.workersUi = window.workersApp;

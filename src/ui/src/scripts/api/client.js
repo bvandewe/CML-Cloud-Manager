@@ -33,6 +33,28 @@ export async function apiRequest(url, options = {}) {
         throw new Error('Permission denied: You do not have access to this resource');
     }
 
+    if (!response.ok) {
+        // Handle other error status codes (400, 500, etc.)
+        let errorMessage = `Request failed with status ${response.status}`;
+        try {
+            const errorData = await response.json();
+            // Extract error message from various possible response formats
+            if (errorData.error) {
+                errorMessage = errorData.error;
+            } else if (errorData.message) {
+                errorMessage = errorData.message;
+            } else if (errorData.detail) {
+                errorMessage = errorData.detail;
+            } else if (typeof errorData === 'string') {
+                errorMessage = errorData;
+            }
+        } catch (e) {
+            // If response body is not JSON, use status text
+            errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
+    }
+
     return response;
 }
 

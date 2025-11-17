@@ -8,15 +8,12 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from neuroglia.data.infrastructure.mongo import MotorRepository
-from neuroglia.eventing.cloud_events.infrastructure.cloud_event_ingestor import (
-    CloudEventIngestor,
-)
-from neuroglia.eventing.cloud_events.infrastructure.cloud_event_middleware import (
-    CloudEventMiddleware,
-)
-from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import (
-    CloudEventPublisher,
-)
+from neuroglia.eventing.cloud_events.infrastructure.cloud_event_ingestor import \
+    CloudEventIngestor
+from neuroglia.eventing.cloud_events.infrastructure.cloud_event_middleware import \
+    CloudEventMiddleware
+from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import \
+    CloudEventPublisher
 from neuroglia.hosting.web import SubAppConfig, WebApplicationBuilder
 from neuroglia.mapping import Mapper
 from neuroglia.mediation import Mediator
@@ -24,24 +21,21 @@ from neuroglia.observability import Observability
 from neuroglia.serialization.json import JsonSerializer
 
 from api.services import DualAuthService
-from api.services.openapi_config import (
-    configure_api_openapi,
-    configure_mounted_apps_openapi_prefix,
-)
-from application.services import (
-    BackgroundTasksBus,
-    BackgroundTaskScheduler,
-    WorkerMonitoringScheduler,
-    WorkerNotificationHandler,
-)
+from api.services.openapi_config import (configure_api_openapi,
+                                         configure_mounted_apps_openapi_prefix)
+from application.services import (BackgroundTasksBus, BackgroundTaskScheduler,
+                                  WorkerMonitoringScheduler, WorkerNotificationHandler)
 from application.settings import app_settings, configure_logging
 from domain.entities import Task
 from domain.entities.cml_worker import CMLWorker
+from domain.entities.lab_record import LabRecord
 from domain.repositories import TaskRepository
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
-from integration.repositories.motor_cml_worker_repository import (
-    MongoCMLWorkerRepository,
-)
+from domain.repositories.lab_record_repository import LabRecordRepository
+from integration.repositories.motor_cml_worker_repository import \
+    MongoCMLWorkerRepository
+from integration.repositories.motor_lab_record_repository import \
+    MongoLabRecordRepository
 from integration.repositories.motor_task_repository import MongoTaskRepository
 from integration.services.aws_ec2_api_client import AwsEc2Client
 
@@ -79,6 +73,7 @@ async def lifespan_with_monitoring(app: FastAPI) -> AsyncIterator[None]:
         try:
             # Get required dependencies from scoped service provider
             worker_repository = scope.get_required_service(CMLWorkerRepository)
+            lab_record_repository = scope.get_required_service(LabRecordRepository)
             aws_client = scope.get_required_service(AwsEc2Client)
             background_task_bus = scope.get_required_service(BackgroundTasksBus)
             background_task_scheduler = scope.get_required_service(
@@ -105,6 +100,39 @@ async def lifespan_with_monitoring(app: FastAPI) -> AsyncIterator[None]:
             await _monitoring_scheduler.start_async()
 
             log.info("✅ Worker monitoring scheduler started")
+
+            # Create lab record indexes
+            await lab_record_repository.ensure_indexes_async()
+            log.info("✅ Lab record indexes created")
+
+            # Schedule labs refresh job (runs every 30 minutes for all workers)
+            from application.services.background_scheduler import \
+                RecurrentTaskDescriptor
+            from application.services.labs_refresh_job import LabsRefreshJob
+
+            # Create task descriptor for labs refresh job
+            labs_refresh_task = RecurrentTaskDescriptor(
+                id="labs-refresh-global",
+                name="LabsRefreshJob",
+                data={},  # No worker_id needed - this job processes all workers
+                interval=1800,  # 30 minutes in seconds
+            )
+
+            # Schedule via BackgroundTasksBus
+            background_task_bus.schedule_task(labs_refresh_task)
+
+            log.info("✅ Scheduled labs refresh job (30-minute interval)")
+
+            # Run initial labs refresh immediately on startup to preload data
+            log.info("🔄 Running initial labs refresh on startup...")
+            try:
+                initial_job = LabsRefreshJob()
+                initial_job._service_provider = scope
+                initial_job.configure()  # Not async - no await
+                await initial_job.run_every()
+                log.info("✅ Initial labs refresh completed")
+            except Exception as e:
+                log.error(f"❌ Initial labs refresh failed: {e}", exc_info=True)
         finally:
             # Dispose the scope after initialization
             scope.dispose()
@@ -205,6 +233,17 @@ def create_app() -> FastAPI:
         collection_name="cml_workers",
         domain_repository_type=CMLWorkerRepository,
         implementation_type=MongoCMLWorkerRepository,
+    )
+
+    # Configure Lab Record Repository
+    MotorRepository.configure(
+        builder,
+        entity_type=LabRecord,
+        key_type=str,
+        database_name="cml_cloud_manager",
+        collection_name="lab_records",
+        domain_repository_type=LabRecordRepository,
+        implementation_type=MongoLabRecordRepository,
     )
 
     # Configure AWS EC2 Client

@@ -6,9 +6,8 @@ from datetime import datetime, timezone
 
 from neuroglia.core import OperationResult
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_bus import CloudEventBus
-from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import (
-    CloudEventPublishingOptions,
-)
+from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import \
+    CloudEventPublishingOptions
 from neuroglia.mapping import Mapper
 from neuroglia.mediation import Command, CommandHandler, Mediator
 from neuroglia.observability.tracing import add_span_attributes
@@ -18,13 +17,10 @@ from application.settings import Settings
 from domain.entities.cml_worker import CMLWorker
 from domain.enums import CMLWorkerStatus
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
-from integration.exceptions import (
-    EC2AuthenticationException,
-    EC2InstanceCreationException,
-    EC2InvalidParameterException,
-    EC2QuotaExceededException,
-    IntegrationException,
-)
+from integration.exceptions import (EC2AuthenticationException,
+                                    EC2InstanceCreationException,
+                                    EC2InvalidParameterException,
+                                    EC2QuotaExceededException, IntegrationException)
 from integration.models import CMLWorkerInstanceDto
 from integration.services.aws_ec2_api_client import AwsEc2Client
 
@@ -172,6 +168,25 @@ class CreateCMLWorkerCommandHandler(
                 span.set_attribute(
                     "ec2.instance_state", instance_dto.instance_state or "unknown"
                 )
+
+            with tracer.start_as_current_span("check_duplicate_worker") as span:
+                # Check if instance already registered as a worker
+                existing_worker = (
+                    await self.cml_worker_repository.get_by_aws_instance_id_async(
+                        instance_dto.aws_instance_id
+                    )
+                )
+                if existing_worker:
+                    error_msg = (
+                        f"Instance {instance_dto.aws_instance_id} is already registered "
+                        f"as worker '{existing_worker.state.name}' (ID: {existing_worker.id()})"
+                    )
+                    log.warning(error_msg)
+                    span.set_attribute("worker.already_exists", True)
+                    span.set_attribute("worker.existing_id", existing_worker.id())
+                    return self.bad_request(error_msg)
+
+                span.set_attribute("worker.already_exists", False)
 
             with tracer.start_as_current_span("assign_instance_to_worker") as span:
                 # Assign EC2 instance to worker aggregate

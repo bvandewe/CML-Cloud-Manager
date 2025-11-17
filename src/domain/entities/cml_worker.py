@@ -13,25 +13,21 @@ from multipledispatch import dispatch
 from neuroglia.data.abstractions import AggregateRoot, AggregateState
 
 from domain.enums import CMLServiceStatus, CMLWorkerStatus, LicenseStatus
-from domain.events.cloudwatch_monitoring_updated_domain_event import (
-    CloudWatchMonitoringUpdatedDomainEvent,
-)
-from domain.events.cml_worker import (
-    CMLServiceStatusUpdatedDomainEvent,
-    CMLWorkerCreatedDomainEvent,
-    CMLWorkerEndpointUpdatedDomainEvent,
-    CMLWorkerImportedDomainEvent,
-    CMLWorkerInstanceAssignedDomainEvent,
-    CMLWorkerLicenseUpdatedDomainEvent,
-    CMLWorkerStatusUpdatedDomainEvent,
-    CMLWorkerTelemetryUpdatedDomainEvent,
-    CMLWorkerTerminatedDomainEvent,
-)
-from domain.events.worker_metrics_events import (
-    CloudWatchMetricsUpdatedDomainEvent,
-    CMLMetricsUpdatedDomainEvent,
-    EC2MetricsUpdatedDomainEvent,
-)
+from domain.events.cloudwatch_monitoring_updated_domain_event import \
+    CloudWatchMonitoringUpdatedDomainEvent
+from domain.events.cml_worker import (CMLServiceStatusUpdatedDomainEvent,
+                                      CMLWorkerCreatedDomainEvent,
+                                      CMLWorkerEndpointUpdatedDomainEvent,
+                                      CMLWorkerImportedDomainEvent,
+                                      CMLWorkerInstanceAssignedDomainEvent,
+                                      CMLWorkerLicenseUpdatedDomainEvent,
+                                      CMLWorkerStatusUpdatedDomainEvent,
+                                      CMLWorkerTelemetryUpdatedDomainEvent,
+                                      CMLWorkerTerminatedDomainEvent)
+from domain.events.worker_metrics_events import (CloudWatchMetricsUpdatedDomainEvent,
+                                                 CMLMetricsUpdatedDomainEvent,
+                                                 EC2InstanceDetailsUpdatedDomainEvent,
+                                                 EC2MetricsUpdatedDomainEvent)
 
 
 class CMLWorkerState(AggregateState[str]):
@@ -70,6 +66,8 @@ class CMLWorkerState(AggregateState[str]):
 
     # CML Metrics (from CML API /api/v0/system_information)
     cml_system_info: dict | None  # Full system info from CML
+    cml_system_health: dict | None  # System health checks from CML
+    cml_license_info: dict | None  # License information from CML
     cml_ready: bool  # CML application ready state
     cml_uptime_seconds: int | None  # CML uptime
     cml_labs_count: int  # Number of labs from CML API
@@ -117,6 +115,8 @@ class CMLWorkerState(AggregateState[str]):
 
         # CML Metrics
         self.cml_system_info = None
+        self.cml_system_health = None
+        self.cml_license_info = None
         self.cml_ready = False
         self.cml_uptime_seconds = None
         self.cml_labs_count = 0
@@ -211,6 +211,16 @@ class CMLWorkerState(AggregateState[str]):
         self.ec2_last_checked_at = event.checked_at
         self.updated_at = event.updated_at
 
+    @dispatch(EC2InstanceDetailsUpdatedDomainEvent)
+    def on(self, event: EC2InstanceDetailsUpdatedDomainEvent) -> None:  # type: ignore[override]
+        """Apply EC2 instance details event to the state."""
+        self.public_ip = event.public_ip
+        self.private_ip = event.private_ip
+        self.instance_type = event.instance_type
+        self.ami_id = event.ami_id
+        self.ami_name = event.ami_name
+        self.updated_at = event.updated_at
+
     @dispatch(CloudWatchMetricsUpdatedDomainEvent)
     def on(self, event: CloudWatchMetricsUpdatedDomainEvent) -> None:  # type: ignore[override]
         """Apply CloudWatch metrics event to the state."""
@@ -222,7 +232,10 @@ class CMLWorkerState(AggregateState[str]):
     @dispatch(CMLMetricsUpdatedDomainEvent)
     def on(self, event: CMLMetricsUpdatedDomainEvent) -> None:  # type: ignore[override]
         """Apply CML API metrics event to the state."""
+        self.cml_version = event.cml_version
         self.cml_system_info = event.system_info
+        self.cml_system_health = event.system_health
+        self.cml_license_info = event.license_info
         self.cml_ready = event.ready
         self.cml_uptime_seconds = event.uptime_seconds
         self.cml_labs_count = event.labs_count
@@ -528,6 +541,37 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
             )
         )
 
+    def update_ec2_instance_details(
+        self,
+        public_ip: str | None = None,
+        private_ip: str | None = None,
+        instance_type: str | None = None,
+        ami_id: str | None = None,
+        ami_name: str | None = None,
+    ) -> None:
+        """Update EC2 instance details from AWS EC2 API.
+
+        Args:
+            public_ip: Public IP address of the instance
+            private_ip: Private IP address of the instance
+            instance_type: EC2 instance type (e.g., "t3.medium")
+            ami_id: AMI ID used to launch the instance
+            ami_name: AMI name/description
+        """
+        self.state.on(
+            self.register_event(  # type: ignore
+                EC2InstanceDetailsUpdatedDomainEvent(
+                    aggregate_id=self.id(),
+                    public_ip=public_ip,
+                    private_ip=private_ip,
+                    instance_type=instance_type,
+                    ami_id=ami_id,
+                    ami_name=ami_name,
+                    updated_at=datetime.now(timezone.utc),
+                )
+            )
+        )
+
     def update_cloudwatch_metrics(
         self,
         cpu_utilization: float,
@@ -555,7 +599,10 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
 
     def update_cml_metrics(
         self,
+        cml_version: str | None,
         system_info: dict,
+        system_health: dict | None,
+        license_info: dict | None,
         ready: bool,
         uptime_seconds: int | None,
         labs_count: int,
@@ -564,7 +611,10 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
         """Update CML application metrics from CML API.
 
         Args:
+            cml_version: CML version string (e.g., "2.9.0")
             system_info: Full system information dictionary from CML
+            system_health: System health checks from CML
+            license_info: License information from CML (registration, authorization, features)
             ready: CML application ready state
             uptime_seconds: CML uptime in seconds
             labs_count: Number of labs from CML API
@@ -574,7 +624,10 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
             self.register_event(  # type: ignore
                 CMLMetricsUpdatedDomainEvent(
                     aggregate_id=self.id(),
+                    cml_version=cml_version,
                     system_info=system_info,
+                    system_health=system_health,
+                    license_info=license_info,
                     ready=ready,
                     uptime_seconds=uptime_seconds,
                     labs_count=labs_count,
@@ -697,14 +750,16 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
         Returns:
             True if worker is idle beyond threshold, False otherwise
         """
-        if not self.state.last_activity_at:
+        # Check last activity from either CloudWatch or CML metrics
+        last_activity = self.state.cloudwatch_last_collected_at or self.state.cml_last_synced_at
+        if not last_activity:
             return False
 
-        if self.state.active_labs_count > 0:
+        if self.state.cml_labs_count > 0:
             return False
 
         now = datetime.now(timezone.utc)
-        idle_duration = now - self.state.last_activity_at
+        idle_duration = now - last_activity
         return idle_duration.total_seconds() / 60 >= idle_threshold_minutes
 
     def can_connect(self) -> bool:

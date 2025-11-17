@@ -1,83 +1,6 @@
 # TODO
 
-## Zero State Admin
-
-1. Import CML worker from AWS region by AMI name: add btn in "CML Workers" view next to "Refresh" btn.
-
-
 ## Testing CML API Integration
-
-**Status:** ✅ Implementation Complete, ⏳ Testing Blocked (Workers Not Ready)
-
-### Prerequisites Checklist
-
-- [ ] CML worker instance is RUNNING
-- [ ] Worker has `service_status = AVAILABLE`
-- [ ] Worker has `https_endpoint` configured (not null)
-- [ ] MongoDB is running (`docker-compose up mongodb`)
-- [ ] Correct CML credentials in settings
-
-### Test Commands
-
-1. **Check worker status first:**
-
-   ```bash
-   docker-compose exec mongodb mongosh cml_cloud_manager --quiet \
-     --eval "db.cml_workers.find({}, {name:1, status:1, service_status:1, https_endpoint:1, public_ip:1}).pretty()"
-   ```
-
-2. **Test specific endpoint (if you have HTTPS URL):**
-
-   ```bash
-   .venv/bin/python scripts/test_cml_api.py \
-     --endpoint https://<worker-ip> \
-     --username admin \
-     --password <actual-password>
-   ```
-
-3. **Test by worker ID (looks up from database):**
-
-   ```bash
-   .venv/bin/python scripts/test_cml_api.py \
-     --worker-id <worker-uuid> \
-     --password <actual-password>
-   ```
-
-4. **Test all RUNNING workers:**
-
-   ```bash
-   .venv/bin/python scripts/test_cml_api.py \
-     --test-all \
-     --password <actual-password>
-   ```
-
-### What Gets Tested
-
-- ✅ JWT authentication (`POST /api/v0/authenticate`)
-- ✅ Token caching and auto-refresh on 401
-- ✅ System stats endpoint (`GET /api/v0/system_stats`)
-- ✅ SSL certificate handling (verify=False for self-signed)
-- ✅ Parsing of compute nodes, dominfo, resource metrics
-- ✅ Extraction of allocated CPUs, running nodes, total nodes
-
-### Current Blockers
-
-**Workers are not ready for testing:**
-
-- Both workers have `https_endpoint: null`
-- Both workers have `service_status: unavailable`
-- Need CML service to complete initialization
-
-**When workers are ready, you'll see:**
-
-- `status: "running"`
-- `service_status: "available"`
-- `https_endpoint: "https://<ip-address>"`
-- `public_ip: "<ip-address>"`
-
-### Next Steps After Testing
-
-Once testing succeeds:
 
 - [ ] Verify RefreshWorkerMetricsCommand integration
 - [ ] Check `cml_*` fields populated in worker state
@@ -87,6 +10,51 @@ Once testing succeeds:
 ---
 
 ## Future Enhancements
+
+### Real-Time UI Updates via Server-Sent Events (SSE)
+
+**Priority:** High (defer until after Labs tab and metrics are complete)
+
+**Rationale:**
+
+- Worker metrics are updated by scheduled jobs (every 5 minutes)
+- Users need real-time updates without manual refresh
+- CloudEventBus infrastructure already in place
+
+**Implementation Plan:**
+
+1. **Backend SSE Endpoint** (`/api/workers/events`)
+   - Subscribe to CloudEventBus for worker-related events
+   - Stream events as Server-Sent Events
+   - Filter events per user's access level (admin vs regular user)
+   - Handle authentication via session cookies
+   - Implement reconnection logic and heartbeat
+
+2. **Events to Stream:**
+   - `CMLMetricsUpdatedDomainEvent` - Worker metrics refreshed
+   - `WorkerStatusChangedDomainEvent` - Worker status changed
+   - `WorkerCreatedDomainEvent` - New worker created
+   - `WorkerTerminatedDomainEvent` - Worker terminated
+   - `LabsUpdatedDomainEvent` - Labs data refreshed (future)
+
+3. **Frontend EventSource Client:**
+   - Subscribe to SSE endpoint on dashboard load
+   - Auto-update worker cards/table on events
+   - Auto-refresh open worker details modal
+   - Show toast notifications for important events
+   - Handle reconnection on connection loss
+
+4. **Benefits:**
+   - Automatic UI updates when scheduled jobs complete
+   - Real-time status changes without polling
+   - Better user experience with live data
+   - Reduced server load (vs polling every N seconds)
+
+**Dependencies:**
+
+- Complete Labs tab implementation
+- Finalize all worker metrics collection
+- Standardize event payload structure
 
 ### UI Updates
 

@@ -1,0 +1,100 @@
+"""MongoDB repository for LabRecord entities using Neuroglia's MotorRepository."""
+
+from typing import TYPE_CHECKING, Optional, cast
+
+from motor.motor_asyncio import AsyncIOMotorClient
+from neuroglia.data.infrastructure.mongo import MotorRepository
+from neuroglia.data.infrastructure.tracing_mixin import TracedRepositoryMixin
+from neuroglia.serialization.json import JsonSerializer
+
+from domain.entities.lab_record import LabRecord
+from domain.repositories.lab_record_repository import LabRecordRepository
+
+if TYPE_CHECKING:
+    from neuroglia.mediation.mediator import Mediator
+
+
+class MongoLabRecordRepository(TracedRepositoryMixin, MotorRepository[LabRecord, str], LabRecordRepository):  # type: ignore[misc]
+    """Motor-based async MongoDB repository for LabRecord entities."""
+
+    def __init__(
+        self,
+        client: AsyncIOMotorClient,
+        database_name: str,
+        collection_name: str,
+        serializer: JsonSerializer,
+        entity_type: Optional[type[LabRecord]] = None,
+        mediator: Optional["Mediator"] = None,
+    ):
+        """Initialize the LabRecord repository.
+
+        Args:
+            client: Motor async MongoDB client
+            database_name: Name of the MongoDB database
+            collection_name: Name of the collection
+            serializer: JSON serializer for entity conversion
+            entity_type: Optional entity type (LabRecord)
+            mediator: Optional Mediator for automatic domain event publishing
+        """
+        super().__init__(
+            client=client,
+            database_name=database_name,
+            collection_name=collection_name,
+            serializer=serializer,
+            entity_type=entity_type,
+            mediator=mediator,
+        )
+
+    async def get_by_id_async(self, record_id: str) -> LabRecord | None:
+        """Get a lab record by its ID."""
+        return cast(LabRecord | None, await self.get_async(record_id))
+
+    async def get_by_lab_id_async(self, worker_id: str, lab_id: str) -> LabRecord | None:
+        """Get a lab record by worker ID and CML lab ID."""
+        document = await self.collection.find_one({
+            "worker_id": worker_id,
+            "lab_id": lab_id
+        })
+        if document:
+            return self._deserialize_entity(document)
+        return None
+
+    async def get_all_by_worker_async(self, worker_id: str) -> list[LabRecord]:
+        """Get all lab records for a specific worker."""
+        cursor = self.collection.find({"worker_id": worker_id})
+        records = []
+        async for document in cursor:
+            record = self._deserialize_entity(document)
+            records.append(record)
+        return records
+
+    async def get_all_async(self) -> list[LabRecord]:
+        """Get all lab records."""
+        cursor = self.collection.find({})
+        records = []
+        async for document in cursor:
+            record = self._deserialize_entity(document)
+            records.append(record)
+        return records
+
+    async def remove_by_id_async(self, record_id: str) -> None:
+        """Remove a lab record by ID."""
+        await self.collection.delete_one({"id": record_id})
+
+    async def remove_by_worker_async(self, worker_id: str) -> None:
+        """Remove all lab records for a worker."""
+        await self.collection.delete_many({"worker_id": worker_id})
+
+    async def ensure_indexes_async(self) -> None:
+        """Create indexes for efficient querying."""
+        # Index on worker_id for quick worker-specific queries
+        await self.collection.create_index("worker_id")
+
+        # Compound index on worker_id + lab_id for unique lookup
+        await self.collection.create_index(
+            [("worker_id", 1), ("lab_id", 1)],
+            unique=True
+        )
+
+        # Index on last_synced_at for cleanup operations
+        await self.collection.create_index("last_synced_at")

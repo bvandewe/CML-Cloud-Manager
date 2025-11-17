@@ -68,14 +68,44 @@ class GetCMLWorkerByIdQueryHandler(
                 "https_endpoint": worker.state.https_endpoint,
                 "public_ip": worker.state.public_ip,
                 "private_ip": worker.state.private_ip,
-                "last_activity_at": (
-                    worker.state.last_activity_at.isoformat()
-                    if worker.state.last_activity_at
+                # EC2 Metrics
+                "ec2_instance_state_detail": worker.state.ec2_instance_state_detail,
+                "ec2_system_status_check": worker.state.ec2_system_status_check,
+                "ec2_last_checked_at": (
+                    worker.state.ec2_last_checked_at.isoformat()
+                    if worker.state.ec2_last_checked_at
                     else None
                 ),
-                "active_labs_count": worker.state.active_labs_count,
-                "cpu_utilization": worker.state.cpu_utilization,
-                "memory_utilization": worker.state.memory_utilization,
+                # CloudWatch Metrics
+                "cloudwatch_cpu_utilization": worker.state.cloudwatch_cpu_utilization,
+                "cloudwatch_memory_utilization": worker.state.cloudwatch_memory_utilization,
+                "cloudwatch_last_collected_at": (
+                    worker.state.cloudwatch_last_collected_at.isoformat()
+                    if worker.state.cloudwatch_last_collected_at
+                    else None
+                ),
+                "cloudwatch_detailed_monitoring_enabled": worker.state.cloudwatch_detailed_monitoring_enabled,
+                # CML Metrics
+                "cml_system_info": worker.state.cml_system_info,
+                "cml_system_health": worker.state.cml_system_health,
+                "cml_license_info": worker.state.cml_license_info,
+                "cml_ready": worker.state.cml_ready,
+                "cml_uptime_seconds": worker.state.cml_uptime_seconds,
+                "cml_labs_count": worker.state.cml_labs_count,
+                "cml_last_synced_at": (
+                    worker.state.cml_last_synced_at.isoformat()
+                    if worker.state.cml_last_synced_at
+                    else None
+                ),
+                # Backward compatibility (deprecated)
+                "last_activity_at": (
+                    worker.state.cloudwatch_last_collected_at.isoformat()
+                    if worker.state.cloudwatch_last_collected_at
+                    else None
+                ),
+                "active_labs_count": worker.state.cml_labs_count,
+                "cpu_utilization": worker.state.cloudwatch_cpu_utilization,
+                "memory_utilization": worker.state.cloudwatch_memory_utilization,
                 "created_at": worker.state.created_at.isoformat(),
                 "updated_at": worker.state.updated_at.isoformat(),
                 "terminated_at": (

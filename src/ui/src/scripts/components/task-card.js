@@ -6,6 +6,7 @@
 import * as bootstrap from 'bootstrap';
 import { marked } from 'marked';
 import { canEditTask, canDeleteTasks } from './permissions.js';
+import { formatDate, getRelativeTime } from '../utils/dates.js';
 
 // Configure marked for safe rendering
 marked.setOptions({
@@ -37,10 +38,20 @@ export function createTaskCardHTML(task, showDeleteButton) {
     const canEdit = canEditTask(task);
     const departmentBadge = task.department || '';
 
-    // Format timestamps for tooltip
-    const createdAt = new Date(task.created_at).toLocaleString();
-    const updatedAt = task.updated_at ? new Date(task.updated_at).toLocaleString() : 'Never';
-    const tooltipText = `<strong>Created:</strong> ${createdAt}<br><strong>Updated:</strong> ${updatedAt}`;
+    // Format timestamps for tooltip with relative time
+    const createdDate = new Date(task.created_at);
+    const createdAt = formatDate(task.created_at);
+    const createdRelative = getRelativeTime(createdDate);
+
+    let updatedAt = 'Never';
+    let updatedRelative = '';
+    if (task.updated_at) {
+        const updatedDate = new Date(task.updated_at);
+        updatedAt = formatDate(task.updated_at);
+        updatedRelative = ` (${getRelativeTime(updatedDate)})`;
+    }
+
+    const tooltipText = `<strong>Created:</strong> ${createdAt} (${createdRelative})<br><strong>Updated:</strong> ${updatedAt}${updatedRelative}`;
 
     // Create card footer with action icons
     let cardFooter = '';

@@ -16,6 +16,7 @@ class TaskPriority(str, Enum):
 class CMLWorkerStatus(str, Enum):
     """AWS EC2 instance states for CML Worker."""
     PENDING = "pending"  # Instance is being launched
+    STARTING = "starting"  # Instance is starting < TBC if needed!
     RUNNING = "running"  # Instance is running
     STOPPING = "stopping"  # Instance is being stopped
     STOPPED = "stopped"  # Instance is stopped

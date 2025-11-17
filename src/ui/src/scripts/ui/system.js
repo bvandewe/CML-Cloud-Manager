@@ -10,6 +10,7 @@
 
 import * as systemApi from '../api/system.js';
 import { showToast } from './notifications.js';
+import { formatDateWithRelative, initializeDateTooltips } from '../utils/dates.js';
 import * as bootstrap from 'bootstrap';
 
 /**
@@ -157,6 +158,8 @@ async function loadSchedulerJobs() {
                 `;
             } else {
                 container.innerHTML = renderSchedulerJobs(jobs);
+                // Initialize Bootstrap tooltips for date icons
+                initializeDateTooltips();
             }
         }
     } catch (error) {
@@ -527,13 +530,8 @@ function getComponentIcon(name) {
  * Helper: Format ISO datetime string for display
  */
 function formatDateTime(isoString) {
-    if (!isoString) return 'N/A';
-    try {
-        const date = new Date(isoString);
-        return date.toLocaleString();
-    } catch (e) {
-        return isoString;
-    }
+    // Use the utility function that includes relative time
+    return formatDateWithRelative(isoString);
 }
 
 /**

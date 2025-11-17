@@ -10,16 +10,12 @@ from typing import Any, Callable, Dict, List, Optional
 
 from opentelemetry import trace
 
-from application.services.background_scheduler import (
-    RecurrentBackgroundJob,
-    backgroundjob,
-)
+from application.services.background_scheduler import (RecurrentBackgroundJob,
+                                                       backgroundjob)
 from domain.enums import CMLWorkerStatus
 from domain.repositories import CMLWorkerRepository
-from integration.enums import (
-    AwsRegion,
-    Ec2InstanceResourcesUtilizationRelativeStartTime,
-)
+from integration.enums import (AwsRegion,
+                               Ec2InstanceResourcesUtilizationRelativeStartTime)
 from integration.services.aws_ec2_api_client import AwsEc2Client
 
 logger = logging.getLogger(__name__)
@@ -121,9 +117,8 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
                 # Directly instantiate for horizontal scaling
                 # Get credentials from settings
                 from application.settings import app_settings
-                from integration.services.aws_ec2_api_client import (
-                    AwsAccountCredentials,
-                )
+                from integration.services.aws_ec2_api_client import \
+                    AwsAccountCredentials
 
                 credentials = AwsAccountCredentials(
                     aws_access_key_id=app_settings.aws_access_key_id,
@@ -135,9 +130,8 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
 
         # Get or instantiate notification handler
         try:
-            from application.services.worker_notification_handler import (
-                WorkerNotificationHandler,
-            )
+            from application.services.worker_notification_handler import \
+                WorkerNotificationHandler
 
             if self._service_provider:
                 self._notification_handler = (
@@ -165,11 +159,7 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
             self._observers = []
             logger.debug(f"✅ Initialized _observers list for worker {self.worker_id}")
 
-            logger.info(f"✅ Configuration complete for worker {self.worker_id}")
-        else:
-            logger.warning(
-                f"⚠️ configure() called without service_provider for worker {self.worker_id if hasattr(self, 'worker_id') else 'UNKNOWN'}"
-            )
+        logger.info(f"✅ Configuration complete for worker {self.worker_id}")
 
     def subscribe(self, observer: Callable[[Dict[str, Any]], None]) -> None:
         """Subscribe an observer to metrics events.
@@ -249,9 +239,8 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
 
                     from application.settings import app_settings
                     from domain.entities.cml_worker import CMLWorker
-                    from integration.repositories.motor_cml_worker_repository import (
-                        MongoCMLWorkerRepository,
-                    )
+                    from integration.repositories.motor_cml_worker_repository import \
+                        MongoCMLWorkerRepository
 
                     # Get MongoDB connection string
                     mongo_uri = app_settings.connection_strings.get("mongo")

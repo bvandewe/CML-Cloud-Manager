@@ -9,31 +9,18 @@ from neuroglia.mediation.mediator import Mediator
 from neuroglia.mvc.controller_base import ControllerBase
 
 from api.dependencies import get_current_user, require_roles
-from api.models import (
-    CreateCMLWorkerRequest,
-    ImportCMLWorkerRequest,
-    RegisterLicenseRequest,
-    UpdateCMLWorkerTagsRequest,
-)
-from application.commands import (
-    CreateCMLWorkerCommand,
-    ImportCMLWorkerCommand,
-    StartCMLWorkerCommand,
-    StopCMLWorkerCommand,
-    TerminateCMLWorkerCommand,
-    UpdateCMLWorkerStatusCommand,
-    UpdateCMLWorkerTagsCommand,
-)
-from application.queries import (
-    GetCMLWorkerByIdQuery,
-    GetCMLWorkerResourcesQuery,
-    GetCMLWorkersQuery,
-)
+from api.models import (CreateCMLWorkerRequest, ImportCMLWorkerRequest,
+                        RegisterLicenseRequest, UpdateCMLWorkerTagsRequest)
+from application.commands import (CreateCMLWorkerCommand, ImportCMLWorkerCommand,
+                                  StartCMLWorkerCommand, StopCMLWorkerCommand,
+                                  TerminateCMLWorkerCommand,
+                                  UpdateCMLWorkerStatusCommand,
+                                  UpdateCMLWorkerTagsCommand)
+from application.queries import (GetCMLWorkerByIdQuery, GetCMLWorkerResourcesQuery,
+                                 GetCMLWorkersQuery)
 from domain.enums import CMLWorkerStatus
-from integration.enums import (
-    AwsRegion,
-    Ec2InstanceResourcesUtilizationRelativeStartTime,
-)
+from integration.enums import (AwsRegion,
+                               Ec2InstanceResourcesUtilizationRelativeStartTime)
 from integration.services.aws_ec2_api_client import Ec2InstanceResourcesUtilization
 
 logger = logging.getLogger(__name__)
@@ -331,12 +318,10 @@ class WorkersController(ControllerBase):
         command = RefreshWorkerMetricsCommand(worker_id=worker_id)
         refresh_result = await self.mediator.execute_async(command)
 
-        # Check if refresh succeeded
+        # Check if refresh succeeded - return early if it failed
         if not refresh_result or not refresh_result.is_success:
             logger.error(f"Failed to refresh worker {worker_id}: {refresh_result}")
-            raise HTTPException(
-                status_code=500, detail="Failed to refresh worker metrics"
-            )
+            return self.process(refresh_result)
 
         # Get the monitoring scheduler from main module
         from main import _monitoring_scheduler
@@ -351,9 +336,8 @@ class WorkersController(ControllerBase):
                     f"⚠️ Could not start monitoring for worker {worker_id}: {e}"
                 )
 
-        # Return the refreshed worker details
-        refreshed_query = GetCMLWorkerByIdQuery(worker_id=worker_id)
-        return self.process(await self.mediator.execute_async(refreshed_query))
+        # Return the command result (which already includes the refreshed worker data)
+        return self.process(refresh_result)
 
     @post(
         "/region/{aws_region}/workers/{worker_id}/monitoring",
@@ -415,3 +399,132 @@ class WorkersController(ControllerBase):
         raise HTTPException(
             status_code=501, detail="License registration endpoint not yet implemented"
         )
+
+    @get(
+        "/region/{aws_region}/workers/{worker_id}/labs",
+        response_model=Any,
+        status_code=200,
+        responses=ControllerBase.error_responses,
+    )
+    async def get_worker_labs(
+        self,
+        aws_region: aws_region_annotation,
+        worker_id: worker_id_annotation,
+        token: str = Depends(get_current_user),
+    ) -> Any:
+        """Get labs running on a CML Worker instance."""
+        from application.queries.get_worker_labs_query import GetWorkerLabsQuery
+
+        logger.info(
+            f"Getting labs for CML worker {worker_id} in region {aws_region}"
+        )
+
+        query = GetWorkerLabsQuery(worker_id=worker_id)
+        return self.process(await self.mediator.execute_async(query))
+
+    @post(
+        "/region/{aws_region}/workers/{worker_id}/labs/refresh",
+        response_model=Any,
+        status_code=200,
+        responses=ControllerBase.error_responses,
+    )
+    async def refresh_worker_labs(
+        self,
+        aws_region: aws_region_annotation,
+        worker_id: worker_id_annotation,
+        token: str = Depends(get_current_user),
+    ) -> Any:
+        """Refresh labs data from CML API for a specific worker.
+
+        This endpoint:
+        1. Fetches current lab data from CML API
+        2. Updates lab_records in database with change detection
+        3. Records state changes in operation history
+        4. Returns summary of labs synced
+
+        This is useful for on-demand lab refresh between the scheduled 30-minute
+        global refresh cycles.
+
+        (**Requires valid token.**)
+        """
+        logger.info(f"Refreshing labs for CML worker {worker_id} in region {aws_region}")
+
+        from application.commands import RefreshWorkerLabsCommand
+
+        command = RefreshWorkerLabsCommand(worker_id=worker_id)
+        return self.process(await self.mediator.execute_async(command))
+
+    @post(
+        "/region/{aws_region}/workers/{worker_id}/labs/{lab_id}/start",
+        response_model=Any,
+        status_code=200,
+        responses=ControllerBase.error_responses,
+    )
+    async def start_lab(
+        self,
+        aws_region: aws_region_annotation,
+        worker_id: worker_id_annotation,
+        lab_id: str,
+        token: str = Depends(require_roles("admin", "manager")),
+    ) -> Any:
+        """Start all nodes in a lab.
+
+        (**Requires `admin` or `manager` role!**)
+        """
+        from application.commands import ControlLabCommand, LabAction
+
+        logger.info(f"Starting lab {lab_id} on worker {worker_id}")
+        command = ControlLabCommand(
+            worker_id=worker_id, lab_id=lab_id, action=LabAction.START
+        )
+        return self.process(await self.mediator.execute_async(command))
+
+    @post(
+        "/region/{aws_region}/workers/{worker_id}/labs/{lab_id}/stop",
+        response_model=Any,
+        status_code=200,
+        responses=ControllerBase.error_responses,
+    )
+    async def stop_lab(
+        self,
+        aws_region: aws_region_annotation,
+        worker_id: worker_id_annotation,
+        lab_id: str,
+        token: str = Depends(require_roles("admin", "manager")),
+    ) -> Any:
+        """Stop all nodes in a lab.
+
+        (**Requires `admin` or `manager` role!**)
+        """
+        from application.commands import ControlLabCommand, LabAction
+
+        logger.info(f"Stopping lab {lab_id} on worker {worker_id}")
+        command = ControlLabCommand(
+            worker_id=worker_id, lab_id=lab_id, action=LabAction.STOP
+        )
+        return self.process(await self.mediator.execute_async(command))
+
+    @post(
+        "/region/{aws_region}/workers/{worker_id}/labs/{lab_id}/wipe",
+        response_model=Any,
+        status_code=200,
+        responses=ControllerBase.error_responses,
+    )
+    async def wipe_lab(
+        self,
+        aws_region: aws_region_annotation,
+        worker_id: worker_id_annotation,
+        lab_id: str,
+        token: str = Depends(require_roles("admin", "manager")),
+    ) -> Any:
+        """Wipe all nodes in a lab (factory reset).
+
+        (**Requires `admin` or `manager` role!**)
+        """
+        from application.commands import ControlLabCommand, LabAction
+
+        logger.info(f"Wiping lab {lab_id} on worker {worker_id}")
+        command = ControlLabCommand(
+            worker_id=worker_id, lab_id=lab_id, action=LabAction.WIPE
+        )
+        return self.process(await self.mediator.execute_async(command))

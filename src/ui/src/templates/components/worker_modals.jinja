@@ -151,25 +151,25 @@
                     <li class="nav-item" role="presentation">
                         <button class="nav-link active" id="overview-tab" data-bs-toggle="tab"
                             data-bs-target="#overview-panel" type="button" role="tab">
-                            <i class="bi bi-grid"></i> Overview
+                            <i class="bi bi-hdd-stack"></i> AWS
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="metrics-tab" data-bs-toggle="tab" data-bs-target="#metrics-panel"
+                        <button class="nav-link" id="cml-tab" data-bs-toggle="tab" data-bs-target="#cml-panel"
                             type="button" role="tab">
-                            <i class="bi bi-graph-up"></i> Metrics
+                            <i class="bi bi-diagram-3"></i> CML
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="ec2-tab" data-bs-toggle="tab" data-bs-target="#ec2-panel"
+                        <button class="nav-link" id="labs-tab" data-bs-toggle="tab" data-bs-target="#labs-panel"
                             type="button" role="tab">
-                            <i class="bi bi-hdd-stack"></i> EC2 Instance
+                            <i class="bi bi-folder2-open"></i> Labs
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
                         <button class="nav-link" id="jobs-tab" data-bs-toggle="tab" data-bs-target="#jobs-panel"
                             type="button" role="tab">
-                            <i class="bi bi-clock-history"></i> Scheduler Jobs
+                            <i class="bi bi-clock-history"></i> Jobs
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
@@ -188,7 +188,7 @@
 
                 <!-- Tab Content -->
                 <div class="tab-content" id="workerDetailsTabContent">
-                    <!-- Overview Tab -->
+                    <!-- EC2 Instance Details Tab (formerly Overview) -->
                     <div class="tab-pane fade show active" id="overview-panel" role="tabpanel">
                         <div id="worker-details-overview">
                             <div class="text-center py-5">
@@ -198,22 +198,22 @@
                         </div>
                     </div>
 
-                    <!-- Metrics Tab -->
-                    <div class="tab-pane fade" id="metrics-panel" role="tabpanel">
-                        <div id="worker-details-metrics">
+                    <!-- CML Tab -->
+                    <div class="tab-pane fade" id="cml-panel" role="tabpanel">
+                        <div id="worker-details-cml">
                             <div class="text-center py-5 text-muted">
-                                <i class="bi bi-graph-up fs-1 d-block mb-3"></i>
-                                <p>Worker metrics will appear here</p>
+                                <i class="bi bi-diagram-3 fs-1 d-block mb-3"></i>
+                                <p>CML application details will appear here</p>
                             </div>
                         </div>
                     </div>
 
-                    <!-- EC2 Instance Tab -->
-                    <div class="tab-pane fade" id="ec2-panel" role="tabpanel">
-                        <div id="worker-details-ec2">
+                    <!-- Labs Tab -->
+                    <div class="tab-pane fade" id="labs-panel" role="tabpanel">
+                        <div id="worker-details-labs">
                             <div class="text-center py-5 text-muted">
-                                <i class="bi bi-hdd-stack fs-1 d-block mb-3"></i>
-                                <p>EC2 instance details will appear here</p>
+                                <i class="bi bi-folder2-open fs-1 d-block mb-3"></i>
+                                <p>Lab details will appear here</p>
                             </div>
                         </div>
                     </div>
@@ -291,6 +291,83 @@
                 <button type="button" class="btn btn-primary" id="submit-register-license-btn">
                     <i class="bi bi-key"></i> Register License
                 </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- License Details Modal -->
+<div class="modal fade" id="licenseDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-shield-check"></i> CML License Details
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Nav tabs -->
+                <ul class="nav nav-tabs mb-3" id="licenseDetailsTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="registration-tab" data-bs-toggle="tab"
+                            data-bs-target="#registration-panel" type="button" role="tab">
+                            <i class="bi bi-card-checklist"></i> Registration
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="authorization-tab" data-bs-toggle="tab"
+                            data-bs-target="#authorization-panel" type="button" role="tab">
+                            <i class="bi bi-shield-lock"></i> Authorization
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="features-tab" data-bs-toggle="tab" data-bs-target="#features-panel"
+                            type="button" role="tab">
+                            <i class="bi bi-puzzle"></i> Features
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="transport-tab" data-bs-toggle="tab"
+                            data-bs-target="#transport-panel" type="button" role="tab">
+                            <i class="bi bi-cloud-arrow-up"></i> Transport
+                        </button>
+                    </li>
+                </ul>
+
+                <!-- Tab content -->
+                <div class="tab-content" id="licenseDetailsTabContent">
+                    <!-- Registration Panel -->
+                    <div class="tab-pane fade show active" id="registration-panel" role="tabpanel">
+                        <div id="license-registration-content">
+                            <!-- Content loaded dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Authorization Panel -->
+                    <div class="tab-pane fade" id="authorization-panel" role="tabpanel">
+                        <div id="license-authorization-content">
+                            <!-- Content loaded dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Features Panel -->
+                    <div class="tab-pane fade" id="features-panel" role="tabpanel">
+                        <div id="license-features-content">
+                            <!-- Content loaded dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Transport Panel -->
+                    <div class="tab-pane fade" id="transport-panel" role="tabpanel">
+                        <div id="license-transport-content">
+                            <!-- Content loaded dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>

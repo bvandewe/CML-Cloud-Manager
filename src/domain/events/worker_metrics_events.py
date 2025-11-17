@@ -68,7 +68,10 @@ class CMLMetricsUpdatedDomainEvent(DomainEvent):
     """Event raised when CML application metrics are collected from CML API."""
 
     aggregate_id: str
+    cml_version: Optional[str]
     system_info: dict
+    system_health: Optional[dict]
+    license_info: Optional[dict]
     ready: bool
     uptime_seconds: Optional[int]
     labs_count: int
@@ -78,7 +81,10 @@ class CMLMetricsUpdatedDomainEvent(DomainEvent):
     def __init__(
         self,
         aggregate_id: str,
+        cml_version: Optional[str],
         system_info: dict,
+        system_health: Optional[dict],
+        license_info: Optional[dict],
         ready: bool,
         uptime_seconds: Optional[int],
         labs_count: int,
@@ -87,9 +93,45 @@ class CMLMetricsUpdatedDomainEvent(DomainEvent):
     ) -> None:
         super().__init__(aggregate_id)
         self.aggregate_id = aggregate_id
+        self.cml_version = cml_version
         self.system_info = system_info
+        self.system_health = system_health
+        self.license_info = license_info
         self.ready = ready
         self.uptime_seconds = uptime_seconds
         self.labs_count = labs_count
         self.synced_at = synced_at
+        self.updated_at = updated_at
+
+
+@cloudevent("cml_worker.ec2_instance_details.updated.v1")
+@dataclass
+class EC2InstanceDetailsUpdatedDomainEvent(DomainEvent):
+    """Event raised when EC2 instance details are collected from AWS EC2 API."""
+
+    aggregate_id: str
+    public_ip: Optional[str]
+    private_ip: Optional[str]
+    instance_type: Optional[str]
+    ami_id: Optional[str]
+    ami_name: Optional[str]
+    updated_at: datetime
+
+    def __init__(
+        self,
+        aggregate_id: str,
+        public_ip: Optional[str],
+        private_ip: Optional[str],
+        instance_type: Optional[str],
+        ami_id: Optional[str],
+        ami_name: Optional[str],
+        updated_at: datetime,
+    ) -> None:
+        super().__init__(aggregate_id)
+        self.aggregate_id = aggregate_id
+        self.public_ip = public_ip
+        self.private_ip = private_ip
+        self.instance_type = instance_type
+        self.ami_id = ami_id
+        self.ami_name = ami_name
         self.updated_at = updated_at

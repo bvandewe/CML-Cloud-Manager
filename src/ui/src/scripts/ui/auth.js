@@ -21,6 +21,25 @@ export function logout() {
  * Show login form (hide dashboard)
  */
 export function showLoginForm() {
+    // Close all open Bootstrap modals
+    const openModals = document.querySelectorAll('.modal.show');
+    openModals.forEach(modalElement => {
+        const modalInstance = bootstrap.Modal.getInstance(modalElement);
+        if (modalInstance) {
+            modalInstance.hide();
+        }
+    });
+
+    // Remove any lingering modal backdrops
+    const backdrops = document.querySelectorAll('.modal-backdrop');
+    backdrops.forEach(backdrop => backdrop.remove());
+
+    // Reset body classes that Bootstrap adds for modals
+    document.body.classList.remove('modal-open');
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
+
+    // Show login, hide dashboard
     document.getElementById('login-section').style.display = 'flex';
     document.getElementById('dashboard-section').style.display = 'none';
     document.getElementById('logout-btn').style.display = 'none';

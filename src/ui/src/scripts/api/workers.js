@@ -157,3 +157,84 @@ export async function getWorkerResources(region, workerId, startTime = '5m') {
     });
     return await response.json();
 }
+
+/**
+ * Enable detailed CloudWatch monitoring on worker instance
+ * @param {string} region - AWS region
+ * @param {string} workerId - Worker UUID
+ * @returns {Promise<Object>}
+ */
+export async function enableDetailedMonitoring(region, workerId) {
+    const response = await apiRequest(`/api/workers/region/${region}/workers/${workerId}/monitoring`, {
+        method: 'POST',
+    });
+    return await response.json();
+}
+
+/**
+ * Get labs running on a worker
+ * @param {string} region - AWS region
+ * @param {string} workerId - Worker UUID
+ * @returns {Promise<Array>}
+ */
+export async function getWorkerLabs(region, workerId) {
+    const response = await apiRequest(`/api/workers/region/${region}/workers/${workerId}/labs`, {
+        method: 'GET',
+    });
+    return await response.json();
+}
+
+/**
+ * Start a lab on a worker
+ * @param {string} region - AWS region
+ * @param {string} workerId - Worker UUID
+ * @param {string} labId - Lab ID
+ * @returns {Promise<Object>}
+ */
+export async function startLab(region, workerId, labId) {
+    const response = await apiRequest(`/api/workers/region/${region}/workers/${workerId}/labs/${labId}/start`, {
+        method: 'POST',
+    });
+    return await response.json();
+}
+
+/**
+ * Stop a lab on a worker
+ * @param {string} region - AWS region
+ * @param {string} workerId - Worker UUID
+ * @param {string} labId - Lab ID
+ * @returns {Promise<Object>}
+ */
+export async function stopLab(region, workerId, labId) {
+    const response = await apiRequest(`/api/workers/region/${region}/workers/${workerId}/labs/${labId}/stop`, {
+        method: 'POST',
+    });
+    return await response.json();
+}
+
+/**
+ * Wipe a lab on a worker (factory reset)
+ * @param {string} region - AWS region
+ * @param {string} workerId - Worker UUID
+ * @param {string} labId - Lab ID
+ * @returns {Promise<Object>}
+ */
+export async function wipeLab(region, workerId, labId) {
+    const response = await apiRequest(`/api/workers/region/${region}/workers/${workerId}/labs/${labId}/wipe`, {
+        method: 'POST',
+    });
+    return await response.json();
+}
+
+/**
+ * Refresh labs data from CML API for a specific worker
+ * @param {string} region - AWS region
+ * @param {string} workerId - Worker UUID
+ * @returns {Promise<Object>} Summary with synced/created/updated counts
+ */
+export async function refreshWorkerLabs(region, workerId) {
+    const response = await apiRequest(`/api/workers/region/${region}/workers/${workerId}/labs/refresh`, {
+        method: 'POST',
+    });
+    return await response.json();
+}
