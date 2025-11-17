@@ -54,8 +54,12 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 - **Worker Details Modal Timer**: Real-time countdown showing when next metrics refresh will occur
   - Displays in modal header on the right side (format: `M:SS`)
   - Updates every second to show remaining time until next scheduled metrics collection
-  - Automatically resets when metrics are updated via SSE event
-  - Uses 5-minute polling interval (configurable via `worker_metrics_poll_interval` setting)
+  - **Backend provides scheduling info**: SSE events now include `poll_interval` and `next_refresh_at` fields
+  - **Per-worker localStorage tracking**: UI stores timing info per worker in localStorage
+  - Timer persists across modal close/reopen - remembers last known refresh time
+  - Automatically updates when metrics are collected via SSE event
+  - Uses actual APScheduler job next_run_time from backend (not client-side estimation)
+  - Supports per-worker configurable poll intervals (future admin feature ready)
   - Timer stops when modal is closed to prevent unnecessary background activity
   - Provides visual feedback about background monitoring system activity
   - Icon changes based on current theme (moon for light mode, sun for dark mode)

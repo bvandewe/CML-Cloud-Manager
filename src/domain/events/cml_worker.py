@@ -174,6 +174,8 @@ class CMLWorkerTelemetryUpdatedDomainEvent(DomainEvent):
     cpu_utilization: Optional[float]
     memory_utilization: Optional[float]
     updated_at: datetime
+    poll_interval: Optional[int]  # Metrics collection interval in seconds
+    next_refresh_at: Optional[datetime]  # Next scheduled metrics collection time
 
     def __init__(
         self,
@@ -183,6 +185,8 @@ class CMLWorkerTelemetryUpdatedDomainEvent(DomainEvent):
         cpu_utilization: Optional[float],
         memory_utilization: Optional[float],
         updated_at: datetime,
+        poll_interval: Optional[int] = None,
+        next_refresh_at: Optional[datetime] = None,
     ) -> None:
         super().__init__(aggregate_id)
         self.aggregate_id = aggregate_id
@@ -191,6 +195,8 @@ class CMLWorkerTelemetryUpdatedDomainEvent(DomainEvent):
         self.cpu_utilization = cpu_utilization
         self.memory_utilization = memory_utilization
         self.updated_at = updated_at
+        self.poll_interval = poll_interval
+        self.next_refresh_at = next_refresh_at
 
 
 @cloudevent("cml_worker.endpoint.updated.v1")

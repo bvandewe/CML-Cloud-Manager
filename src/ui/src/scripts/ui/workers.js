@@ -18,8 +18,7 @@ let currentRegion = 'us-east-1';
 let currentWorkerDetails = null; // Store current worker for refresh
 
 // Metrics refresh timer tracking
-let metricsRefreshInterval = 300; // Default 5 minutes in seconds
-let metricsNextRefreshTime = null; // Timestamp of next scheduled refresh
+const WORKER_METRICS_STORAGE_KEY = 'cml-worker-metrics'; // localStorage key for per-worker tracking
 let metricsCountdownInterval = null; // Interval ID for countdown updates
 
 /**
@@ -96,22 +95,80 @@ function hasAdminAccess(user) {
 }
 
 /**
+ * Get worker metrics info from localStorage
+ * @param {string} workerId - Worker ID
+ * @returns {Object|null} Worker metrics info or null
+ */
+function getWorkerMetricsInfo(workerId) {
+    try {
+        const stored = localStorage.getItem(WORKER_METRICS_STORAGE_KEY);
+        if (!stored) return null;
+
+        const allWorkers = JSON.parse(stored);
+        return allWorkers[workerId] || null;
+    } catch (e) {
+        console.error('Failed to get worker metrics info from localStorage:', e);
+        return null;
+    }
+}
+
+/**
+ * Save worker metrics info to localStorage
+ * @param {string} workerId - Worker ID
+ * @param {Object} info - Metrics info {poll_interval, next_refresh_at}
+ */
+function saveWorkerMetricsInfo(workerId, info) {
+    try {
+        const stored = localStorage.getItem(WORKER_METRICS_STORAGE_KEY);
+        const allWorkers = stored ? JSON.parse(stored) : {};
+
+        allWorkers[workerId] = {
+            poll_interval: info.poll_interval,
+            next_refresh_at: info.next_refresh_at,
+            updated_at: new Date().toISOString(),
+        };
+
+        localStorage.setItem(WORKER_METRICS_STORAGE_KEY, JSON.stringify(allWorkers));
+    } catch (e) {
+        console.error('Failed to save worker metrics info to localStorage:', e);
+    }
+}
+
+/**
  * Start the metrics refresh countdown timer
  */
 function startMetricsCountdown() {
     // Clear any existing countdown
     stopMetricsCountdown();
 
-    // Set next refresh time (current time + interval)
-    metricsNextRefreshTime = Date.now() + metricsRefreshInterval * 1000;
+    if (!currentWorkerDetails) return;
 
-    // Update the countdown display immediately
-    updateMetricsCountdownDisplay();
+    // Try to get metrics info from localStorage
+    const metricsInfo = getWorkerMetricsInfo(currentWorkerDetails.id);
 
-    // Update every second
-    metricsCountdownInterval = setInterval(() => {
-        updateMetricsCountdownDisplay();
-    }, 1000);
+    if (metricsInfo && metricsInfo.next_refresh_at) {
+        // Use stored next refresh time
+        const nextRefreshTime = new Date(metricsInfo.next_refresh_at).getTime();
+        const now = Date.now();
+
+        // Only use stored time if it's in the future
+        if (nextRefreshTime > now) {
+            // Update the countdown display immediately
+            updateMetricsCountdownDisplay();
+
+            // Update every second
+            metricsCountdownInterval = setInterval(() => {
+                updateMetricsCountdownDisplay();
+            }, 1000);
+            return;
+        }
+    }
+
+    // Fallback: Show placeholder if no timing info available
+    const countdownElement = document.getElementById('metrics-countdown');
+    if (countdownElement) {
+        countdownElement.textContent = '--:--';
+    }
 }
 
 /**
@@ -122,13 +179,23 @@ function stopMetricsCountdown() {
         clearInterval(metricsCountdownInterval);
         metricsCountdownInterval = null;
     }
-    metricsNextRefreshTime = null;
 }
 
 /**
  * Reset the metrics refresh countdown timer (called when metrics are updated)
+ * @param {Object} data - SSE event data with next_refresh_at and poll_interval
  */
-function resetMetricsCountdown() {
+function resetMetricsCountdown(data) {
+    // Save the new timing info to localStorage
+    if (currentWorkerDetails && data) {
+        const info = {
+            poll_interval: data.poll_interval || 300,
+            next_refresh_at: data.next_refresh_at || new Date(Date.now() + (data.poll_interval || 300) * 1000).toISOString(),
+        };
+        saveWorkerMetricsInfo(currentWorkerDetails.id, info);
+    }
+
+    // Restart the countdown with new info
     if (metricsCountdownInterval) {
         startMetricsCountdown();
     }
@@ -139,12 +206,19 @@ function resetMetricsCountdown() {
  */
 function updateMetricsCountdownDisplay() {
     const countdownElement = document.getElementById('metrics-countdown');
-    if (!countdownElement || !metricsNextRefreshTime) {
+    if (!countdownElement || !currentWorkerDetails) {
+        return;
+    }
+
+    const metricsInfo = getWorkerMetricsInfo(currentWorkerDetails.id);
+    if (!metricsInfo || !metricsInfo.next_refresh_at) {
+        countdownElement.textContent = '--:--';
         return;
     }
 
     const now = Date.now();
-    const remainingMs = metricsNextRefreshTime - now;
+    const nextRefreshTime = new Date(metricsInfo.next_refresh_at).getTime();
+    const remainingMs = nextRefreshTime - now;
 
     if (remainingMs <= 0) {
         countdownElement.textContent = '0:00';
@@ -270,6 +344,15 @@ function setupSSEHandlers() {
     sseClient.on('worker.metrics.updated', data => {
         console.log('[SSE] Worker metrics updated:', data);
 
+        // Save metrics timing info to localStorage if provided
+        if (data.worker_id && (data.next_refresh_at || data.poll_interval)) {
+            const info = {
+                poll_interval: data.poll_interval || 300,
+                next_refresh_at: data.next_refresh_at || new Date(Date.now() + (data.poll_interval || 300) * 1000).toISOString(),
+            };
+            saveWorkerMetricsInfo(data.worker_id, info);
+        }
+
         // Update the worker in the list if it's visible
         const workerIndex = workersData.findIndex(w => w.id === data.worker_id);
         if (workerIndex !== -1) {
@@ -282,7 +365,7 @@ function setupSSEHandlers() {
             console.log('[SSE] Reloading open worker details modal');
             loadWorkerDetails(data.worker_id, currentWorkerDetails.region);
             // Reset the countdown timer when metrics are updated
-            resetMetricsCountdown();
+            resetMetricsCountdown(data);
         }
     });
 
