@@ -934,7 +934,7 @@ function setupImportWorkerModal() {
             if (name && !importAll) data.name = name;
 
             const result = await workersApi.importWorker(region, data);
-            (region, data);
+            region, data;
 
             // Show appropriate success message
             if (importAll && result.total_imported !== undefined) {

@@ -139,6 +139,28 @@ class Settings(ApplicationSettings):
     cml_worker_vpc_id: str = "vpc-0123456789abcdef0"
     cml_worker_subnet_id: str = "subnet-0123456789abcdef0"
     cml_worker_key_name: str = "cml_worker_key_pair"
+
+    def __init__(self, **kwargs):
+        """Initialize settings and handle environment variable parsing."""
+        super().__init__(**kwargs)
+        # Parse CML_WORKER_SECURITY_GROUP_IDS from environment if it's a comma-separated string
+        if isinstance(self.cml_worker_security_group_ids, str):
+            self.cml_worker_security_group_ids = [
+                sg.strip()
+                for sg in self.cml_worker_security_group_ids.split(",")
+                if sg.strip()
+            ]
+        # Validate that security group IDs are actual IDs (sg-xxx) not names
+        invalid_sgs = [
+            sg for sg in self.cml_worker_security_group_ids if not sg.startswith("sg-")
+        ]
+        if invalid_sgs and self.cml_worker_subnet_id:
+            logging.warning(
+                f"Security group configuration contains names instead of IDs: {invalid_sgs}. "
+                f"When using VPC (subnet_id), you must provide security group IDs (sg-xxx) not names. "
+                f"Instance creation will fail until this is corrected."
+            )
+
     cml_worker_username: str = "sys-admin"
     cml_worker_api_username: str = "admin"  # CML API username for system_stats
     cml_worker_api_password: str = "admin"  # CML API password (change in production)

@@ -270,11 +270,11 @@ class WorkersController(ControllerBase):
         self,
         aws_region: aws_region_annotation,
         worker_id: worker_id_annotation,
-        token: str = Depends(require_roles("lablets-admin")),
+        token: str = Depends(require_roles("admin")),
     ) -> Any:
         """Starts a stopped CML Worker instance.
 
-        (**Requires `lablets-admin` role!**)"""
+        (**Requires `admin` role!**)"""
         logger.info(f"Starting CML worker {worker_id} in region {aws_region}")
         command = StartCMLWorkerCommand(worker_id=worker_id)
         return self.process(await self.mediator.execute_async(command))
@@ -289,11 +289,11 @@ class WorkersController(ControllerBase):
         self,
         aws_region: aws_region_annotation,
         worker_id: worker_id_annotation,
-        token: str = Depends(require_roles("lablets-admin")),
+        token: str = Depends(require_roles("admin")),
     ) -> Any:
         """Stops a running CML Worker instance.
 
-        (**Requires `lablets-admin` role!**)"""
+        (**Requires `admin` role!**)"""
         logger.info(f"Stopping CML worker {worker_id} in region {aws_region}")
         command = StopCMLWorkerCommand(worker_id=worker_id)
         return self.process(await self.mediator.execute_async(command))
@@ -309,11 +309,11 @@ class WorkersController(ControllerBase):
         aws_region: aws_region_annotation,
         worker_id: worker_id_annotation,
         request: UpdateCMLWorkerTagsRequest,
-        token: str = Depends(require_roles("lablets-admin")),
+        token: str = Depends(require_roles("admin")),
     ) -> Any:
         """Updates tags for a CML Worker instance.
 
-        (**Requires `lablets-admin` role!**)"""
+        (**Requires `admin` role!**)"""
         logger.info(f"Updating tags for CML worker {worker_id} in region {aws_region}")
         command = UpdateCMLWorkerTagsCommand(worker_id=worker_id, tags=request.tags)
         return self.process(await self.mediator.execute_async(command))
@@ -435,11 +435,11 @@ class WorkersController(ControllerBase):
         aws_region: aws_region_annotation,
         worker_id: worker_id_annotation,
         request: RegisterLicenseRequest,
-        token: str = Depends(require_roles("lablets-admin")),
+        token: str = Depends(require_roles("admin")),
     ) -> Any:
         """Registers a license for a CML Worker instance.
 
-        (**Requires `lablets-admin` role!**)"""
+        (**Requires `admin` role!**)"""
         logger.info(
             f"Registering license for CML worker {worker_id} in region {aws_region}"
         )

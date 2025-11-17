@@ -1,5 +1,35 @@
 # AWS IAM Permissions Required
 
+## Environment Configuration
+
+### Security Group Configuration
+
+When creating CML Workers in a VPC, you **must** use security group IDs (not names).
+
+**Correct Configuration:**
+
+```bash
+CML_WORKER_SECURITY_GROUP_IDS=sg-0123456789abcdef0,sg-0987654321fedcba0
+```
+
+**Incorrect Configuration (will fail):**
+
+```bash
+# ❌ This will cause: "The parameter groupName cannot be used with the parameter subnet"
+CML_WORKER_SECURITY_GROUP_IDS=ec2_cml_worker_sg,default
+```
+
+**Why?** AWS EC2 API requires security group IDs (sg-xxx format) when launching instances in a VPC subnet. Security group names are only supported for EC2-Classic (deprecated).
+
+**How to find your security group IDs:**
+
+1. Go to AWS Console → EC2 → Security Groups
+2. Find your security group
+3. Copy the "Security group ID" (starts with `sg-`)
+4. Set in environment: `CML_WORKER_SECURITY_GROUP_IDS=sg-xxxxxxxxx`
+
+Multiple security groups can be comma-separated.
+
 ## Current Issue
 
 The IAM user `cml-cloud-manager-service` lacks permission to enable detailed CloudWatch monitoring.

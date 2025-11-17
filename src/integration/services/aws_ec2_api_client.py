@@ -6,21 +6,15 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 import boto3  # type: ignore
 from botocore.exceptions import ClientError, ParamValidationError  # type: ignore
 
-from integration.enums import (
-    AwsRegion,
-    Ec2InstanceResourcesUtilizationRelativeStartTime,
-)
-from integration.exceptions import (
-    EC2AuthenticationException,
-    EC2InstanceCreationException,
-    EC2InstanceNotFoundException,
-    EC2InstanceOperationException,
-    EC2InvalidParameterException,
-    EC2QuotaExceededException,
-    EC2StatusCheckException,
-    EC2TagOperationException,
-    IntegrationException,
-)
+from integration.enums import (AwsRegion,
+                               Ec2InstanceResourcesUtilizationRelativeStartTime)
+from integration.exceptions import (EC2AuthenticationException,
+                                    EC2InstanceCreationException,
+                                    EC2InstanceNotFoundException,
+                                    EC2InstanceOperationException,
+                                    EC2InvalidParameterException,
+                                    EC2QuotaExceededException, EC2StatusCheckException,
+                                    EC2TagOperationException, IntegrationException)
 from integration.models import CMLWorkerInstanceDto
 from integration.services.relative_time import relative_time
 
@@ -314,6 +308,19 @@ class AwsEc2Client:
         )
 
         try:
+            # Validate security group IDs when using VPC (subnet_id)
+            # AWS requires security group IDs (sg-xxx) not names when using SubnetId
+            if subnet_id:
+                invalid_sgs = [
+                    sg for sg in security_group_ids if not sg.startswith("sg-")
+                ]
+                if invalid_sgs:
+                    raise EC2InvalidParameterException(
+                        f"When using a VPC subnet, security groups must be IDs (sg-xxx) not names. "
+                        f"Invalid security groups: {invalid_sgs}. "
+                        f"Please provide security group IDs that belong to the same VPC as the subnet."
+                    )
+
             tag_specifications = [
                 {
                     "ResourceType": "instance",
