@@ -20,6 +20,7 @@ from neuroglia.mediation import Command, CommandHandler, Mediator
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 
+from application.services.sse_event_relay import SSEEventRelay
 from application.settings import Settings
 from domain.entities.lab_record import LabRecord
 from domain.enums import CMLWorkerStatus
@@ -82,6 +83,7 @@ class RefreshWorkerLabsCommandHandler(
         worker_repository: CMLWorkerRepository,
         lab_record_repository: LabRecordRepository,
         settings: Settings,
+        sse_relay: SSEEventRelay,
     ):
         super().__init__(
             mediator,
@@ -92,6 +94,7 @@ class RefreshWorkerLabsCommandHandler(
         self._worker_repository = worker_repository
         self._lab_record_repository = lab_record_repository
         self._settings = settings
+        self._sse_relay = sse_relay
 
     @tracer.start_as_current_span("refresh_worker_labs_command_handler")
     async def handle_async(
@@ -154,10 +157,7 @@ class RefreshWorkerLabsCommandHandler(
 
             # 4. Broadcast event to SSE clients for real-time UI updates
             try:
-                from application.services.sse_event_relay import get_sse_relay
-
-                sse_relay = get_sse_relay()
-                await sse_relay.broadcast_event(
+                await self._sse_relay.broadcast_event(
                     event_type="worker.labs.updated",
                     data={
                         "worker_id": command.worker_id,

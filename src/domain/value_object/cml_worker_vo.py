@@ -12,6 +12,8 @@ class AWSInstanceDetails:
     region: str
     ami_id: str | None = None
     ami_name: str | None = None
+    ami_description: str | None = None
+    ami_creation_date: str | None = None
     public_ip: str | None = None
     private_ip: str | None = None
     availability_zone: str | None = None

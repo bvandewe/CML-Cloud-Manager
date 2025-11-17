@@ -60,6 +60,8 @@ class GetCMLWorkerByIdQueryHandler(
                 "instance_type": worker.state.instance_type,
                 "ami_id": worker.state.ami_id,
                 "ami_name": worker.state.ami_name,
+                "ami_description": worker.state.ami_description,
+                "ami_creation_date": worker.state.ami_creation_date,
                 "status": worker.state.status.value,
                 "service_status": worker.state.service_status.value,
                 "cml_version": worker.state.cml_version,

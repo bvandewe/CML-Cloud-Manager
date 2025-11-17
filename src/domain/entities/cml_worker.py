@@ -45,6 +45,8 @@ class CMLWorkerState(AggregateState[str]):
     instance_type: str
     ami_id: str | None
     ami_name: str | None
+    ami_description: str | None
+    ami_creation_date: str | None
     status: CMLWorkerStatus
     service_status: CMLServiceStatus
 
@@ -96,6 +98,8 @@ class CMLWorkerState(AggregateState[str]):
         self.instance_type = ""
         self.ami_id = None
         self.ami_name = None
+        self.ami_description = None
+        self.ami_creation_date = None
         self.status = CMLWorkerStatus.PENDING
         self.service_status = CMLServiceStatus.UNAVAILABLE
 
@@ -145,6 +149,8 @@ class CMLWorkerState(AggregateState[str]):
         self.instance_type = event.instance_type
         self.ami_id = event.ami_id
         self.ami_name = event.ami_name
+        self.ami_description = event.ami_description
+        self.ami_creation_date = event.ami_creation_date
         self.status = event.status
         self.cml_version = event.cml_version
         self.created_at = event.created_at
@@ -161,6 +167,8 @@ class CMLWorkerState(AggregateState[str]):
         self.instance_type = event.instance_type
         self.ami_id = event.ami_id
         self.ami_name = event.ami_name
+        self.ami_description = event.ami_description
+        self.ami_creation_date = event.ami_creation_date
         self.public_ip = event.public_ip
         self.private_ip = event.private_ip
         self.created_at = event.created_at
@@ -224,6 +232,8 @@ class CMLWorkerState(AggregateState[str]):
         self.instance_type = event.instance_type
         self.ami_id = event.ami_id
         self.ami_name = event.ami_name
+        self.ami_description = event.ami_description
+        self.ami_creation_date = event.ami_creation_date
         self.updated_at = event.updated_at
 
     @dispatch(CloudWatchMetricsUpdatedDomainEvent)
@@ -294,6 +304,8 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
         instance_type: str,
         ami_id: str | None = None,
         ami_name: str | None = None,
+        ami_description: str | None = None,
+        ami_creation_date: str | None = None,
         aws_instance_id: str | None = None,
         status: CMLWorkerStatus = CMLWorkerStatus.PENDING,
         cml_version: str | None = None,
@@ -330,6 +342,8 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
                     instance_type=instance_type,
                     ami_id=ami_id,
                     ami_name=ami_name,
+                    ami_description=ami_description,
+                    ami_creation_date=ami_creation_date,
                     status=status,
                     cml_version=cml_version,
                     created_at=created_time,
@@ -348,6 +362,8 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
         instance_state: str,
         created_by: str | None = None,
         ami_name: str | None = None,
+        ami_description: str | None = None,
+        ami_creation_date: str | None = None,
         public_ip: str | None = None,
         private_ip: str | None = None,
     ) -> "CMLWorker":
@@ -388,6 +404,8 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
             instance_type=instance_type,
             ami_id=ami_id,
             ami_name=ami_name,
+            ami_description=ami_description,
+            ami_creation_date=ami_creation_date,
             instance_state=instance_state,
             public_ip=public_ip,
             private_ip=private_ip,
@@ -553,6 +571,8 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
         instance_type: str | None = None,
         ami_id: str | None = None,
         ami_name: str | None = None,
+        ami_description: str | None = None,
+        ami_creation_date: str | None = None,
     ) -> None:
         """Update EC2 instance details from AWS EC2 API.
 
@@ -572,6 +592,8 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
                     instance_type=instance_type,
                     ami_id=ami_id,
                     ami_name=ami_name,
+                    ami_description=ami_description,
+                    ami_creation_date=ami_creation_date,
                     updated_at=datetime.now(timezone.utc),
                 )
             )

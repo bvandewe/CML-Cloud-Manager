@@ -87,17 +87,19 @@ export async function stopWorker(region, workerId) {
 }
 
 /**
- * Terminate a CML Worker
+ * Delete a CML Worker from the database
  * @param {string} region - AWS region
  * @param {string} workerId - Worker UUID
- * @returns {Promise<void>}
+ * @param {boolean} terminateInstance - Whether to also terminate the EC2 instance
+ * @returns {Promise<Object>}
  */
-export async function terminateWorker(region, workerId) {
+export async function deleteWorker(region, workerId, terminateInstance = false) {
     const response = await apiRequest(`/api/workers/region/${region}/workers/${workerId}`, {
         method: 'DELETE',
+        body: JSON.stringify({ terminate_instance: terminateInstance }),
     });
     // DELETE may return 204 No Content
-    if (response.status === 204) return;
+    if (response.status === 204) return {};
     return await response.json();
 }
 

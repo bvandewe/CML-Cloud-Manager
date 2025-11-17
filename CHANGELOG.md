@@ -8,6 +8,112 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ### Added
 
+#### Delete Worker Command with Optional EC2 Termination
+
+- **Delete Worker Command**: New `DeleteCMLWorkerCommand` to remove workers from the database with optional EC2 termination
+  - Deletes worker record from local database
+  - Optional `terminate_instance` flag to also terminate the EC2 instance before deletion
+  - Properly marks worker as terminated before deletion (publishes domain events)
+  - Graceful handling if EC2 instance not found (logs warning, continues with deletion)
+  - Prevents deletion if EC2 termination requested but fails (protects against orphaned instances)
+  - Supports audit trail with `deleted_by` user tracking
+  - Full OpenTelemetry tracing coverage (retrieve, terminate, mark terminated, delete)
+- **API Endpoint**: New `DeleteCMLWorkerRequest` model and updated DELETE endpoint
+  - `DELETE /api/workers/region/{region}/workers/{worker_id}` with request body
+  - Request body includes `terminate_instance` boolean flag (default: false)
+  - **Admin-only access**: Requires `admin` role (stricter than previous `lablets-admin`)
+  - Returns success/error with detailed messages
+- **UI Delete Modal**: New confirmation modal with terminate option
+  - Prominent warning about irreversible action
+  - Checkbox to optionally terminate EC2 instance
+  - Clear explanations of single vs. dual deletion (database only vs. database + EC2)
+  - Admin-only visibility (button hidden for non-admin users)
+  - Delete button accessible from Worker Details modal footer
+  - Delete button available in admin table view action buttons
+- **Admin Table Interaction**: Table rows now clickable to open worker details modal
+  - Clicking anywhere on a row opens the worker details modal (consistent with card view)
+  - Action buttons use event.stopPropagation() to prevent triggering row click
+  - Maintains all existing button functionality (Start, Stop, License, Delete)
+  - Replaces previous simple terminate confirmation with comprehensive modal
+  - **Delete button in Worker Details modal footer**: Delete Worker button added to the footer of the Worker Details modal
+    - Positioned on the left side, separated from Refresh and Close buttons
+    - Opens the Delete Worker modal when clicked
+    - Pre-fills modal with current worker's information
+    - Admin-only visibility (hidden for non-admin users)
+- **Admin-Only Controls**: Delete functionality restricted to administrators
+  - Delete button uses `admin-only` CSS class and hidden by default
+  - Role checking in JavaScript (`isAdmin()`) before showing modal
+  - Backend enforces `admin` role via `require_roles("admin")` dependency
+  - Permission denied toast messages for unauthorized attempts
+- **Comprehensive Test Coverage**: Full unit test suite for delete command
+  - Tests delete without termination, delete with termination
+  - Tests handling of missing workers, missing instances
+  - Tests error conditions (termination failures, database failures)
+  - Tests worker state transitions (marking as terminated)
+
+#### Bulk Import EC2 Instances
+
+- **Bulk Import Command**: New `BulkImportCMLWorkersCommand` to import all matching EC2 instances at once
+  - Discovers all instances matching AMI ID or AMI name pattern in specified region
+  - Automatically filters out instances already registered as workers
+  - Returns detailed result with imported/skipped counts and reasons
+  - Supports same AMI search criteria as single import (ami_id, ami_name)
+- **Enhanced Import Request Model**: Added `import_all` flag to `ImportCMLWorkerRequest`
+  - Set `import_all=true` to trigger bulk import behavior
+  - Controller automatically routes to appropriate command handler
+  - Validation ensures bulk import only works with AMI criteria (not instance_id)
+- **UI Bulk Import Support**: Import Worker modal now includes bulk import option
+  - Checkbox "Import all matching instances (bulk import)" enabled by default for AMI-based imports
+  - Dynamic help text explains single vs. bulk import behavior
+  - Worker name field automatically disabled during bulk import (not applicable)
+  - Success toast shows detailed results: "X worker(s) imported, Y skipped"
+  - Seamless switching between single and bulk import modes
+- **Comprehensive Result Tracking**: `BulkImportResult` dataclass provides:
+  - List of successfully imported workers with full details
+  - List of skipped instances with instance IDs and skip reasons
+  - Total counts: found, imported, and skipped
+- **Efficient Duplicate Detection**: Single query to fetch all existing workers, filters in-memory
+- **Detailed Logging**: Progress indicators for each import operation (✅ success, ⏭️ skipped)
+- **OpenTelemetry Tracing**: Full span coverage for bulk operations (discover, filter, import)
+- **Test Coverage**: Comprehensive unit tests for bulk import scenarios
+
+### Fixed
+
+#### SSE Event Relay Dependency Injection Refactoring
+
+- **Removed Global State**: Eliminated `get_sse_relay()` global function and `_sse_relay_instance` global variable
+- **Proper DI Pattern**: `SSEEventRelay` now registered as singleton and injected via constructor dependencies
+  - Domain event handlers (`CMLWorker*DomainEventHandler`) receive `SSEEventRelay` via constructor
+  - Command handlers (`RefreshWorkerLabsCommandHandler`, `RefreshWorkerMetricsCommandHandler`) receive via DI
+  - Controllers (`EventsController`) resolve from `service_provider.get_required_service(SSEEventRelay)`
+- **Consistent Architecture**: Follows same DI pattern as other services (CloudEventBus, repositories, etc.)
+- **Better Testability**: SSE relay can be mocked/replaced in tests without global state manipulation
+
+#### Worker Monitoring Job Cleanup on Termination
+
+- **Background Job Cleanup**: Fixed issue where metrics collection jobs continued running for terminated workers
+  - `CMLWorkerTerminatedDomainEventHandler` now receives `WorkerMonitoringScheduler` via dependency injection
+  - Handler stops monitoring job when worker terminates by calling `stop_monitoring_worker_async()`
+  - Scheduler registered as singleton in service provider and injected into lifespan startup
+  - Jobs are properly unscheduled when termination event fires, preventing continuous error logs
+  - Graceful degradation if scheduler unavailable (monitoring disabled scenario)
+  - Follows proper DI pattern instead of using global variables
+
+### Added
+
+#### AMI Information Display & Tracking
+
+- **Enhanced AMI Metadata**: Workers now store and display comprehensive Amazon Machine Image (AMI) information
+  - Backend automatically retrieves AMI details from AWS including name, description, and creation date
+  - New fields in `CMLWorkerState`: `ami_description`, `ami_creation_date`
+  - `get_ami_details()` method in `AwsEc2Client` queries AWS `describe_images` API
+  - Domain events updated: `CMLWorkerCreatedDomainEvent`, `CMLWorkerImportedDomainEvent`, `EC2InstanceDetailsUpdatedDomainEvent`
+- **UI AMI Information Section**: New dedicated section in worker details modal (AWS tab)
+  - Displays AMI ID, Name, Description, and Creation Date
+  - Positioned above Network section for better visibility
+  - Formatted with proper date/time display and code formatting for AMI IDs
+- **Automatic Population**: AMI details fetched during worker creation, import, and metrics refresh operations
+
 #### AI Agent Documentation Integration
 
 - **Comprehensive AI Agent Guide**: Created `.github/copilot-instructions.md` with detailed instructions for AI coding agents (GitHub Copilot, Cursor, Cline, etc.)
@@ -38,6 +144,9 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 - **Frontend SSE Client**: Robust auto-reconnecting client (`sse-client.js`) with exponential backoff, status callbacks (`connected`, `reconnecting`, `disconnected`, `error`).
   - Central badge indicator added to Workers view (`Realtime: <status>`).
   - Automatic UI refresh of worker tables/cards, open details modal, and Labs tab when relevant events arrive.
+  - **Graceful connection lifecycle**: Closes SSE connections cleanly on page unload/refresh, preventing stale connections.
+  - **Page visibility handling**: Maintains connection when tab is hidden, auto-reconnects when tab becomes visible.
+  - **Mobile-friendly**: Handles freeze/resume events for mobile browser backgrounding.
 - **Hosted Relay Service**: `SSEEventRelayHostedService` registered in application lifecycle providing structured start/stop and future extensibility for cleanup/backpressure features.
 - **Extensible Event Model**: Simple relay abstraction allows adding new event types by broadcasting via `get_sse_relay().broadcast_event(...)` in commands or handlers.
 

@@ -54,6 +54,35 @@ class RegisterLicenseRequest(BaseModel):
         json_schema_extra = {"example": {"license_token": "ABCD-1234-EFGH-5678"}}
 
 
+class DeleteCMLWorkerRequest(BaseModel):
+    """Request model for deleting a CML Worker from the database.
+
+    By default, only removes the worker record from the local database.
+    Set 'terminate_instance' to true to also terminate the EC2 instance.
+
+    Warning: This operation cannot be undone. The worker record will be
+    permanently removed from the database.
+    """
+
+    terminate_instance: bool = Field(
+        False,
+        description="If true, terminates the EC2 instance before deleting the worker record. "
+        "If false, only removes the worker from the database (instance remains running).",
+    )
+
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "terminate_instance": False,
+                },
+                {
+                    "terminate_instance": True,
+                },
+            ]
+        }
+
+
 class ImportCMLWorkerRequest(BaseModel):
     """Request model for importing existing EC2 instances as CML Workers.
 
@@ -66,34 +95,45 @@ class ImportCMLWorkerRequest(BaseModel):
 
     The 'name' field is optional - if not provided, the AWS instance's
     name will be used automatically.
+
+    Set 'import_all' to true to import all matching instances (bulk import).
+    When import_all=true, 'name' and 'aws_instance_id' are ignored.
     """
 
     aws_instance_id: str | None = Field(
         None,
         description="AWS EC2 instance ID (e.g., 'i-1234567890abcdef0'). "
-        "If provided, directly import this instance.",
+        "If provided, directly import this instance. Ignored if import_all=true.",
         examples=["i-0abcdef1234567890"],
     )
 
     ami_id: str | None = Field(
         None,
         description="AMI ID to search for (e.g., 'ami-0c55b159cbfafe1f0'). "
-        "Will import the first instance found with this AMI.",
+        "Will import the first instance (or all if import_all=true) found with this AMI.",
         examples=["ami-0c55b159cbfafe1f0"],
     )
 
     ami_name: str | None = Field(
         None,
         description="AMI name pattern to search for. "
-        "Will import the first instance found with matching AMI name.",
+        "Will import the first instance (or all if import_all=true) found with matching AMI name.",
         examples=[app_settings.cml_worker_ami_name_default],
     )
 
     name: str | None = Field(
         None,
         description="Optional friendly name for the worker. "
-        "If not provided, uses the AWS instance's name automatically.",
+        "If not provided, uses the AWS instance's name automatically. "
+        "Ignored if import_all=true.",
         examples=["cml-worker-imported-01"],
+    )
+
+    import_all: bool = Field(
+        False,
+        description="If true, imports all matching instances instead of just the first one. "
+        "Skips instances that are already registered. "
+        "When enabled, 'name' and 'aws_instance_id' parameters are ignored.",
     )
 
     @model_validator(mode="after")
@@ -103,6 +143,14 @@ class ImportCMLWorkerRequest(BaseModel):
             raise ValueError(
                 "Must provide at least one of: aws_instance_id, ami_id, or ami_name"
             )
+
+        # Bulk import requires ami_id or ami_name (not instance_id)
+        if self.import_all and self.aws_instance_id:
+            raise ValueError(
+                "Cannot use 'import_all' with 'aws_instance_id'. "
+                "Use 'ami_id' or 'ami_name' for bulk import."
+            )
+
         return self
 
     class Config:
@@ -120,6 +168,10 @@ class ImportCMLWorkerRequest(BaseModel):
                 },
                 {
                     "aws_instance_id": "i-0abcdef1234567890",
+                },
+                {
+                    "ami_name": app_settings.cml_worker_ami_name_default,
+                    "import_all": True,
                 },
             ]
         }

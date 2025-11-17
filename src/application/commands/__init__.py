@@ -1,5 +1,10 @@
 """Application commands package."""
 
+from .bulk_import_cml_workers_command import (
+    BulkImportCMLWorkersCommand,
+    BulkImportCMLWorkersCommandHandler,
+    BulkImportResult,
+)
 from .command_handler_base import CommandHandlerBase
 from .control_lab_command import ControlLabCommand, ControlLabCommandHandler, LabAction
 from .create_cml_worker_command import (
@@ -7,6 +12,10 @@ from .create_cml_worker_command import (
     CreateCMLWorkerCommandHandler,
 )
 from .create_task_command import CreateTaskCommand, CreateTaskCommandHandler
+from .delete_cml_worker_command import (
+    DeleteCMLWorkerCommand,
+    DeleteCMLWorkerCommandHandler,
+)
 from .delete_task_command import DeleteTaskCommand, DeleteTaskCommandHandler
 from .enable_worker_detailed_monitoring_command import (
     EnableWorkerDetailedMonitoringCommand,
@@ -44,6 +53,9 @@ from .update_cml_worker_tags_command import (
 from .update_task_command import UpdateTaskCommand, UpdateTaskCommandHandler
 
 __all__ = [
+    "BulkImportCMLWorkersCommand",
+    "BulkImportCMLWorkersCommandHandler",
+    "BulkImportResult",
     "CommandHandlerBase",
     "ControlLabCommand",
     "ControlLabCommandHandler",
@@ -51,6 +63,8 @@ __all__ = [
     "CreateCMLWorkerCommandHandler",
     "CreateTaskCommand",
     "CreateTaskCommandHandler",
+    "DeleteCMLWorkerCommand",
+    "DeleteCMLWorkerCommandHandler",
     "DeleteTaskCommand",
     "DeleteTaskCommandHandler",
     "EnableWorkerDetailedMonitoringCommand",

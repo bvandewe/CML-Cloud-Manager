@@ -65,6 +65,10 @@ sequenceDiagram
 - Status callbacks (`connected`, `reconnecting`, `disconnected`, `error`)
 - Event routing (`on(eventType, handler)`) for UI modules (`workers.js`)
 - Toast notifications for key lifecycle events
+- **Graceful cleanup on page lifecycle events**:
+  - `beforeunload`: Closes connection when page is refreshed, closed, or navigated away
+  - `visibilitychange`: Maintains connection when tab is hidden, reconnects if disconnected when tab becomes visible
+  - `freeze`/`resume`: Handles mobile browser backgrounding and page lifecycle states
 
 ### Status Badge
 
@@ -106,6 +110,10 @@ Current design targets moderate connection counts (< hundreds). Future enhanceme
 - Dropped events logged if queue put times out (>0.1s)
 - Reconnection attempts escalate delay until capped
 - UI continues functioning with last known data while reconnecting
+- **Page lifecycle handling**:
+  - Connections are intentionally closed on page unload to prevent stale connections
+  - Auto-reconnection is suppressed during intentional disconnects (refresh, navigation)
+  - Reconnection resumes when page becomes visible again after being hidden
 
 ## Testing & Debugging
 

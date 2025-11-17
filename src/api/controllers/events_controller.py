@@ -14,7 +14,7 @@ from neuroglia.mediation import Mediator
 from neuroglia.mvc import ControllerBase
 
 from api.dependencies import get_current_user
-from application.services.sse_event_relay import get_sse_relay
+from application.services.sse_event_relay import SSEEventRelay
 
 logger = logging.getLogger(__name__)
 
@@ -23,10 +23,14 @@ class EventsController(ControllerBase):
     """Controller for Server-Sent Events (SSE) endpoint."""
 
     def __init__(
-        self, service_provider: ServiceProviderBase, mapper: Mapper, mediator: Mediator
+        self,
+        service_provider: ServiceProviderBase,
+        mapper: Mapper,
+        mediator: Mediator,
     ):
         """Initialize Events Controller."""
         ControllerBase.__init__(self, service_provider, mapper, mediator)
+        self._sse_relay = service_provider.get_required_service(SSEEventRelay)
 
     async def _event_generator(
         self, request: Request, user_info: dict
@@ -40,8 +44,7 @@ class EventsController(ControllerBase):
         Yields:
             SSE-formatted event strings
         """
-        sse_relay = get_sse_relay()
-        client_id, event_queue = await sse_relay.register_client()
+        client_id, event_queue = await self._sse_relay.register_client()
 
         try:
             logger.info(
@@ -93,7 +96,7 @@ class EventsController(ControllerBase):
             yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
         finally:
             # Unregister client on disconnect
-            await sse_relay.unregister_client(client_id)
+            await self._sse_relay.unregister_client(client_id)
 
     @get_route(
         "/stream",

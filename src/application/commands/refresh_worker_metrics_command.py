@@ -19,6 +19,7 @@ from neuroglia.mediation import Command, CommandHandler, Mediator
 from neuroglia.observability.tracing import add_span_attributes
 from opentelemetry import trace
 
+from application.services.sse_event_relay import SSEEventRelay
 from application.settings import Settings
 from domain.enums import CMLServiceStatus, CMLWorkerStatus
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
@@ -94,6 +95,7 @@ class RefreshWorkerMetricsCommandHandler(
         cml_worker_repository: CMLWorkerRepository,
         aws_ec2_client: AwsEc2Client,
         settings: Settings,
+        sse_relay: SSEEventRelay,
     ):
         super().__init__(
             mediator,
@@ -104,6 +106,7 @@ class RefreshWorkerMetricsCommandHandler(
         self.cml_worker_repository = cml_worker_repository
         self.aws_ec2_client = aws_ec2_client
         self.settings = settings
+        self._sse_relay = sse_relay
 
     async def handle_async(
         self, request: RefreshWorkerMetricsCommand
@@ -182,13 +185,44 @@ class RefreshWorkerMetricsCommandHandler(
                 )
 
                 if instance_details:
+                    # Fetch AMI details from AWS
+                    ami_details = None
+                    if instance_details.image_id:
+                        ami_details = self.aws_ec2_client.get_ami_details(
+                            aws_region=aws_region, ami_id=instance_details.image_id
+                        )
+                        if ami_details:
+                            log.info(
+                                f"Retrieved AMI details for worker {command.worker_id}: "
+                                f"name={ami_details.ami_name}, "
+                                f"description={ami_details.ami_description[:50] if ami_details.ami_description else 'N/A'}..., "
+                                f"created={ami_details.ami_creation_date}"
+                            )
+                        else:
+                            log.warning(
+                                f"Failed to retrieve AMI details for {instance_details.image_id} "
+                                f"for worker {command.worker_id}"
+                            )
+
                     # Update instance details
                     worker.update_ec2_instance_details(
                         public_ip=instance_details.public_ip,
                         private_ip=instance_details.private_ip,
                         instance_type=instance_details.type,
                         ami_id=instance_details.image_id,
-                        ami_name=None,  # AMI name can be fetched separately if needed
+                        ami_name=ami_details.ami_name if ami_details else None,
+                        ami_description=(
+                            ami_details.ami_description if ami_details else None
+                        ),
+                        ami_creation_date=(
+                            ami_details.ami_creation_date if ami_details else None
+                        ),
+                    )
+
+                    log.info(
+                        f"🔍 DEBUG: After update_ec2_instance_details - "
+                        f"worker.state.ami_description={worker.state.ami_description}, "
+                        f"worker.state.ami_creation_date={worker.state.ami_creation_date}"
                     )
 
                     # Auto-populate HTTPS endpoint if public IP available and not already set
@@ -508,10 +542,21 @@ class RefreshWorkerMetricsCommandHandler(
 
             # 4. Persist worker aggregate (publishes domain events)
             with tracer.start_as_current_span("persist_worker") as span:
+                log.info(
+                    f"🔍 DEBUG: Before persist - "
+                    f"worker.state.ami_description={worker.state.ami_description}, "
+                    f"worker.state.ami_creation_date={worker.state.ami_creation_date}"
+                )
+
                 await self.cml_worker_repository.update_async(worker)
                 span.set_attribute("worker.persisted", True)
 
                 log.info(f"✅ Worker {command.worker_id} state persisted to repository")
+                log.info(
+                    f"🔍 DEBUG: After persist - "
+                    f"worker.state.ami_description={worker.state.ami_description}, "
+                    f"worker.state.ami_creation_date={worker.state.ami_creation_date}"
+                )
 
             # 5. Update OTEL metrics
             with tracer.start_as_current_span("update_otel_metrics"):
@@ -565,10 +610,7 @@ class RefreshWorkerMetricsCommandHandler(
 
             # 7. Broadcast event to SSE clients for real-time UI updates
             try:
-                from application.services.sse_event_relay import get_sse_relay
-
-                sse_relay = get_sse_relay()
-                await sse_relay.broadcast_event(
+                await self._sse_relay.broadcast_event(
                     event_type="worker.metrics.updated",
                     data={
                         "worker_id": command.worker_id,

@@ -40,10 +40,12 @@ class CMLWorkerInstanceDto:
     aws_region: AwsRegion
     instance_name: str
     ami_id: str
-    ami_name: str | None
     instance_type: str
     security_group_ids: list[str]
     subnet_id: str
+    ami_name: str | None
+    ami_description: str | None = None
+    ami_creation_date: str | None = None
     instance_state: str | None = None
     public_ip: str | None = None
     private_ip: str | None = None

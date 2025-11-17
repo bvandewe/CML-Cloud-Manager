@@ -16,6 +16,11 @@ class SSEClient {
         this.isConnected = false;
         this.eventHandlers = {};
         this.statusHandlers = [];
+        this.reconnectTimer = null;
+        this.isIntentionalDisconnect = false;
+
+        // Setup cleanup handlers
+        this._setupCleanupHandlers();
     }
 
     /**
@@ -121,6 +126,12 @@ class SSEClient {
      * Handle reconnection with exponential backoff
      */
     handleReconnect() {
+        // Don't reconnect if this was an intentional disconnect
+        if (this.isIntentionalDisconnect) {
+            console.log('SSE: Skipping reconnection (intentional disconnect)');
+            return;
+        }
+
         this.disconnect();
 
         this.reconnectAttempts++;
@@ -129,8 +140,8 @@ class SSEClient {
         console.log(`SSE: Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})...`);
 
         this._notifyStatus('reconnecting');
-        setTimeout(() => {
-            if (!this.isConnected) {
+        this.reconnectTimer = setTimeout(() => {
+            if (!this.isConnected && !this.isIntentionalDisconnect) {
                 this.connect();
             }
         }, delay);
@@ -146,6 +157,12 @@ class SSEClient {
             this.eventSource = null;
             this.isConnected = false;
             this._notifyStatus('disconnected');
+        }
+
+        // Clear any pending reconnection timer
+        if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
         }
     }
 
@@ -214,6 +231,48 @@ class SSEClient {
                 h(status);
             } catch (e) {
                 console.error('SSE: status handler error', e);
+            }
+        });
+    }
+
+    /**
+     * Setup cleanup handlers for page lifecycle events
+     */
+    _setupCleanupHandlers() {
+        // Gracefully disconnect when page is about to unload (refresh, close, navigate)
+        window.addEventListener('beforeunload', () => {
+            console.log('SSE: Page unloading, closing connection gracefully');
+            this.isIntentionalDisconnect = true;
+            this.disconnect();
+        });
+
+        // Handle page visibility changes (tab switching)
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                console.log('SSE: Page hidden, maintaining connection');
+                // Keep connection alive but could reduce polling if needed
+            } else {
+                console.log('SSE: Page visible');
+                // Ensure connection is active when page becomes visible
+                if (!this.isConnectedStatus() && !this.isIntentionalDisconnect) {
+                    console.log('SSE: Reconnecting after page became visible');
+                    this.connect();
+                }
+            }
+        });
+
+        // Handle page freeze/resume events (mobile browsers, background tabs)
+        window.addEventListener('freeze', () => {
+            console.log('SSE: Page frozen, disconnecting');
+            this.isIntentionalDisconnect = true;
+            this.disconnect();
+        });
+
+        window.addEventListener('resume', () => {
+            console.log('SSE: Page resumed, reconnecting');
+            this.isIntentionalDisconnect = false;
+            if (!this.isConnectedStatus()) {
+                this.connect();
             }
         });
     }

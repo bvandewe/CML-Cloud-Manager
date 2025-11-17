@@ -77,6 +77,16 @@ class Ec2InstanceResourcesUtilization:
     end_time: datetime.datetime
 
 
+@dataclass
+class AmiDetails:
+    """AMI metadata from AWS."""
+
+    ami_id: str
+    ami_name: Optional[str] = None
+    ami_description: Optional[str] = None
+    ami_creation_date: Optional[str] = None
+
+
 class AwsEc2Client:
     aws_account_credentials: AwsAccountCredentials
 
@@ -190,8 +200,8 @@ class AwsEc2Client:
             # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2/client/describe_images.html
             response = ec2_client.describe_images(
                 Filters=[
-                    {"Name": "name", "Values": [f"*{ami_name}*"]}  # Wildcard search
-                ]
+                    {"Name": "name", "Values": [f"*{ami_name}*"]}
+                ]  # Wildcard search
             )
 
             ami_ids = [image["ImageId"] for image in response.get("Images", [])]
@@ -214,6 +224,58 @@ class AwsEc2Client:
         except (ValueError, ParamValidationError) as e:
             log.error(f"Invalid parameters for AMI query: {e}")
             raise EC2InvalidParameterException(f"Invalid AMI name parameter: {e}")
+
+    def get_ami_details(self, aws_region: AwsRegion, ami_id: str) -> AmiDetails | None:
+        """Get AMI details from AWS by AMI ID.
+
+        Args:
+            aws_region: The AWS region where the AMI exists.
+            ami_id: The AMI ID to query.
+
+        Returns:
+            AmiDetails with name, description, and creation date, or None if not found.
+
+        Raises:
+            IntegrationException: If the AMI query fails.
+        """
+        try:
+            ec2_client = boto3.client(
+                "ec2",
+                aws_access_key_id=self.aws_account_credentials.aws_access_key_id,
+                aws_secret_access_key=self.aws_account_credentials.aws_secret_access_key,
+                region_name=aws_region.value,
+            )
+
+            # Query AMI by ID
+            response = ec2_client.describe_images(ImageIds=[ami_id])
+
+            images = response.get("Images", [])
+            if not images:
+                log.warning(f"AMI {ami_id} not found in {aws_region.value}")
+                return None
+
+            image = images[0]
+            ami_details = AmiDetails(
+                ami_id=ami_id,
+                ami_name=image.get("Name"),
+                ami_description=image.get("Description"),
+                ami_creation_date=image.get("CreationDate"),
+            )
+
+            log.debug(
+                f"Retrieved AMI details for {ami_id}: name={ami_details.ami_name}, "
+                f"created={ami_details.ami_creation_date}"
+            )
+
+            return ami_details
+
+        except ClientError as e:
+            error = self._parse_aws_error(e, f"Get AMI details for '{ami_id}'")
+            log.error(f"Failed to get AMI details: {error}")
+            raise error
+        except (ValueError, ParamValidationError) as e:
+            log.error(f"Invalid parameters for AMI details query: {e}")
+            raise EC2InvalidParameterException(f"Invalid AMI ID parameter: {e}")
 
     def create_instance(
         self,

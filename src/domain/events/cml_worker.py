@@ -22,6 +22,8 @@ class CMLWorkerCreatedDomainEvent(DomainEvent):
     instance_type: str
     ami_id: Optional[str]
     ami_name: Optional[str]
+    ami_description: Optional[str]
+    ami_creation_date: Optional[str]
     status: CMLWorkerStatus
     cml_version: Optional[str]
     created_at: datetime
@@ -36,6 +38,8 @@ class CMLWorkerCreatedDomainEvent(DomainEvent):
         instance_type: str,
         ami_id: Optional[str],
         ami_name: Optional[str],
+        ami_description: Optional[str],
+        ami_creation_date: Optional[str],
         status: CMLWorkerStatus,
         cml_version: Optional[str],
         created_at: datetime,
@@ -49,6 +53,8 @@ class CMLWorkerCreatedDomainEvent(DomainEvent):
         self.instance_type = instance_type
         self.ami_id = ami_id
         self.ami_name = ami_name
+        self.ami_description = ami_description
+        self.ami_creation_date = ami_creation_date
         self.status = status
         self.cml_version = cml_version
         self.created_at = created_at
@@ -228,6 +234,8 @@ class CMLWorkerImportedDomainEvent(DomainEvent):
     instance_type: str
     ami_id: str
     ami_name: Optional[str]
+    ami_description: Optional[str]
+    ami_creation_date: Optional[str]
     instance_state: str
     public_ip: Optional[str]
     private_ip: Optional[str]
@@ -243,6 +251,8 @@ class CMLWorkerImportedDomainEvent(DomainEvent):
         instance_type: str,
         ami_id: str,
         ami_name: Optional[str],
+        ami_description: Optional[str],
+        ami_creation_date: Optional[str],
         instance_state: str,
         public_ip: Optional[str],
         private_ip: Optional[str],
@@ -257,6 +267,8 @@ class CMLWorkerImportedDomainEvent(DomainEvent):
         self.instance_type = instance_type
         self.ami_id = ami_id
         self.ami_name = ami_name
+        self.ami_description = ami_description
+        self.ami_creation_date = ami_creation_date
         self.instance_state = instance_state
         self.public_ip = public_ip
         self.private_ip = private_ip

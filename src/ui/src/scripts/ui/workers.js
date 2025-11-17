@@ -80,8 +80,14 @@ export function initializeWorkersView(user) {
  * @returns {boolean}
  */
 function hasAdminAccess(user) {
-    const roles = user.realm_access?.roles || [];
-    return roles.includes('admin') || roles.includes('manager');
+    console.log('[hasAdminAccess] Checking user:', user);
+    console.log('[hasAdminAccess] realm_access:', user.realm_access);
+    console.log('[hasAdminAccess] roles:', user.roles);
+    const roles = user.realm_access?.roles || user.roles || [];
+    console.log('[hasAdminAccess] Final roles array:', roles);
+    const hasAccess = roles.includes('admin') || roles.includes('manager');
+    console.log('[hasAdminAccess] Result:', hasAccess);
+    return hasAccess;
 }
 
 /**
@@ -90,12 +96,25 @@ function hasAdminAccess(user) {
 function initializeAdminView() {
     console.log('Initializing admin view for workers');
 
-    // Hide admin-only buttons for managers
-    if (!isAdmin()) {
-        document.querySelectorAll('.admin-only-element').forEach(el => {
-            el.style.display = 'none';
-        });
-    }
+    // Use setTimeout to ensure DOM is ready
+    setTimeout(() => {
+        // Show/hide admin-only buttons based on role
+        const adminElements = document.querySelectorAll('.admin-only-element');
+        console.log('[initializeAdminView] Found admin-only-element buttons:', adminElements.length);
+
+        if (isAdmin()) {
+            console.log('[initializeAdminView] User is admin - showing buttons');
+            adminElements.forEach(el => {
+                console.log('[initializeAdminView] Showing element:', el);
+                el.style.display = '';
+            });
+        } else {
+            console.log('[initializeAdminView] User is not admin - hiding buttons');
+            adminElements.forEach(el => {
+                el.style.display = 'none';
+            });
+        }
+    }, 100);
 }
 
 /**
@@ -153,11 +172,14 @@ function setupEventListeners() {
     console.log('[setupEventListeners] Setting up modal handlers');
     setupCreateWorkerModal();
     setupImportWorkerModal();
+    setupDeleteWorkerModal();
     setupLicenseModal();
     setupTabHandlers();
 
     console.log('[setupEventListeners] Calling setupRefreshButton()');
     setupRefreshButton();
+    console.log('[setupEventListeners] Calling setupDeleteButtonInDetails()');
+    setupDeleteButtonInDetails();
     console.log('[setupEventListeners] All event listeners set up');
 }
 
@@ -344,7 +366,7 @@ function renderWorkersTable() {
     tbody.innerHTML = workersData
         .map(
             worker => `
-        <tr>
+        <tr class="cursor-pointer" onclick="window.workersApp.showWorkerDetails('${worker.id}', '${worker.aws_region}')">
             <td>
                 <span class="badge ${getStatusBadgeClass(worker.status)}">
                     ${worker.status}
@@ -424,8 +446,8 @@ function renderWorkersTable() {
                         </button>`
                             : ''
                     }
-                    <button class="btn btn-outline-danger" onclick="window.workersApp.confirmTerminateWorker('${worker.id}', '${worker.aws_region}', '${escapeHtml(worker.name)}')"
-                            title="Terminate">
+                    <button class="btn btn-outline-danger admin-only" onclick="window.workersApp.showDeleteModal('${worker.id}', '${worker.aws_region}', '${escapeHtml(worker.name)}')"
+                            title="Delete Worker" style="display: none;">
                         <i class="bi bi-trash"></i>
                     </button>
                 </div>
@@ -437,6 +459,13 @@ function renderWorkersTable() {
 
     // Initialize Bootstrap tooltips for date icons
     initializeDateTooltips();
+
+    // Show admin-only buttons for admins
+    if (isAdmin()) {
+        document.querySelectorAll('.admin-only').forEach(el => {
+            el.style.display = '';
+        });
+    }
 }
 
 /**
@@ -667,11 +696,16 @@ function setupImportWorkerModal() {
     const importByAmi = document.getElementById('import-by-ami');
     const instanceIdGroup = document.getElementById('instance-id-group');
     const amiNameGroup = document.getElementById('ami-name-group');
+    const workerNameGroup = document.getElementById('worker-name-group');
+    const importAllCheckbox = document.getElementById('import-all-instances');
+    const importModeHint = document.getElementById('import-mode-hint');
+    const workerNameInput = document.getElementById('import-worker-name');
 
     if (importByInstance) {
         importByInstance.addEventListener('change', () => {
             instanceIdGroup.style.display = 'block';
             amiNameGroup.style.display = 'none';
+            if (workerNameInput) workerNameInput.disabled = false;
         });
     }
 
@@ -679,6 +713,24 @@ function setupImportWorkerModal() {
         importByAmi.addEventListener('change', () => {
             instanceIdGroup.style.display = 'none';
             amiNameGroup.style.display = 'block';
+            // Update name field state based on bulk import checkbox
+            if (importAllCheckbox && workerNameInput) {
+                workerNameInput.disabled = importAllCheckbox.checked;
+            }
+        });
+    }
+
+    // Handle bulk import checkbox toggle
+    if (importAllCheckbox && importModeHint && workerNameInput) {
+        importAllCheckbox.addEventListener('change', () => {
+            if (importAllCheckbox.checked) {
+                importModeHint.textContent = 'All instances matching the AMI pattern will be imported. Already registered instances will be skipped.';
+                workerNameInput.disabled = true;
+                workerNameInput.value = '';
+            } else {
+                importModeHint.textContent = 'Will import the first matching instance only.';
+                workerNameInput.disabled = false;
+            }
         });
     }
 
@@ -691,6 +743,7 @@ function setupImportWorkerModal() {
         const amiName = document.getElementById('import-ami-name')?.value;
         const name = document.getElementById('import-worker-name')?.value;
         const isInstanceMethod = document.getElementById('import-by-instance')?.checked;
+        const importAll = document.getElementById('import-all-instances')?.checked || false;
 
         if (!region) {
             showToast('Please select a region', 'error');
@@ -709,21 +762,35 @@ function setupImportWorkerModal() {
 
         try {
             submitBtn.disabled = true;
-            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Importing...';
+            const actionText = importAll && !isInstanceMethod ? 'Importing all...' : 'Importing...';
+            submitBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>${actionText}`;
 
             const data = {};
             if (isInstanceMethod) {
                 data.aws_instance_id = instanceId;
             } else {
                 data.ami_name = amiName;
+                // Only add import_all flag for AMI-based imports
+                data.import_all = importAll;
             }
-            if (name) data.name = name;
+            // Only include name if not bulk importing
+            if (name && !importAll) data.name = name;
 
-            await workersApi.importWorker(region, data);
+            const result = await workersApi.importWorker(region, data);
+            (region, data);
 
-            showToast('Worker imported successfully', 'success');
+            // Show appropriate success message
+            if (importAll && result.total_imported !== undefined) {
+                const msg = `Bulk import completed: ${result.total_imported} worker(s) imported, ${result.total_skipped} skipped`;
+                showToast(msg, 'success');
+            } else {
+                showToast('Worker imported successfully', 'success');
+            }
             bootstrap.Modal.getInstance(document.getElementById('importWorkerModal')).hide();
             document.getElementById('import-worker-form').reset();
+            // Reset checkbox to default (checked)
+            const checkbox = document.getElementById('import-all-instances');
+            if (checkbox) checkbox.checked = true;
 
             // Reload workers
             setTimeout(() => loadWorkers(), 1000);
@@ -818,12 +885,25 @@ async function showWorkerDetails(workerId, region) {
     setupRefreshButton();
     console.log('[showWorkerDetails] setupRefreshButton() completed');
 
+    // Setup delete button handler
+    console.log('[showWorkerDetails] Calling setupDeleteButtonInDetails()');
+    setupDeleteButtonInDetails();
+    console.log('[showWorkerDetails] setupDeleteButtonInDetails() completed');
+
     // Show/hide admin-only tabs based on user role
     const adminTabs = document.querySelectorAll('.admin-only-tab');
     if (isAdmin()) {
         adminTabs.forEach(tab => (tab.style.display = 'block'));
     } else {
         adminTabs.forEach(tab => (tab.style.display = 'none'));
+    }
+
+    // Show/hide admin-only buttons (like delete button) based on user role
+    const adminButtons = modalElement.querySelectorAll('.admin-only');
+    if (isAdmin()) {
+        adminButtons.forEach(btn => (btn.style.display = ''));
+    } else {
+        adminButtons.forEach(btn => (btn.style.display = 'none'));
     }
 
     modal.show();
@@ -851,6 +931,17 @@ async function showWorkerDetails(workerId, region) {
                     </table>
                 </div>
                 <div class="col-md-6">
+                    <h5 class="border-bottom pb-2 mb-3">AMI Information</h5>
+                    <table class="table table-sm table-borderless">
+                        <tr><td class="text-muted" width="40%">AMI ID:</td><td>${worker.ami_id ? `<code class="small">${worker.ami_id}</code>` : '<span class="text-muted">N/A</span>'}</td></tr>
+                        <tr><td class="text-muted">AMI Name:</td><td>${worker.ami_name || '<span class="text-muted">N/A</span>'}</td></tr>
+                        <tr><td class="text-muted">Description:</td><td>${worker.ami_description || '<span class="text-muted">N/A</span>'}</td></tr>
+                        <tr><td class="text-muted">Created:</td><td>${worker.ami_creation_date ? formatDate(worker.ami_creation_date) : '<span class="text-muted">N/A</span>'}</td></tr>
+                    </table>
+                </div>
+            </div>
+            <div class="row mt-3">
+                <div class="col-md-6">
                     <h5 class="border-bottom pb-2 mb-3">Network</h5>
                     <table class="table table-sm table-borderless">
                         <tr><td class="text-muted" width="40%">Public IP:</td><td>${worker.public_ip || '<span class="text-muted">N/A</span>'}</td></tr>
@@ -859,6 +950,29 @@ async function showWorkerDetails(workerId, region) {
                             worker.https_endpoint ? `<a href="${worker.https_endpoint}" target="_blank" class="text-decoration-none">${worker.https_endpoint} <i class="bi bi-box-arrow-up-right"></i></a>` : '<span class="text-muted">N/A</span>'
                         }</td></tr>
                     </table>
+                </div>
+                <div class="col-md-6">
+                    <h5 class="border-bottom pb-2 mb-3">Monitoring</h5>
+                    <table class="table table-sm table-borderless">
+                        <tr>
+                            <td class="text-muted" width="40%">Detailed Monitoring:</td>
+                            <td>
+                                ${worker.cloudwatch_detailed_monitoring_enabled ? '<span class="badge bg-success">Enabled</span>' : '<span class="badge bg-secondary">Disabled</span>'}
+                            </td>
+                        </tr>
+                    </table>
+                    ${
+                        !worker.cloudwatch_detailed_monitoring_enabled && isAdmin()
+                            ? `
+                    <button class="btn btn-sm btn-outline-primary" id="enable-monitoring-btn">
+                        <i class="bi bi-speedometer2"></i> Enable Detailed Monitoring
+                    </button>
+                    <div class="text-muted small mt-2">
+                        <i class="bi bi-info-circle"></i> Enables 1-minute metric granularity (~$2.10/month)
+                    </div>
+                    `
+                            : ''
+                    }
                 </div>
             </div>
             <div class="row mt-3">
@@ -890,31 +1004,12 @@ async function showWorkerDetails(workerId, region) {
                         </tr>
                     </table>
                 </div>
-                <div class="col-md-6">
-                    <h5 class="border-bottom pb-2 mb-3">Monitoring</h5>
-                    <table class="table table-sm table-borderless">
-                        <tr>
-                            <td class="text-muted" width="40%">Detailed Monitoring:</td>
-                            <td>
-                                ${worker.cloudwatch_detailed_monitoring_enabled ? '<span class="badge bg-success">Enabled</span>' : '<span class="badge bg-secondary">Disabled</span>'}
-                            </td>
-                        </tr>
-                    </table>
-                    ${
-                        !worker.cloudwatch_detailed_monitoring_enabled && isAdmin()
-                            ? `
-                    <button class="btn btn-sm btn-outline-primary" id="enable-monitoring-btn">
-                        <i class="bi bi-speedometer2"></i> Enable Detailed Monitoring
-                    </button>
-                    <div class="text-muted small mt-2">
-                        <i class="bi bi-info-circle"></i> Enables 1-minute metric granularity (~$2.10/month)
-                    </div>
-                    `
-                            : ''
-                    }
-                </div>
             </div>
         `;
+
+        // Update currentWorkerDetails with worker name for delete modal
+        currentWorkerDetails.name = worker.name;
+        console.log('[showWorkerDetails] Updated currentWorkerDetails with name:', currentWorkerDetails);
 
         // Load CloudWatch metrics
         loadCloudWatchMetrics(workerId, region);
@@ -2195,6 +2290,50 @@ function setupRefreshButton() {
 }
 
 /**
+ * Setup delete button handler in worker details modal
+ */
+function setupDeleteButtonInDetails() {
+    console.log('[setupDeleteButtonInDetails] Function called');
+    const deleteBtn = document.getElementById('delete-worker-from-details-btn');
+    console.log('[setupDeleteButtonInDetails] Button element:', deleteBtn);
+
+    if (deleteBtn) {
+        console.log('[setupDeleteButtonInDetails] Attaching event listener to button');
+
+        // Remove any existing listeners by cloning the button
+        const newBtn = deleteBtn.cloneNode(true);
+        deleteBtn.parentNode.replaceChild(newBtn, deleteBtn);
+
+        const clickHandler = e => {
+            console.log('[DELETE HANDLER] Delete button clicked from details modal');
+            console.log('[DELETE HANDLER] currentWorkerDetails:', currentWorkerDetails);
+
+            if (currentWorkerDetails) {
+                const { id, region, name } = currentWorkerDetails;
+                console.log('[DELETE HANDLER] Opening delete modal for:', { id, region, name });
+
+                // Close the worker details modal first
+                const workerDetailsModal = bootstrap.Modal.getInstance(document.getElementById('workerDetailsModal'));
+                if (workerDetailsModal) {
+                    workerDetailsModal.hide();
+                }
+
+                // Show delete modal
+                showDeleteModal(id, region, name);
+            } else {
+                console.warn('[DELETE HANDLER] No currentWorkerDetails available');
+                showToast('Unable to delete: worker details not loaded', 'error');
+            }
+        };
+
+        newBtn.addEventListener('click', clickHandler);
+        console.log('[setupDeleteButtonInDetails] Click event listener attached');
+    } else {
+        console.error('[setupDeleteButtonInDetails] ERROR: Delete button not found in DOM!');
+    }
+}
+
+/**
  * Show license registration modal
  */
 function showLicenseModal(workerId, region) {
@@ -2246,26 +2385,62 @@ async function stopWorker(workerId, region) {
 }
 
 /**
- * Confirm and terminate a worker
+ * Setup delete worker modal
  */
-async function confirmTerminateWorker(workerId, region, name) {
+function setupDeleteWorkerModal() {
+    const submitBtn = document.getElementById('submit-delete-worker-btn');
+    if (!submitBtn) {
+        console.error('Delete worker submit button not found');
+        return;
+    }
+
+    submitBtn.addEventListener('click', async () => {
+        const workerId = document.getElementById('delete-worker-id')?.value;
+        const region = document.getElementById('delete-worker-region')?.value;
+        const terminateInstance = document.getElementById('delete-terminate-instance')?.checked || false;
+
+        if (!workerId || !region) {
+            showToast('Missing worker information', 'error');
+            return;
+        }
+
+        try {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Deleting...';
+
+            await workersApi.deleteWorker(region, workerId, terminateInstance);
+
+            const action = terminateInstance ? 'deleted and terminated' : 'deleted';
+            showToast(`Worker ${action} successfully`, 'success');
+            bootstrap.Modal.getInstance(document.getElementById('deleteWorkerModal')).hide();
+            document.getElementById('delete-worker-form').reset();
+            setTimeout(() => loadWorkers(), 1000);
+        } catch (error) {
+            console.error('Failed to delete worker:', error);
+            showToast(error.message || 'Failed to delete worker', 'error');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="bi bi-trash"></i> Delete Worker';
+        }
+    });
+}
+
+/**
+ * Show delete worker modal
+ */
+function showDeleteModal(workerId, region, name) {
     if (!isAdmin()) {
-        showToast('Permission denied. Only administrators can terminate workers.', 'error');
+        showToast('Permission denied. Only administrators can delete workers.', 'error');
         return;
     }
 
-    if (!confirm(`Are you sure you want to TERMINATE "${name}"? This action cannot be undone!`)) {
-        return;
-    }
+    document.getElementById('delete-worker-id').value = workerId;
+    document.getElementById('delete-worker-region').value = region;
+    document.getElementById('delete-worker-name').textContent = name;
+    document.getElementById('delete-terminate-instance').checked = false;
 
-    try {
-        await workersApi.terminateWorker(region, workerId);
-        showToast('Worker terminated successfully', 'success');
-        setTimeout(() => loadWorkers(), 1000);
-    } catch (error) {
-        console.error('Failed to terminate worker:', error);
-        showToast(error.message || 'Failed to terminate worker', 'error');
-    }
+    const modal = new bootstrap.Modal(document.getElementById('deleteWorkerModal'));
+    modal.show();
 }
 
 /**
@@ -2590,9 +2765,9 @@ window.workersApp = {
     showWorkerDetails,
     showLicenseModal,
     showLicenseDetailsModal,
+    showDeleteModal,
     startWorker,
     stopWorker,
-    confirmTerminateWorker,
     refreshWorkers,
     handleStartLab,
     handleStopLab,

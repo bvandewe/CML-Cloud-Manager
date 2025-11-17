@@ -11,16 +11,17 @@ from neuroglia.mvc.controller_base import ControllerBase
 from api.dependencies import get_current_user, require_roles
 from api.models import (
     CreateCMLWorkerRequest,
+    DeleteCMLWorkerRequest,
     ImportCMLWorkerRequest,
     RegisterLicenseRequest,
     UpdateCMLWorkerTagsRequest,
 )
 from application.commands import (
     CreateCMLWorkerCommand,
+    DeleteCMLWorkerCommand,
     ImportCMLWorkerCommand,
     StartCMLWorkerCommand,
     StopCMLWorkerCommand,
-    TerminateCMLWorkerCommand,
     UpdateCMLWorkerStatusCommand,
     UpdateCMLWorkerTagsCommand,
 )
@@ -180,7 +181,7 @@ class WorkersController(ControllerBase):
         request: ImportCMLWorkerRequest,
         token: str = Depends(require_roles("admin")),
     ) -> Any:
-        """Imports an existing EC2 instance as a CML Worker.
+        """Imports existing EC2 instance(s) as CML Worker(s).
 
         This endpoint allows you to register EC2 instances that were created
         outside of CML Cloud Manager (e.g., via AWS Console, Terraform, etc.)
@@ -193,18 +194,37 @@ class WorkersController(ControllerBase):
         The 'name' field is optional - if not provided, the AWS instance's
         name will be used automatically.
 
+        **Bulk Import**: Set `import_all=true` to import all matching instances.
+        This will skip any instances that are already registered as workers.
+
         (**Requires `admin` role!**)"""
-        logger.info(
-            f"Importing existing EC2 instance as CML worker in region {aws_region}"
-        )
-        command = ImportCMLWorkerCommand(
-            aws_region=aws_region,
-            aws_instance_id=request.aws_instance_id,
-            ami_id=request.ami_id,
-            ami_name=request.ami_name,
-            name=request.name,
-        )
-        return self.process(await self.mediator.execute_async(command))
+
+        # Check if bulk import requested
+        if request.import_all:
+            logger.info(
+                f"Bulk importing all matching EC2 instances as CML workers in region {aws_region}"
+            )
+            from application.commands import BulkImportCMLWorkersCommand
+
+            command = BulkImportCMLWorkersCommand(
+                aws_region=aws_region,
+                ami_id=request.ami_id,
+                ami_name=request.ami_name,
+                created_by=None,  # TODO: Extract from token
+            )
+            return self.process(await self.mediator.execute_async(command))
+        else:
+            logger.info(
+                f"Importing existing EC2 instance as CML worker in region {aws_region}"
+            )
+            command = ImportCMLWorkerCommand(
+                aws_region=aws_region,
+                aws_instance_id=request.aws_instance_id,
+                ami_id=request.ami_id,
+                ami_name=request.ami_name,
+                name=request.name,
+            )
+            return self.process(await self.mediator.execute_async(command))
 
     @delete(
         "/region/{aws_region}/workers/{worker_id}",
@@ -212,17 +232,32 @@ class WorkersController(ControllerBase):
         status_code=200,
         responses=ControllerBase.error_responses,
     )
-    async def terminate_cml_worker(
+    async def delete_cml_worker(
         self,
         aws_region: aws_region_annotation,
         worker_id: worker_id_annotation,
-        token: str = Depends(require_roles("lablets-admin")),
+        request: DeleteCMLWorkerRequest,
+        token: str = Depends(require_roles("admin")),
     ) -> Any:
-        """Terminates a CML Worker instance from AWS EC2.
+        """Deletes a CML Worker from the local database.
 
-        (**Requires `lablets-admin` role!**)"""
-        logger.info(f"Terminating CML worker {worker_id} in region {aws_region}")
-        command = TerminateCMLWorkerCommand(worker_id=worker_id)
+        By default, only removes the worker record from the database.
+        Set 'terminate_instance' to true to also terminate the EC2 instance.
+
+        (**Requires `admin` role!**)
+
+        Warning: This operation cannot be undone. The worker record will be
+        permanently removed from the database.
+        """
+        logger.info(
+            f"Deleting CML worker {worker_id} in region {aws_region}, "
+            f"terminate_instance={request.terminate_instance}"
+        )
+        command = DeleteCMLWorkerCommand(
+            worker_id=worker_id,
+            terminate_instance=request.terminate_instance,
+            deleted_by=token.get("sub") if isinstance(token, dict) else None,
+        )
         return self.process(await self.mediator.execute_async(command))
 
     @post(

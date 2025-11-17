@@ -2,6 +2,7 @@
 
 from .cml_worker_requests import (
     CreateCMLWorkerRequest,
+    DeleteCMLWorkerRequest,
     ImportCMLWorkerRequest,
     RegisterLicenseRequest,
     UpdateCMLWorkerTagsRequest,
@@ -9,6 +10,7 @@ from .cml_worker_requests import (
 
 __all__ = [
     "CreateCMLWorkerRequest",
+    "DeleteCMLWorkerRequest",
     "ImportCMLWorkerRequest",
     "RegisterLicenseRequest",
     "UpdateCMLWorkerTagsRequest",

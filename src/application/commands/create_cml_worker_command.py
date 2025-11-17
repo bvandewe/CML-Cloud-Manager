@@ -113,6 +113,8 @@ class CreateCMLWorkerCommandHandler(
                 # Determine AMI based on region
                 ami_id = command.ami_id
                 ami_name = command.ami_name
+                ami_description = None
+                ami_creation_date = None
 
                 if not ami_id:
                     # Get AMI from settings for the specified region
@@ -130,6 +132,28 @@ class CreateCMLWorkerCommandHandler(
                         command.aws_region, "CML Worker AMI"
                     )
 
+                # Fetch full AMI details from AWS
+                if ami_id:
+                    from integration.enums import AwsRegion
+
+                    aws_region = AwsRegion(command.aws_region)
+                    ami_details = self.aws_ec2_client.get_ami_details(
+                        aws_region=aws_region, ami_id=ami_id
+                    )
+                    if ami_details:
+                        ami_name = ami_details.ami_name or ami_name
+                        ami_description = ami_details.ami_description
+                        ami_creation_date = ami_details.ami_creation_date
+                        log.info(
+                            f"Retrieved AMI details for {ami_id}: name={ami_name}, "
+                            f"description={ami_description[:50] if ami_description else 'N/A'}..., "
+                            f"created={ami_creation_date}"
+                        )
+                    else:
+                        log.warning(
+                            f"Failed to retrieve AMI details for {ami_id} in {aws_region.value}"
+                        )
+
                 # Create CML Worker domain aggregate first (pending state)
                 worker = CMLWorker(
                     name=command.name,
@@ -137,6 +161,8 @@ class CreateCMLWorkerCommandHandler(
                     instance_type=command.instance_type,
                     ami_id=ami_id,
                     ami_name=ami_name,
+                    ami_description=ami_description,
+                    ami_creation_date=ami_creation_date,
                     status=CMLWorkerStatus.PENDING,
                     cml_version=command.cml_version,
                     created_at=datetime.now(timezone.utc),

@@ -163,26 +163,6 @@ async def lifespan_with_monitoring(app: FastAPI) -> AsyncIterator[None]:
         log.info("✅ Worker monitoring scheduler stopped")
 
 
-def configure_worker_monitoring(
-    app: FastAPI,
-) -> None:
-    """Configure worker monitoring services and lifecycle hooks.
-
-    Note: This function is now a placeholder for backwards compatibility.
-    The actual lifecycle management is handled by the lifespan_with_monitoring
-    context manager which is integrated into the application build process.
-
-    Args:
-        app: FastAPI application instance with configured services
-    """
-    if not app_settings.worker_monitoring_enabled:
-        log.info("⚠️ Worker monitoring disabled in settings")
-        return
-
-    log.info("📊 Worker monitoring will be configured via lifespan events")
-    log.info("✅ Worker monitoring services configured with APScheduler")
-
-
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application.
 
@@ -351,9 +331,6 @@ def create_app() -> FastAPI:
             allow_methods=["*"],
             allow_headers=["*"],
         )
-
-    # Configure worker monitoring (after app is built and services are available)
-    configure_worker_monitoring(app)
 
     log.info("✅ Application created successfully!")
     log.info("📊 Access points:")

@@ -221,6 +221,27 @@ class ImportCMLWorkerCommandHandler(
                         f"No custom name or AWS instance name, generating: {worker_name}"
                     )
 
+                # Fetch AMI details from AWS
+                ami_details = self.aws_ec2_client.get_ami_details(
+                    aws_region=aws_region, ami_id=instance.image_id
+                )
+                ami_name = ami_details.ami_name if ami_details else None
+                ami_description = ami_details.ami_description if ami_details else None
+                ami_creation_date = (
+                    ami_details.ami_creation_date if ami_details else None
+                )
+
+                if ami_details:
+                    log.info(
+                        f"Retrieved AMI details for import {instance.image_id}: "
+                        f"name={ami_name}, description={ami_description[:50] if ami_description else 'N/A'}..., "
+                        f"created={ami_creation_date}"
+                    )
+                else:
+                    log.warning(
+                        f"Failed to retrieve AMI details for {instance.image_id} during import"
+                    )
+
                 # Create CML Worker aggregate using import factory method
                 worker = CMLWorker.import_from_existing_instance(
                     name=worker_name,
@@ -230,7 +251,9 @@ class ImportCMLWorkerCommandHandler(
                     ami_id=instance.image_id,
                     instance_state=instance.state,
                     created_by=command.created_by,
-                    ami_name=instance.name,  # Use instance name as AMI name
+                    ami_name=ami_name,
+                    ami_description=ami_description,
+                    ami_creation_date=ami_creation_date,
                     public_ip=None,  # Will be populated on next status check
                     private_ip=None,
                 )
@@ -255,7 +278,7 @@ class ImportCMLWorkerCommandHandler(
                 aws_region=aws_region,
                 instance_name=worker_name,
                 ami_id=instance.image_id,
-                ami_name=instance.name,
+                ami_name=ami_name,
                 instance_type=instance.type,
                 instance_state=instance.state,
                 security_group_ids=[],  # Not available from descriptor

@@ -59,16 +59,6 @@ class SSEEventRelay:
         return len(self._clients)
 
 
-_sse_relay_instance: SSEEventRelay | None = None
-
-
-def get_sse_relay() -> SSEEventRelay:
-    global _sse_relay_instance
-    if _sse_relay_instance is None:
-        _sse_relay_instance = SSEEventRelay()
-    return _sse_relay_instance
-
-
 class SSEEventRelayHostedService:
     """Hosted service wrapper for the SSEEventRelay.
 
@@ -76,8 +66,8 @@ class SSEEventRelayHostedService:
     the relay cleanly. A configure() helper is provided for DI registration.
     """
 
-    def __init__(self, relay: SSEEventRelay | None = None):
-        self._relay = relay or get_sse_relay()
+    def __init__(self, relay: SSEEventRelay):
+        self._relay = relay
         self._started = False
 
     async def start_async(self):
@@ -103,7 +93,7 @@ class SSEEventRelayHostedService:
     @classmethod
     def configure(cls, builder: Any) -> Any:
         """Register the relay and hosted service with the DI builder."""
-        builder.services.add_singleton(SSEEventRelay, singleton=get_sse_relay())
+        builder.services.add_singleton(SSEEventRelay)
         builder.services.add_singleton(
             SSEEventRelayHostedService,
             implementation_factory=lambda provider: SSEEventRelayHostedService(

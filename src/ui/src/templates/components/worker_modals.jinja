@@ -115,13 +115,24 @@
                         <label for="import-ami-name" class="form-label">AMI Name Pattern</label>
                         <input type="text" class="form-control" id="import-ami-name"
                             placeholder="e.g., cisco-cml2.9-lablet-*">
-                        <small class="text-muted">Will import first matching instance</small>
+
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" id="import-all-instances" checked>
+                            <label class="form-check-label" for="import-all-instances">
+                                Import all matching instances (bulk import)
+                            </label>
+                        </div>
+                        <small class="text-muted d-block mt-1" id="import-mode-hint">
+                            All instances matching the AMI pattern will be imported. Already registered instances will
+                            be skipped.
+                        </small>
                     </div>
 
-                    <div class="mb-3">
+                    <div class="mb-3" id="worker-name-group">
                         <label for="import-worker-name" class="form-label">Worker Name (optional)</label>
                         <input type="text" class="form-control" id="import-worker-name"
                             placeholder="Optional friendly name">
+                        <small class="text-muted">Only applies to single instance import</small>
                     </div>
                 </form>
             </div>
@@ -129,6 +140,58 @@
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-primary" id="submit-import-worker-btn">
                     <i class="bi bi-box-arrow-in-down"></i> Import Worker
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Worker Modal -->
+<div class="modal fade" id="deleteWorkerModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-trash"></i> Delete Worker
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="delete-worker-form">
+                    <input type="hidden" id="delete-worker-id">
+                    <input type="hidden" id="delete-worker-region">
+
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <strong>Warning:</strong> This action cannot be undone!
+                    </div>
+
+                    <p>You are about to delete worker: <strong id="delete-worker-name"></strong></p>
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="delete-terminate-instance">
+                        <label class="form-check-label" for="delete-terminate-instance">
+                            <strong>Also terminate the EC2 instance</strong>
+                        </label>
+                        <small class="form-text text-muted d-block">
+                            If checked, the EC2 instance will be permanently terminated.
+                            If unchecked, only the worker record will be removed from the database
+                            (instance will remain running in AWS).
+                        </small>
+                    </div>
+
+                    <p class="text-muted mb-0">
+                        <small>
+                            <i class="bi bi-info-circle"></i>
+                            This will permanently remove the worker record from the local database.
+                        </small>
+                    </p>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="submit-delete-worker-btn">
+                    <i class="bi bi-trash"></i> Delete Worker
                 </button>
             </div>
         </div>
@@ -250,6 +313,10 @@
                 </div>
             </div>
             <div class="modal-footer">
+                <button type="button" class="btn btn-danger admin-only me-auto" id="delete-worker-from-details-btn"
+                    style="display: none;" title="Delete Worker">
+                    <i class="bi bi-trash"></i> Delete Worker
+                </button>
                 <button type="button" class="btn btn-primary" id="refresh-worker-details">
                     <i class="bi bi-arrow-clockwise"></i> Refresh
                 </button>

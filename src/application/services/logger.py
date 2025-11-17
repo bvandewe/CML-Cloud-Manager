@@ -5,7 +5,13 @@ import typing
 DEFAULT_LOG_FORMAT = "%(asctime)s %(levelname) - 8s %(name)s:%(lineno)d %(message)s"
 DEFAULT_LOG_FILENAME = "logs/debug.log"
 DEFAULT_LOG_LEVEL = "DEBUG"
-DEFAULT_LOG_LIBRARIES_LIST = ["asyncio", "httpx", "httpcore", "pymongo"]
+DEFAULT_LOG_LIBRARIES_LIST = [
+    "asyncio",
+    "httpx",
+    "httpcore",
+    "httpcore.http11",
+    "pymongo",
+]
 DEFAULT_LOG_LIBRARIES_LEVEL = "WARN"
 
 

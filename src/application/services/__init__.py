@@ -7,6 +7,7 @@ from .background_scheduler import (
     ScheduledBackgroundJob,
     backgroundjob,
 )
+from .labs_refresh_job import LabsRefreshJob
 from .logger import configure_logging
 from .worker_metrics_collection_job import WorkerMetricsCollectionJob
 from .worker_monitoring_scheduler import WorkerMonitoringScheduler
@@ -17,6 +18,7 @@ __all__ = [
     "BackgroundTaskScheduler",
     "BackgroundTasksBus",
     "BackgroundTaskSchedulerOptions",
+    "LabsRefreshJob",
     "RecurrentBackgroundJob",
     "ScheduledBackgroundJob",
     "WorkerMetricsCollectionJob",

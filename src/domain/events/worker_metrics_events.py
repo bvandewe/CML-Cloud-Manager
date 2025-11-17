@@ -115,6 +115,8 @@ class EC2InstanceDetailsUpdatedDomainEvent(DomainEvent):
     instance_type: Optional[str]
     ami_id: Optional[str]
     ami_name: Optional[str]
+    ami_description: Optional[str]
+    ami_creation_date: Optional[str]
     updated_at: datetime
 
     def __init__(
@@ -125,6 +127,8 @@ class EC2InstanceDetailsUpdatedDomainEvent(DomainEvent):
         instance_type: Optional[str],
         ami_id: Optional[str],
         ami_name: Optional[str],
+        ami_description: Optional[str],
+        ami_creation_date: Optional[str],
         updated_at: datetime,
     ) -> None:
         super().__init__(aggregate_id)
@@ -134,4 +138,6 @@ class EC2InstanceDetailsUpdatedDomainEvent(DomainEvent):
         self.instance_type = instance_type
         self.ami_id = ami_id
         self.ami_name = ami_name
+        self.ami_description = ami_description
+        self.ami_creation_date = ami_creation_date
         self.updated_at = updated_at

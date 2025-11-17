@@ -18,8 +18,6 @@ from application.services.background_scheduler import (
     BackgroundTasksBus,
     RecurrentTaskDescriptor,
 )
-
-# Import WorkerMetricsCollectionJob for type resolution in BackgroundTaskScheduler
 from application.services.worker_metrics_collection_job import (  # noqa: F401
     WorkerMetricsCollectionJob,
 )

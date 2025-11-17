@@ -169,17 +169,17 @@ install: ## Install Python dependencies with Poetry
 
 install-ui: ## Install Node.js dependencies for UI
 	@echo "$(BLUE)Installing UI dependencies...$(NC)"
-	cd ui && npm install
+	cd src/ui && npm install
 	@echo "$(GREEN)UI dependencies installed!$(NC)"
 
 build-ui: ## Build frontend assets
 	@echo "$(BLUE)Building frontend assets...$(NC)"
-	cd ui && npm run build
+	cd src/ui && npm run build
 	@echo "$(GREEN)Frontend assets built!$(NC)"
 
 dev-ui: ## Start UI development server with hot-reload
 	@echo "$(BLUE)Starting UI development server...$(NC)"
-	cd ui && npm run dev
+	cd src/ui && npm run dev
 
 run: build-ui ## Run the application locally (requires build-ui first)
 	@echo "$(BLUE)Starting Cml Cloud Manager application...$(NC)"
