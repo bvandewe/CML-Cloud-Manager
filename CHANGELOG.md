@@ -8,6 +8,25 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ### Added
 
+#### AI Agent Documentation Integration
+
+- **Comprehensive AI Agent Guide**: Created `.github/copilot-instructions.md` with detailed instructions for AI coding agents (GitHub Copilot, Cursor, Cline, etc.)
+  - Architecture overview: Multi-SubApp pattern, layer architecture, self-contained CQRS
+  - Critical domain concepts: CMLWorker aggregate, lab management, worker monitoring system
+  - Authentication architecture: Dual auth (cookie + bearer), BFF pattern, RBAC enforcement
+  - Development workflows: Essential Makefile commands, local vs Docker development
+  - Neuroglia framework specifics: DI patterns, controller routing, CQRS/Mediator, event sourcing
+  - AWS integration: EC2/CloudWatch client, required environment variables
+  - Common pitfalls: Gotchas specific to this codebase
+  - Architecture evolution: Migration path to hybrid ROA model
+  - Code style & contribution guidelines: Commit conventions, pre-commit hooks, documentation requirements
+- **MkDocs Integration**: Added `docs/development/ai-agent-guide.md` that automatically includes `.github/copilot-instructions.md` via PyMdown Snippets
+  - Single source of truth maintained in `.github/copilot-instructions.md`
+  - Automatic sync to documentation site on every build
+  - Added to Development section in MkDocs navigation
+  - Cross-referenced in `docs/index.md` and `README.md`
+  - Useful for both AI agents and human developers (onboarding/reference)
+
 #### Real-Time SSE Updates & Labs Visibility
 
 - **Server-Sent Events (SSE) Stream**: New endpoint `/api/events/stream` delivering real-time worker lifecycle, metrics, labs, and status updates to the UI.

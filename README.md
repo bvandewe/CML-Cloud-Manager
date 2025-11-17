@@ -341,6 +341,7 @@ Comprehensive documentation is available in the `docs/` directory and online:
 - [**Architecture**](https://bvandewe.github.io/cml-cloud-manager/architecture/overview/) - CQRS pattern, dependency injection, design patterns
 - [**Security**](https://bvandewe.github.io/cml-cloud-manager/security/authentication-flows/) - Dual auth system (session + JWT), OAuth2/OIDC, RBAC
 - [**Development**](https://bvandewe.github.io/cml-cloud-manager/development/makefile-reference/) - Makefile reference, workflow, testing
+- [**AI Agent Guide**](https://bvandewe.github.io/cml-cloud-manager/development/ai-agent-guide/) - Comprehensive guide for AI coding agents (and humans!)
 - [**Deployment**](https://bvandewe.github.io/cml-cloud-manager/deployment/docker-environment/) - Docker environment, deployment, configuration
 - [**Troubleshooting**](https://bvandewe.github.io/cml-cloud-manager/troubleshooting/common-issues/) - Common issues, known bugs, solutions
 

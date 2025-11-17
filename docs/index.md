@@ -31,7 +31,7 @@ New to the project? Start here:
 - **Security**: Authentication flows & RBAC ([auth flows](security/authentication-flows.md))
 - **Real-Time Updates**: SSE event stream & UI auto-refresh (see Architecture > Real-Time Updates)
 - **Worker Monitoring**: Metrics, labs refresh, thresholds ([worker monitoring](architecture/worker-monitoring.md))
-- **Development**: Makefile, testing, docs ([makefile reference](development/makefile-reference.md))
+- **Development**: Makefile, testing, docs, [AI agent guide](development/ai-agent-guide.md)
 - **Deployment**: Docker & environment setup ([docker environment](deployment/docker-environment.md))
 
 
