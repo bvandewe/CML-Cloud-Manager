@@ -1,4 +1,4 @@
-site_name: Cml Cloud Manager
+site_name: CML Cloud Starter App
 site_description: A comprehensive starter application with authentication, CQRS, and modern frontend
 site_url: https://bvandewe.github.io/cml-cloud-manager/
 strict: false
@@ -14,7 +14,9 @@ nav:
           - index.md
           - Features: features.md
           - Documentation Structure: documentation-structure.md
+          - Project Objectives: project-objectives.md
     - Getting Started:
+          - Overview: getting-started.md
           - Installation: getting-started/installation.md
           - Running the App: getting-started/running-the-app.md
     - Architecture:
@@ -24,11 +26,16 @@ nav:
           - Dependency Injection: architecture/dependency-injection.md
           - Background Scheduling: architecture/background-scheduling.md
           - Worker Monitoring: architecture/worker-monitoring.md
+          - Real-Time Updates: architecture/realtime-updates.md
+          - Worker Commands: cml-worker-commands.md
+          - CML Worker Domain Model: architecture/cml-worker-domain-model.md
+          - AWS Client Status & Tags: aws-client-status-and-tags.md
     - Security:
           - Authentication Flows: security/authentication-flows.md
           - Authorization: security/authorization.md
           - Session Management: security/session-management.md
           - Security Best Practices: security/security.md
+          - AWS IAM Setup: security/aws-iam-setup.md
     - Observability:
           - Overview: observability/overview.md
           - Architecture: observability/architecture.md
@@ -42,10 +49,19 @@ nav:
           - Testing Guide: development/testing.md
           - Makefile Reference: development/makefile-reference.md
           - Documentation: development/documentation-config.md
+          - Code Review Settings & AWS Client: code-review-settings-and-aws-client.md
+          - Refactoring CML Worker DTO & Settings: refactoring-cml-worker-dto-and-settings.md
+          - Exception Hierarchy: exception-hierarchy.md
+    - Frontend:
+          - Build Process: frontend/build-process.md
+    - Infrastructure:
+          - Docker Environment: infrastructure/docker-environment.md
     - Deployment:
           - Docker Environment: deployment/docker-environment.md
           - GitHub Pages: deployment/github-pages-setup.md
-    - Troubleshooting: troubleshooting/common-issues.md
+    - Troubleshooting:
+          - Common Issues: troubleshooting/common-issues.md
+          - Neuroglia Mongo Import: troubleshooting/neuroglia-mongo-import.md
 
 theme:
     name: material
@@ -83,7 +99,8 @@ markdown_extensions:
           custom_fences:
               - name: mermaid
                 class: mermaid
-                format: !!python/name:pymdownx.superfences.fence_code_format
+                format: !!python/name:pymdownx.superfences.fence_code_format # yamllint disable-line
+
     - toc:
           permalink: true
     - pymdownx.details
