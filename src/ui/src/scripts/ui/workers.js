@@ -17,6 +17,11 @@ let workersData = [];
 let currentRegion = 'us-east-1';
 let currentWorkerDetails = null; // Store current worker for refresh
 
+// Metrics refresh timer tracking
+let metricsRefreshInterval = 300; // Default 5 minutes in seconds
+let metricsNextRefreshTime = null; // Timestamp of next scheduled refresh
+let metricsCountdownInterval = null; // Interval ID for countdown updates
+
 /**
  * Initialize the workers view
  * @param {Object} user - Current authenticated user
@@ -88,6 +93,69 @@ function hasAdminAccess(user) {
     const hasAccess = roles.includes('admin') || roles.includes('manager');
     console.log('[hasAdminAccess] Result:', hasAccess);
     return hasAccess;
+}
+
+/**
+ * Start the metrics refresh countdown timer
+ */
+function startMetricsCountdown() {
+    // Clear any existing countdown
+    stopMetricsCountdown();
+
+    // Set next refresh time (current time + interval)
+    metricsNextRefreshTime = Date.now() + metricsRefreshInterval * 1000;
+
+    // Update the countdown display immediately
+    updateMetricsCountdownDisplay();
+
+    // Update every second
+    metricsCountdownInterval = setInterval(() => {
+        updateMetricsCountdownDisplay();
+    }, 1000);
+}
+
+/**
+ * Stop the metrics refresh countdown timer
+ */
+function stopMetricsCountdown() {
+    if (metricsCountdownInterval) {
+        clearInterval(metricsCountdownInterval);
+        metricsCountdownInterval = null;
+    }
+    metricsNextRefreshTime = null;
+}
+
+/**
+ * Reset the metrics refresh countdown timer (called when metrics are updated)
+ */
+function resetMetricsCountdown() {
+    if (metricsCountdownInterval) {
+        startMetricsCountdown();
+    }
+}
+
+/**
+ * Update the countdown display
+ */
+function updateMetricsCountdownDisplay() {
+    const countdownElement = document.getElementById('metrics-countdown');
+    if (!countdownElement || !metricsNextRefreshTime) {
+        return;
+    }
+
+    const now = Date.now();
+    const remainingMs = metricsNextRefreshTime - now;
+
+    if (remainingMs <= 0) {
+        countdownElement.textContent = '0:00';
+        return;
+    }
+
+    const remainingSeconds = Math.floor(remainingMs / 1000);
+    const minutes = Math.floor(remainingSeconds / 60);
+    const seconds = remainingSeconds % 60;
+
+    countdownElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
 /**
@@ -180,6 +248,15 @@ function setupEventListeners() {
     setupRefreshButton();
     console.log('[setupEventListeners] Calling setupDeleteButtonInDetails()');
     setupDeleteButtonInDetails();
+
+    // Setup modal close handler to stop countdown timer
+    const workerDetailsModal = document.getElementById('workerDetailsModal');
+    if (workerDetailsModal) {
+        workerDetailsModal.addEventListener('hidden.bs.modal', () => {
+            stopMetricsCountdown();
+        });
+    }
+
     console.log('[setupEventListeners] All event listeners set up');
 }
 
@@ -204,6 +281,8 @@ function setupSSEHandlers() {
         if (currentWorkerDetails && currentWorkerDetails.id === data.worker_id) {
             console.log('[SSE] Reloading open worker details modal');
             loadWorkerDetails(data.worker_id, currentWorkerDetails.region);
+            // Reset the countdown timer when metrics are updated
+            resetMetricsCountdown();
         }
     });
 
@@ -907,6 +986,9 @@ async function showWorkerDetails(workerId, region) {
     }
 
     modal.show();
+
+    // Start metrics refresh countdown timer
+    startMetricsCountdown();
 
     // Load overview data
     try {

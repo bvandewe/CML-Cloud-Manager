@@ -48,6 +48,16 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
   - Theme preference persisted in localStorage
   - Applies Bootstrap's `data-bs-theme` attribute for native dark mode
   - Custom CSS overrides for cards, tables, modals, and form controls
+
+#### Metrics Refresh Countdown Timer
+
+- **Worker Details Modal Timer**: Real-time countdown showing when next metrics refresh will occur
+  - Displays in modal header on the right side (format: `M:SS`)
+  - Updates every second to show remaining time until next scheduled metrics collection
+  - Automatically resets when metrics are updated via SSE event
+  - Uses 5-minute polling interval (configurable via `worker_metrics_poll_interval` setting)
+  - Timer stops when modal is closed to prevent unnecessary background activity
+  - Provides visual feedback about background monitoring system activity
   - Icon changes based on current theme (moon for light mode, sun for dark mode)
     - Pre-fills modal with current worker's information
     - Admin-only visibility (hidden for non-admin users)
