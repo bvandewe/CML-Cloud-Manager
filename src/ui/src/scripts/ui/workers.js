@@ -1098,7 +1098,11 @@ async function showWorkerDetails(workerId, region) {
                 <div class="col-md-6">
                     <h5 class="border-bottom pb-2 mb-3">AMI Information</h5>
                     <table class="table table-sm table-borderless">
-                        <tr><td class="text-muted" width="40%">AMI ID:</td><td>${worker.ami_id ? `<code class="small">${worker.ami_id}</code>` : '<span class="text-muted">N/A</span>'}</td></tr>
+                        <tr><td class="text-muted" width="40%">AMI ID:</td><td>${
+                            worker.ami_id
+                                ? `<code class="small">${worker.ami_id}</code> <a href="https://${worker.aws_region}.console.aws.amazon.com/ec2/home?region=${worker.aws_region}#ImageDetails:imageId=${worker.ami_id}" target="_blank" class="text-decoration-none ms-1" title="View in AWS Console"><i class="bi bi-box-arrow-up-right text-primary"></i></a>`
+                                : '<span class="text-muted">N/A</span>'
+                        }</td></tr>
                         <tr><td class="text-muted">AMI Name:</td><td>${worker.ami_name || '<span class="text-muted">N/A</span>'}</td></tr>
                         <tr><td class="text-muted">Description:</td><td>${worker.ami_description || '<span class="text-muted">N/A</span>'}</td></tr>
                         <tr><td class="text-muted">Created:</td><td>${worker.ami_creation_date ? formatDate(worker.ami_creation_date) : '<span class="text-muted">N/A</span>'}</td></tr>
