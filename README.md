@@ -25,6 +25,7 @@ An opinionated Neuroglia FastAPI template showcasing multi-subapp architecture (
 - 🎯 **Clean Architecture**: Domain-driven design with clear boundaries
 - ⏰ **Background Task Scheduling**: APScheduler integration with Redis/MongoDB persistence
 - 📊 **Worker Monitoring**: Automated health and metrics collection for CML Workers
+- 🔄 **Real-Time Updates (SSE)**: Live worker status, metrics & labs pushed to UI
 
 ![Cml Cloud Manager demo](./docs/assets/cml-cloud-manager_v0.1.0.gif)
 
@@ -104,17 +105,10 @@ cml-cloud-manager/
 Use the Makefile for easy setup and management:
 
 ```bash
-# Complete setup for new developers
-make setup
-
-# Run locally
-make run
-
-# Or run with Docker
-make up
-
-# See all available commands
-make help
+make setup    # Install backend & frontend dependencies
+make run      # Start FastAPI locally
+make up       # Start full Docker stack (Mongo, Keycloak, Redis, OTEL)
+make help     # List all available Makefile targets
 ```
 
 ### Manual Local Development
@@ -199,15 +193,38 @@ This will start:
 
 The application includes test users with different roles:
 
-| Username | Password | Role | Access Level |
-|----------|----------|------|--------------|
-| admin | test | admin | All tasks |
-| manager | test | manager | Department tasks |
-| user | test | user | Only assigned tasks |
+| Username | Password | Role | Capability Highlights |
+|----------|----------|------|-----------------------|
+| admin | test | admin | Full lifecycle (create/import/start/stop/terminate), monitoring control |
+| manager | test | manager | Start/stop, tag updates, view metrics & labs |
+| user | test | user | Read-only workers, metrics, labs |
 
 See [deployment/keycloak/cml-cloud-manager-realm-export.json](./deployment/keycloak/cml-cloud-manager-realm-export.json)
 
 ## 🔐 Authentication & RBAC
+
+## 🔄 Real-Time & Background Jobs
+
+| Feature | Component | Interval / Trigger |
+|---------|-----------|--------------------|
+| SSE Stream | `/api/events/stream` | Persistent (heartbeat 30s) |
+| Labs Refresh | `LabsRefreshJob` | Every 30 min + startup run |
+| Metrics Collection | `WorkerMetricsCollectionJob` | Configurable (`worker_metrics_poll_interval`) |
+| Status Updates | `UpdateCMLWorkerStatusCommand` | Manual & scheduled reconciliation |
+| Telemetry Events | Domain handlers | On state change |
+
+UI auto-refreshes worker list, details modal, and Labs tab. A badge shows connection status: connected / reconnecting / disconnected / error.
+
+## 👤 Extending Real-Time Events
+
+Add a new event:
+
+1. Emit a domain event or directly broadcast.
+2. In handler: `await get_sse_relay().broadcast_event("my.event", { id: ... })`
+3. In UI: `sseClient.on('my.event', data => {/* update UI */})`
+
+Keep payloads lean; prefer IDs and fetch details only when needed.
+
 
 ### JWT Authentication
 

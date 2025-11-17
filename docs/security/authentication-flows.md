@@ -130,6 +130,17 @@ Roles are extracted from the `realm_access.roles` claim in the JWT.
 - The `/api/auth/refresh` endpoint allows for token rotation.
 - Expired bearer tokens will result in a `401 Unauthorized` response.
 
+## Real-Time Event Authentication
+
+The Server-Sent Events (SSE) stream uses the existing authentication context:
+
+- **Browser UI**: The EventSource request automatically includes the session cookie; events are filtered/authorized the same as normal API calls.
+- **Bearer Clients**: (If implemented for automated consumers) can establish an SSE stream with an `Authorization: Bearer <token>` header.
+- **Security Consideration**: Only non-sensitive worker lifecycle, status, labs, and metrics summaries are broadcast. Avoid emitting secrets or PII via SSE events.
+- **Revocation**: When a session or token becomes invalid, the next SSE reconnect attempt will fail and the client shows a `Disconnected` or persistent `Connecting` state.
+
+Architecture details & event list: [Real-Time Updates](../architecture/realtime-updates.md)
+
 ## OpenAPI Configuration
 
 The OpenAPI documentation (Swagger UI) is configured with two security schemes to support both authentication methods:

@@ -655,7 +655,7 @@ response = requests.post(
     data={
         "grant_type": "client_credentials",
         "client_id": "cml-cloud-manager-service",
-        "client_secret": "your-client-secret",
+        "client_secret": "your-client-secret",  # pragma: allowlist secret
     }
 )
 access_token = response.json()["access_token"]

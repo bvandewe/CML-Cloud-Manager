@@ -47,6 +47,7 @@ src/application/
 Each file now contains both the request and its handler:
 
 **`login_command.py`**
+
 ```python
 @dataclass
 class LoginCommand(Command[OperationResult]):
@@ -61,6 +62,7 @@ class LoginCommandHandler(CommandHandler[LoginCommand, OperationResult]):
 ```
 
 **`create_task_command.py`**
+
 ```python
 @dataclass
 class CreateTaskCommand(Command[OperationResult]):
@@ -76,6 +78,7 @@ class CreateTaskCommandHandler(CommandHandler[CreateTaskCommand, OperationResult
 ```
 
 **`update_task_command.py`**
+
 ```python
 @dataclass
 class UpdateTaskCommand(Command[OperationResult]):
@@ -90,6 +93,7 @@ class UpdateTaskCommandHandler(CommandHandler[UpdateTaskCommand, OperationResult
 ```
 
 **`get_tasks_query.py`**
+
 ```python
 @dataclass
 class GetTasksQuery(Query[OperationResult]):
@@ -107,6 +111,7 @@ class GetTasksQueryHandler(QueryHandler[GetTasksQuery, OperationResult]):
 Updated `__init__.py` files to export both requests and handlers:
 
 **`commands/__init__.py`**
+
 ```python
 from .create_task_command import CreateTaskCommand, CreateTaskCommandHandler
 from .login_command import LoginCommand, LoginCommandHandler
@@ -123,6 +128,7 @@ __all__ = [
 ```
 
 **`queries/__init__.py`**
+
 ```python
 from .get_tasks_query import GetTasksQuery, GetTasksQueryHandler
 
@@ -142,11 +148,13 @@ rm -rf src/application/handlers/
 Controllers only import the request classes (not handlers), so **no changes were required**:
 
 **`auth_controller.py`** - Still imports only:
+
 ```python
 from application.commands import LoginCommand
 ```
 
 **`tasks_controller.py`** - Still imports only:
+
 ```python
 from application.commands import CreateTaskCommand, UpdateTaskCommand
 from application.queries import GetTasksQuery

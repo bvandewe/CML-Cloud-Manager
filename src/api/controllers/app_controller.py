@@ -1,4 +1,5 @@
 """Application health check controller."""
+
 import logging
 
 from classy_fastapi.decorators import get
@@ -13,7 +14,9 @@ log = logging.getLogger(__name__)
 class AppController(ControllerBase):
     """Controller for application health checks."""
 
-    def __init__(self, service_provider: ServiceProviderBase, mapper: Mapper, mediator: Mediator):
+    def __init__(
+        self, service_provider: ServiceProviderBase, mapper: Mapper, mediator: Mediator
+    ):
         super().__init__(service_provider, mapper, mediator)
 
     @get("/health")
@@ -22,5 +25,5 @@ class AppController(ControllerBase):
         return {
             "online": True,
             "status": "healthy",
-            "detail": "The application is online and running."
+            "detail": "The application is online and running.",
         }

@@ -49,11 +49,11 @@ from typing import Iterable, Mapping
 
 # Original name variants to search for
 ORIGINAL_VARIANTS = {
-    "cml-cloud-manager",     # slug
-    "cml_cloud_manager",     # snake
-    "Cml Cloud Manager",     # title/spaced
-    "CmlCloudManager",      # Pascal
-    "CML_CLOUD_MANAGER",     # upper snake
+    "cml-cloud-manager",  # slug
+    "cml_cloud_manager",  # snake
+    "Cml Cloud Manager",  # title/spaced
+    "CmlCloudManager",  # Pascal
+    "CML_CLOUD_MANAGER",  # upper snake
     "Cml Cloud Manager API",  # special case
 }
 
@@ -72,7 +72,19 @@ DEFAULT_EXCLUDES = {
 }
 
 # Extensions to skip (binary / generated)
-SKIP_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".lock", ".woff", ".woff2", ".map"}
+SKIP_EXTS = {
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".svg",
+    ".ico",
+    ".lock",
+    ".woff",
+    ".woff2",
+    ".map",
+}
 SKIP_FILE_PATTERNS = {".pyc"}
 
 
@@ -96,7 +108,9 @@ class NameStyles:
         snake = "_".join(w.lower() for w in clean_words)
         pascal = "".join(w.capitalize() for w in clean_words)
         upper = "_".join(w.upper() for w in clean_words)
-        return NameStyles(title=title, slug=slug, snake=snake, pascal=pascal, upper=upper)
+        return NameStyles(
+            title=title, slug=slug, snake=snake, pascal=pascal, upper=upper
+        )
 
     def replacement_map(self) -> Mapping[str, str]:
         return {
@@ -110,16 +124,28 @@ class NameStyles:
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Rename project occurrences of 'cml-cloud-manager' variants.")
-    p.add_argument("--new-name", required=True, help="Base name for project (e.g. 'Acme Tasks')")
+    p = argparse.ArgumentParser(
+        description="Rename project occurrences of 'cml-cloud-manager' variants."
+    )
+    p.add_argument(
+        "--new-name", required=True, help="Base name for project (e.g. 'Acme Tasks')"
+    )
     p.add_argument("--slug", help="Override slug variant")
     p.add_argument("--snake", help="Override snake_case variant")
     p.add_argument("--pascal", help="Override PascalCase variant")
     p.add_argument("--upper", help="Override UPPER_SNAKE variant")
-    p.add_argument("--dry-run", action="store_true", help="Show changes without writing")
-    p.add_argument("--include", nargs="*", help="Limit replacements to these top-level paths")
+    p.add_argument(
+        "--dry-run", action="store_true", help="Show changes without writing"
+    )
+    p.add_argument(
+        "--include", nargs="*", help="Limit replacements to these top-level paths"
+    )
     p.add_argument("--exclude", nargs="*", help="Additional paths to exclude")
-    p.add_argument("--update-keycloak", action="store_true", help="Also replace KEYCLOAK_REALM and client ids if present")
+    p.add_argument(
+        "--update-keycloak",
+        action="store_true",
+        help="Also replace KEYCLOAK_REALM and client ids if present",
+    )
     return p.parse_args()
 
 
@@ -202,7 +228,9 @@ def main() -> int:
         # NOTE: user must adjust Keycloak server config externally.
         replacements["cml-cloud-manager-backend"] = f"{styles.slug}-backend"
         replacements["cml-cloud-manager"] = styles.slug  # realm name occurrences
-        replacements["cml-cloud-manager-backend-secret-change-in-production"] = f"{styles.slug}-backend-secret-change-in-production"
+        replacements["cml-cloud-manager-backend-secret-change-in-production"] = (
+            f"{styles.slug}-backend-secret-change-in-production"
+        )
 
     excludes = set(DEFAULT_EXCLUDES)
     if args.exclude:
@@ -211,7 +239,9 @@ def main() -> int:
     root = Path.cwd()
     print("=== Project Rename Plan ===")
     print(f"Root: {root}")
-    print(f"New Name Styles: title='{styles.title}', slug='{styles.slug}', snake='{styles.snake}', pascal='{styles.pascal}', upper='{styles.upper}'")
+    print(
+        f"New Name Styles: title='{styles.title}', slug='{styles.slug}', snake='{styles.snake}', pascal='{styles.pascal}', upper='{styles.upper}'"
+    )
     if args.dry_run:
         print("Mode: DRY-RUN (no files will be modified)")
     print("Replacements:")
@@ -252,11 +282,15 @@ def main() -> int:
     if args.dry_run:
         print("\nDry run complete. Re-run without --dry-run to apply changes.")
     else:
-        print("\nRename applied. Review changes and adjust remaining identifiers (e.g., Docker image names) if needed.")
+        print(
+            "\nRename applied. Review changes and adjust remaining identifiers (e.g., Docker image names) if needed."
+        )
 
     print("\nNext steps (manual):")
     print("  1. Rename repository folder and remote origin if desired.")
-    print("  2. Update Keycloak realm/client to match new identifiers (if --update-keycloak used).")
+    print(
+        "  2. Update Keycloak realm/client to match new identifiers (if --update-keycloak used)."
+    )
     print("  3. Search for any lingering custom branding.")
     print("  4. Run tests to confirm functionality: 'poetry run pytest -q'.")
     return 0

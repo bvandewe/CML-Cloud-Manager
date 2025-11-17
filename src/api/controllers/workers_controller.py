@@ -9,18 +9,31 @@ from neuroglia.mediation.mediator import Mediator
 from neuroglia.mvc.controller_base import ControllerBase
 
 from api.dependencies import get_current_user, require_roles
-from api.models import (CreateCMLWorkerRequest, ImportCMLWorkerRequest,
-                        RegisterLicenseRequest, UpdateCMLWorkerTagsRequest)
-from application.commands import (CreateCMLWorkerCommand, ImportCMLWorkerCommand,
-                                  StartCMLWorkerCommand, StopCMLWorkerCommand,
-                                  TerminateCMLWorkerCommand,
-                                  UpdateCMLWorkerStatusCommand,
-                                  UpdateCMLWorkerTagsCommand)
-from application.queries import (GetCMLWorkerByIdQuery, GetCMLWorkerResourcesQuery,
-                                 GetCMLWorkersQuery)
+from api.models import (
+    CreateCMLWorkerRequest,
+    ImportCMLWorkerRequest,
+    RegisterLicenseRequest,
+    UpdateCMLWorkerTagsRequest,
+)
+from application.commands import (
+    CreateCMLWorkerCommand,
+    ImportCMLWorkerCommand,
+    StartCMLWorkerCommand,
+    StopCMLWorkerCommand,
+    TerminateCMLWorkerCommand,
+    UpdateCMLWorkerStatusCommand,
+    UpdateCMLWorkerTagsCommand,
+)
+from application.queries import (
+    GetCMLWorkerByIdQuery,
+    GetCMLWorkerResourcesQuery,
+    GetCMLWorkersQuery,
+)
 from domain.enums import CMLWorkerStatus
-from integration.enums import (AwsRegion,
-                               Ec2InstanceResourcesUtilizationRelativeStartTime)
+from integration.enums import (
+    AwsRegion,
+    Ec2InstanceResourcesUtilizationRelativeStartTime,
+)
 from integration.services.aws_ec2_api_client import Ec2InstanceResourcesUtilization
 
 logger = logging.getLogger(__name__)
@@ -415,9 +428,7 @@ class WorkersController(ControllerBase):
         """Get labs running on a CML Worker instance."""
         from application.queries.get_worker_labs_query import GetWorkerLabsQuery
 
-        logger.info(
-            f"Getting labs for CML worker {worker_id} in region {aws_region}"
-        )
+        logger.info(f"Getting labs for CML worker {worker_id} in region {aws_region}")
 
         query = GetWorkerLabsQuery(worker_id=worker_id)
         return self.process(await self.mediator.execute_async(query))
@@ -447,7 +458,9 @@ class WorkersController(ControllerBase):
 
         (**Requires valid token.**)
         """
-        logger.info(f"Refreshing labs for CML worker {worker_id} in region {aws_region}")
+        logger.info(
+            f"Refreshing labs for CML worker {worker_id} in region {aws_region}"
+        )
 
         from application.commands import RefreshWorkerLabsCommand
 

@@ -50,7 +50,7 @@
 {
     "clientId": "cml-cloud-manager-backend",
     "publicClient": false,
-    "secret": "cml-cloud-manager-backend-secret-change-in-production"
+    "secret": "cml-cloud-manager-backend-secret-change-in-production"  # pragma: allowlist secret
 }
 ```
 

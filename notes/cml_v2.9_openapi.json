@@ -348,9 +348,7 @@
                                     "type": "string",
                                     "pattern": "^[A-Za-z0-9-_]+.[A-Za-z0-9-_]+.[A-Za-z0-9-_]+$",
                                     "description": "JWT token",
-                                    "examples": [
-                                        "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJjb20uY2lzY28udmlybCIsImlhdCI6MTYxMzc1MDgxNSwiZXhwIjoxNjEzODM3MjE1LCJzdWIiOiIwNDg5MDcxNS00YWE3LTRhNDAtYWQzZS1jZThmY2JkNGQ3YWEifQ.Q4heV5TTYQ6yhpJ5GKLm_Bf9D9NL-wDxL9Orz1ByxWs"
-                                    ],
+                                    "examples": ["REDACTED.JWT.TOKEN"],
                                     "title": "Response 200 Authenticate Authenticate Post"
                                 }
                             }

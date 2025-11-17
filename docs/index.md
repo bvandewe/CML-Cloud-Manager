@@ -1,6 +1,15 @@
-# Welcome to the CML Cloud Manager
+# Welcome to CML Cloud Manager
 
-This project is a template application that demonstrates how to build a modern web application using the **[neuroglia-python](https://github.com/bvandewe/pyneuro)** framework. It provides a solid foundation for building clean, scalable, and maintainable applications with Python.
+> A production-ready reference implementation for managing, monitoring, and operating CML Workers with real-time updates, background processing, and role-based access control.
+
+This project demonstrates how to build a modern web application using the **[neuroglia-python](https://github.com/bvandewe/pyneuro)** framework. It provides a solid foundation for clean, scalable, and maintainable applications with Python while showcasing:
+
+- Multi SubApp FastAPI architecture (API + UI)
+- CQRS + domain events + background jobs (APScheduler)
+- Real-time UI updates via Server-Sent Events (SSE)
+- Automated worker & labs refresh cycles
+- Role-based access (Admin / Manager / User)
+- Observability with OpenTelemetry
 
 ![Cml Cloud Manager demo](./assets/cml-cloud-manager_v0.1.0.gif)
 
@@ -8,14 +17,22 @@ This project is a template application that demonstrates how to build a modern w
 
 ## Getting Started
 
-To get started with the application, please refer to the **[Getting Started](getting-started/installation.md)** guide, which will walk you through the installation and setup process.
+New to the project? Start here:
 
-## Key Sections
+1. **Install & Run**: Follow the [Installation Guide](getting-started/installation.md) then [Running the App](getting-started/running-the-app.md).
+2. **Login Roles**: Use provided Keycloak test users (`admin`, `manager`, `user`).
+3. **Explore Workers**: View current workers; admins/managers can create, start/stop, terminate; all roles can view metrics.
+4. **Real-Time Updates**: Watch the status badge and worker list update automatically via SSE.
+5. **Labs Data**: Open a worker details modal and switch to the Labs tab to see lab records (auto-refreshed every 30 min + manual refresh).
 
-- **[Architecture](architecture/overview.md)**: Learn about the core concepts of the application's architecture and the `neuroglia-python` framework.
-- **[Security](security/authentication-flows.md)**: Understand the dual authentication system, including session-based and JWT bearer token flows, plus authorization with OAuth2/OIDC.
-- **[Development](development/makefile-reference.md)**: Find information on the development workflow, including the `Makefile` commands and documentation setup.
-- **[Deployment](deployment/docker-environment.md)**: Learn how to deploy the application using Docker and other related technologies.
+## Documentation Map
+
+- **Architecture**: Core patterns, CQRS, DI, background processing ([overview](architecture/overview.md))
+- **Security**: Authentication flows & RBAC ([auth flows](security/authentication-flows.md))
+- **Real-Time Updates**: SSE event stream & UI auto-refresh (see Architecture > Real-Time Updates)
+- **Worker Monitoring**: Metrics, labs refresh, thresholds ([worker monitoring](architecture/worker-monitoring.md))
+- **Development**: Makefile, testing, docs ([makefile reference](development/makefile-reference.md))
+- **Deployment**: Docker & environment setup ([docker environment](deployment/docker-environment.md))
 
 
 ```mermaid
@@ -53,6 +70,16 @@ graph TD
 - **Containers**: [Docker](https://www.docker.com/) + [Docker Compose](https://docs.docker.com/compose/)
 - **Observability**: [OpenTelemetry](https://opentelemetry.io/)
 - **Documentation**: [MkDocs Material](https://squidfunk.github.io/mkdocs-material/)
+
+## 👤 Roles Overview
+
+| Role | Capabilities |
+|------|--------------|
+| User | View workers, metrics, labs data (read-only) |
+| Manager | All User capabilities + start/stop workers, update tags |
+| Admin | Full lifecycle (create/import, start/stop, terminate), monitoring control |
+
+Real-time updates & labs visibility apply to all roles; action buttons are filtered by role.
 
 ## 🤝 Contributing
 
@@ -96,6 +123,13 @@ This is a starter app template. When adapting for your project:
 - [FastAPI Docs](https://fastapi.tiangolo.com/)
 - [MkDocs Material](https://squidfunk.github.io/mkdocs-material/)
 
+## 🔄 Real-Time & Background Processes
+
+- **SSE Stream**: `/api/events/stream` pushes worker lifecycle, metrics, labs updates.
+- **Labs Refresh Job**: Global recurrent job (`labs-refresh-global`) runs every 30 minutes plus once at startup.
+- **Metrics Collection**: Poll interval configurable (`worker_metrics_poll_interval`).
+- **Status Badge**: Workers view displays connection state: connected / reconnecting / disconnected / error.
+
 ## 🆘 Getting Help
 
 1. Check [Common Issues](troubleshooting/common-issues.md)
@@ -105,4 +139,4 @@ This is a starter app template. When adapting for your project:
 
 ---
 
-**Ready to start?** Head to the [Docker Environment](infrastructure/docker-environment.md) guide to get your development environment running!
+**Ready to start?** Head to the [Docker Environment](deployment/docker-environment.md) guide to get your development environment running!

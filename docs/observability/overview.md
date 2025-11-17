@@ -201,6 +201,16 @@ The Cml Cloud Manager uses:
 
 **Learn More**: See [Architecture](./architecture.md)
 
+### Real-Time Channel & Observability
+
+The SSE stream (see [Real-Time Updates](../architecture/realtime-updates.md)) complements traditional telemetry:
+
+- Provides immediate surface-level visibility (connection health badge, live worker lifecycle toasts).
+- Can be correlated with traces and metrics (e.g., a `worker.status.updated` event followed by related spans).
+- Helps distinguish UI latency issues (e.g., missed events due to disconnect) from backend performance problems.
+
+When troubleshooting, always check whether the SSE badge is `Live`; a disconnected badge can explain stale UI data even when metrics/traces look healthy.
+
 ## Next Steps
 
 1. **[Read Architecture Guide](./architecture.md)** - Understand how components work together

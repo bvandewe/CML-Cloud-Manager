@@ -8,6 +8,24 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ### Added
 
+#### Real-Time SSE Updates & Labs Visibility
+
+- **Server-Sent Events (SSE) Stream**: New endpoint `/api/events/stream` delivering real-time worker lifecycle, metrics, labs, and status updates to the UI.
+  - Initial connection + heartbeat every 30s for connection health.
+  - Graceful shutdown event `system.sse.shutdown` on application stop.
+- **Domain Event Broadcasting**: Added handlers (`cml_worker_events.py`) mapping domain events to SSE types:
+  - `worker.created`, `worker.status.updated`, `worker.terminated`, `worker.metrics.updated` (telemetry), `worker.labs.updated` (command/job driven)
+- **Labs Refresh Job Visibility**: Global recurrent job `labs-refresh-global` now appears in scheduler listings; executes every 30 minutes and once at startup.
+- **Frontend SSE Client**: Robust auto-reconnecting client (`sse-client.js`) with exponential backoff, status callbacks (`connected`, `reconnecting`, `disconnected`, `error`).
+  - Central badge indicator added to Workers view (`Realtime: <status>`).
+  - Automatic UI refresh of worker tables/cards, open details modal, and Labs tab when relevant events arrive.
+- **Hosted Relay Service**: `SSEEventRelayHostedService` registered in application lifecycle providing structured start/stop and future extensibility for cleanup/backpressure features.
+- **Extensible Event Model**: Simple relay abstraction allows adding new event types by broadcasting via `get_sse_relay().broadcast_event(...)` in commands or handlers.
+
+#### Documentation Enhancements (in progress)
+
+- Preparing updates across README and MkDocs site to cover real-time updates, role-specific onboarding, and background processing.
+
 #### Lab Records and CQRS Pattern
 
 - **Lab Record Aggregate**: Event-sourced tracking of CML labs

@@ -6,8 +6,9 @@ from enum import Enum
 
 from neuroglia.core import OperationResult
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_bus import CloudEventBus
-from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import \
-    CloudEventPublishingOptions
+from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import (
+    CloudEventPublishingOptions,
+)
 from neuroglia.mapping import Mapper
 from neuroglia.mediation import Command, CommandHandler, Mediator
 from opentelemetry import trace
@@ -68,9 +69,7 @@ class ControlLabCommandHandler(
         self.cml_worker_repository = cml_worker_repository
         self.settings = settings
 
-    async def handle_async(
-        self, request: ControlLabCommand
-    ) -> OperationResult[dict]:
+    async def handle_async(self, request: ControlLabCommand) -> OperationResult[dict]:
         """Handle lab control command.
 
         Args:
@@ -98,7 +97,9 @@ class ControlLabCommandHandler(
 
                 # Validate worker has CML endpoint
                 if not worker.state.https_endpoint:
-                    error_msg = f"Worker {command.worker_id} has no HTTPS endpoint configured"
+                    error_msg = (
+                        f"Worker {command.worker_id} has no HTTPS endpoint configured"
+                    )
                     log.error(error_msg)
                     return self.bad_request(error_msg)
 
@@ -113,13 +114,19 @@ class ControlLabCommandHandler(
                 # Perform the requested action
                 success = False
                 if command.action == LabAction.START:
-                    log.info(f"Starting lab {command.lab_id} on worker {command.worker_id}")
+                    log.info(
+                        f"Starting lab {command.lab_id} on worker {command.worker_id}"
+                    )
                     success = await cml_client.start_lab(command.lab_id)
                 elif command.action == LabAction.STOP:
-                    log.info(f"Stopping lab {command.lab_id} on worker {command.worker_id}")
+                    log.info(
+                        f"Stopping lab {command.lab_id} on worker {command.worker_id}"
+                    )
                     success = await cml_client.stop_lab(command.lab_id)
                 elif command.action == LabAction.WIPE:
-                    log.info(f"Wiping lab {command.lab_id} on worker {command.worker_id}")
+                    log.info(
+                        f"Wiping lab {command.lab_id} on worker {command.worker_id}"
+                    )
                     success = await cml_client.wipe_lab(command.lab_id)
                 else:
                     error_msg = f"Unknown action: {command.action}"
@@ -143,8 +150,6 @@ class ControlLabCommandHandler(
                     return self.bad_request(error_msg)
 
             except Exception as e:
-                error_msg = (
-                    f"Error performing {command.action.value} on lab {command.lab_id}: {str(e)}"
-                )
+                error_msg = f"Error performing {command.action.value} on lab {command.lab_id}: {str(e)}"
                 log.error(error_msg, exc_info=True)
                 return self.bad_request(error_msg)

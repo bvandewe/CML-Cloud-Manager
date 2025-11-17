@@ -1,11 +1,27 @@
 # CML Worker Application Commands
 
-**Date**: November 16, 2025
-**Status**: ✅ Complete
+**Last Updated**: November 17, 2025
+**Status**: ✅ Current
 
 ## Overview
 
-Created 6 application commands for CML Worker lifecycle management, integrating the domain layer (CMLWorker aggregate) with the AWS EC2 API client. All commands follow CQRS pattern with proper error handling, tracing, and domain event publishing.
+This document summarizes the application commands responsible for CML Worker lifecycle management. Each command:
+
+- Operates through the `CMLWorker` aggregate (CQRS write side)
+- Publishes domain events which are now broadcast to the UI via **SSE** (e.g., `worker.created`, `worker.status.updated`, `worker.terminated`)
+- Integrates with the AWS EC2 API client through `AwsEc2Client`
+- Emits metrics & traces (OpenTelemetry) and handles AWS-specific exceptions
+
+Related real-time behavior:
+
+| Domain Event | SSE Event | Trigger Source |
+|--------------|-----------|----------------|
+| CMLWorkerCreatedDomainEvent | worker.created | CreateCMLWorkerCommand |
+| CMLWorkerStatusUpdatedDomainEvent | worker.status.updated | UpdateCMLWorkerStatusCommand / monitoring jobs |
+| CMLWorkerTerminatedDomainEvent | worker.terminated | TerminateCMLWorkerCommand |
+| CMLWorkerTelemetryUpdatedDomainEvent | worker.metrics.updated | Metrics collection job |
+
+Labs synchronization events (`worker.labs.updated`) originate from `RefreshWorkerLabsCommand` and the recurrent `LabsRefreshJob`.
 
 ---
 
@@ -202,7 +218,7 @@ Created 6 application commands for CML Worker lifecycle management, integrating 
 - `EC2StatusCheckException`: Status check retrieval failed
 - `EC2AuthenticationException`: Invalid credentials
 
-**Use Case**: Background job to keep worker state in sync with AWS
+**Use Case**: Background job & manual reconciliation to keep worker state in sync with AWS
 
 ---
 
@@ -236,7 +252,24 @@ Commands use these settings:
 
 ---
 
-## CQRS Pattern
+## CQRS Pattern & Real-Time Flow
+
+```mermaid
+sequenceDiagram
+   participant UI
+   participant API
+   participant CommandHandler
+   participant DomainEvents
+   participant SSE
+
+   UI->>API: POST /api/region/{r}/workers/{id}/stop
+   API->>CommandHandler: StopCMLWorkerCommand
+   CommandHandler->>DomainEvents: emit CMLWorkerStatusUpdatedDomainEvent
+   DomainEvents->>SSE: broadcast worker.status.updated
+   SSE-->>UI: EventSource message (update row, modal)
+```
+
+This pattern repeats across all lifecycle commands, enabling near-instant UI reflection of backend changes without manual refresh.
 
 All commands follow the Neuroglia CQRS pattern:
 

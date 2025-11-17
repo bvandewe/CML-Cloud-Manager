@@ -9,8 +9,9 @@ from dataclasses import dataclass
 
 from neuroglia.core import OperationResult
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_bus import CloudEventBus
-from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import \
-    CloudEventPublishingOptions
+from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import (
+    CloudEventPublishingOptions,
+)
 from neuroglia.mapping import Mapper
 from neuroglia.mediation import Command, CommandHandler, Mediator
 from neuroglia.observability.tracing import add_span_attributes
@@ -99,9 +100,7 @@ class EnableWorkerDetailedMonitoringCommandHandler(
                 region_name=worker.state.aws_region,
             )
 
-            ec2_client.monitor_instances(
-                InstanceIds=[worker.state.aws_instance_id]
-            )
+            ec2_client.monitor_instances(InstanceIds=[worker.state.aws_instance_id])
 
             log.info(
                 f"✅ Enabled detailed CloudWatch monitoring for worker {command.worker_id}, "
@@ -111,7 +110,9 @@ class EnableWorkerDetailedMonitoringCommandHandler(
             # Update worker aggregate with monitoring status
             worker.update_cloudwatch_monitoring(enabled=True)
             await self.cml_worker_repository.add_or_update_async(worker)
-            log.info(f"Updated worker {command.worker_id} monitoring status in database")
+            log.info(
+                f"Updated worker {command.worker_id} monitoring status in database"
+            )
 
             return self.ok(True)
 

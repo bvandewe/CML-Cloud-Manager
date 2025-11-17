@@ -529,25 +529,25 @@ def _create_cloudwatch_client(self, region: AwsRegion) -> Any:
 
 ### 🔥 High Priority
 
-5. Rename all "IOL VM" → "CML Worker" terminology
-6. Add CML-specific settings (idle thresholds, HTTPS monitoring)
-7. Add AMI name to settings per region
-8. Fix code style issues (run `ruff check --fix`)
+1. Rename all "IOL VM" → "CML Worker" terminology
+2. Add CML-specific settings (idle thresholds, HTTPS monitoring)
+3. Add AMI name to settings per region
+4. Fix code style issues (run `ruff check --fix`)
 
 ### 📋 Medium Priority
 
-9. Create specific exception types
-10. Extract boto3 client creation methods
-11. Add instance status check method
-12. Add tag management methods
-13. Improve telemetry to include active labs count
+1. Create specific exception types
+2. Extract boto3 client creation methods
+3. Add instance status check method
+4. Add tag management methods
+5. Improve telemetry to include active labs count
 
 ### 🎯 Nice to Have
 
-14. Add EBS snapshot management
-15. Add cost tracking per instance
-16. Add network performance metrics
-17. Add CloudWatch custom metrics for CML-specific data
+1. Add EBS snapshot management
+2. Add cost tracking per instance
+3. Add network performance metrics
+4. Add CloudWatch custom metrics for CML-specific data
 
 ---
 

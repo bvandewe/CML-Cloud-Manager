@@ -6,8 +6,9 @@ from datetime import datetime, timezone
 
 from neuroglia.core import OperationResult
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_bus import CloudEventBus
-from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import \
-    CloudEventPublishingOptions
+from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import (
+    CloudEventPublishingOptions,
+)
 from neuroglia.mapping import Mapper
 from neuroglia.mediation import Command, CommandHandler, Mediator
 from neuroglia.observability.tracing import add_span_attributes
@@ -17,10 +18,13 @@ from application.settings import Settings
 from domain.entities.cml_worker import CMLWorker
 from domain.enums import CMLWorkerStatus
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
-from integration.exceptions import (EC2AuthenticationException,
-                                    EC2InstanceCreationException,
-                                    EC2InvalidParameterException,
-                                    EC2QuotaExceededException, IntegrationException)
+from integration.exceptions import (
+    EC2AuthenticationException,
+    EC2InstanceCreationException,
+    EC2InvalidParameterException,
+    EC2QuotaExceededException,
+    IntegrationException,
+)
 from integration.models import CMLWorkerInstanceDto
 from integration.services.aws_ec2_api_client import AwsEc2Client
 

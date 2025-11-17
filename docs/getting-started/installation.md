@@ -6,9 +6,20 @@ This guide will walk you through setting up the project for local development.
 
 Before you begin, ensure you have the following installed:
 
-- **Docker and Docker Compose**: For running the application and its services in a containerized environment.
-- **Python 3.11+**: For running the application locally.
-- **Poetry**: For managing Python dependencies.
+- **Docker and Docker Compose**: For running the application and its services.
+- **Python 3.11+**: Backend runtime (FastAPI + Neuroglia CQRS framework).
+- **Poetry**: Dependency management for Python.
+- **Node.js 18+ & npm**: Building frontend assets (SSE client, UI scripts).
+
+### Optional (for local telemetry stack)
+
+- **Docker resources**: Sufficient memory for Prometheus, Grafana, Tempo, and OTEL Collector.
+
+### Real-Time Updates (SSE)
+
+No extra prerequisite is required for Server-Sent Events. The SSE stream is enabled by default and served from the application process. When the app is running you will see a connection status badge on the Workers page indicating `Live`, `Connecting`, or `Disconnected`.
+
+See the architecture overview of this feature: [Real-Time Updates](../architecture/realtime-updates.md).
 
 ## Installation Steps
 
@@ -42,18 +53,8 @@ Before you begin, ensure you have the following installed:
     make install-ui
     ```
 
-## Using as a Template
+## Next Steps
 
-This repository is designed to be used as a template for new projects.
-
-1. **Create a new repository from this template**:
-    Click the "Use this template" button on the GitHub repository page to create a new repository with the same structure and files.
-
-2. **Rename the project**:
-    After cloning your new repository, run the `rename_project.py` script to update the project name throughout the codebase.
-
-    ```bash
-    python scripts/rename_project.py --new-name "Your New Project Name"
-    ```
-
-    This will replace all occurrences of "Cml Cloud Manager" and its variants (e.g., `cml-cloud-manager`, `cml_cloud_manager`) with your new project name. It is recommended to run with the `--dry-run` flag first to see the changes before they are applied.
+- Run the application: follow [Running the App](running-the-app.md)
+- Verify SSE connectivity: open the Workers page and confirm the status badge shows `Live`.
+- Trigger a real-time event: create or modify a worker and observe the toast and list refresh.
