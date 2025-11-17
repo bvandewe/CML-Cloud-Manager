@@ -572,7 +572,9 @@ class CMLApiClient:
                 verify=self.verify_ssl, timeout=self.timeout
             ) as client:
                 response = await client.get(
-                    endpoint, headers={"Authorization": f"Bearer {token}"}, params=params
+                    endpoint,
+                    headers={"Authorization": f"Bearer {token}"},
+                    params=params,
                 )
 
                 if response.status_code == 401:
@@ -583,7 +585,9 @@ class CMLApiClient:
 
                     # Retry with new token
                     response = await client.get(
-                        endpoint, headers={"Authorization": f"Bearer {token}"}, params=params
+                        endpoint,
+                        headers={"Authorization": f"Bearer {token}"},
+                        params=params,
                     )
 
                 if response.status_code == 401 or response.status_code == 403:
@@ -797,7 +801,9 @@ class CMLApiClient:
                     )
 
                 if response.status_code not in [200, 204]:
-                    log.error(f"Failed to start lab {lab_id}: {response.status_code} {response.text}")
+                    log.error(
+                        f"Failed to start lab {lab_id}: {response.status_code} {response.text}"
+                    )
                     raise IntegrationException(
                         f"Failed to start lab: HTTP {response.status_code}"
                     )
@@ -843,7 +849,9 @@ class CMLApiClient:
                     )
 
                 if response.status_code not in [200, 204]:
-                    log.error(f"Failed to stop lab {lab_id}: {response.status_code} {response.text}")
+                    log.error(
+                        f"Failed to stop lab {lab_id}: {response.status_code} {response.text}"
+                    )
                     raise IntegrationException(
                         f"Failed to stop lab: HTTP {response.status_code}"
                     )
@@ -889,7 +897,9 @@ class CMLApiClient:
                     )
 
                 if response.status_code not in [200, 204]:
-                    log.error(f"Failed to wipe lab {lab_id}: {response.status_code} {response.text}")
+                    log.error(
+                        f"Failed to wipe lab {lab_id}: {response.status_code} {response.text}"
+                    )
                     raise IntegrationException(
                         f"Failed to wipe lab: HTTP {response.status_code}"
                     )

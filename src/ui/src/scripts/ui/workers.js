@@ -8,6 +8,7 @@ import * as systemApi from '../api/system.js';
 import { showToast } from './notifications.js';
 import { isAdmin, isAdminOrManager } from '../utils/roles.js';
 import { formatDateWithRelative, initializeDateTooltips } from '../utils/dates.js';
+import sseClient from '../services/sse-client.js';
 import * as bootstrap from 'bootstrap';
 
 // Store current user and workers data
@@ -36,6 +37,22 @@ export function initializeWorkersView(user) {
     console.log('[initializeWorkersView] workers-section found');
 
     workersSection.style.display = 'block';
+
+    // Insert SSE connection status badge if missing
+    let statusContainer = document.getElementById('sse-connection-status');
+    if (!statusContainer) {
+        statusContainer = document.createElement('div');
+        statusContainer.id = 'sse-connection-status';
+        statusContainer.className = 'mb-2';
+        statusContainer.innerHTML = '<span class="badge bg-secondary">Realtime: initializing...</span>';
+        workersSection.prepend(statusContainer);
+    }
+
+    // Initialize SSE client for real-time updates
+    console.log('[initializeWorkersView] Setting up SSE client');
+    setupSSEHandlers();
+    setupSSEStatusIndicator();
+    sseClient.connect();
 
     // Show appropriate view based on role
     if (hasAdminAccess(user)) {
@@ -142,6 +159,111 @@ function setupEventListeners() {
     console.log('[setupEventListeners] Calling setupRefreshButton()');
     setupRefreshButton();
     console.log('[setupEventListeners] All event listeners set up');
+}
+
+/**
+ * Setup SSE event handlers for real-time updates
+ */
+function setupSSEHandlers() {
+    console.log('[setupSSEHandlers] Registering SSE event handlers');
+
+    // Handle worker metrics updated
+    sseClient.on('worker.metrics.updated', data => {
+        console.log('[SSE] Worker metrics updated:', data);
+
+        // Update the worker in the list if it's visible
+        const workerIndex = workersData.findIndex(w => w.id === data.worker_id);
+        if (workerIndex !== -1) {
+            // Reload workers to get fresh data
+            loadWorkers();
+        }
+
+        // If worker details modal is open for this worker, reload it
+        if (currentWorkerDetails && currentWorkerDetails.id === data.worker_id) {
+            console.log('[SSE] Reloading open worker details modal');
+            loadWorkerDetails(data.worker_id, currentWorkerDetails.region);
+        }
+    });
+
+    // Handle worker labs updated
+    sseClient.on('worker.labs.updated', data => {
+        console.log('[SSE] Worker labs updated:', data);
+
+        // If worker details modal is open and Labs tab is active, reload it
+        if (currentWorkerDetails && currentWorkerDetails.id === data.worker_id) {
+            const labsTab = document.querySelector('#labs-tab');
+            if (labsTab && labsTab.classList.contains('active')) {
+                console.log('[SSE] Reloading Labs tab');
+                loadLabsTab();
+            }
+        }
+    });
+
+    // Handle worker status updated
+    sseClient.on('worker.status.updated', data => {
+        console.log('[SSE] Worker status updated:', data);
+        loadWorkers();
+
+        if (currentWorkerDetails && currentWorkerDetails.id === data.worker_id) {
+            loadWorkerDetails(data.worker_id, currentWorkerDetails.region);
+        }
+    });
+
+    // Handle worker created
+    sseClient.on('worker.created', data => {
+        console.log('[SSE] Worker created:', data);
+        loadWorkers();
+    });
+
+    // Handle worker terminated
+    sseClient.on('worker.terminated', data => {
+        console.log('[SSE] Worker terminated:', data);
+        loadWorkers();
+
+        // Close modal if this worker is open
+        if (currentWorkerDetails && currentWorkerDetails.id === data.worker_id) {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('workerDetailsModal'));
+            if (modal) {
+                modal.hide();
+            }
+        }
+    });
+
+    console.log('[setupSSEHandlers] SSE event handlers registered');
+}
+
+/**
+ * Setup SSE connection status indicator badge updates
+ */
+function setupSSEStatusIndicator() {
+    const container = document.getElementById('sse-connection-status');
+    if (!container) return;
+    const update = status => {
+        let cls = 'bg-secondary';
+        let text = 'Realtime: ' + status;
+        switch (status) {
+            case 'connected':
+                cls = 'bg-success';
+                text = 'Realtime: connected';
+                break;
+            case 'reconnecting':
+                cls = 'bg-warning text-dark';
+                text = 'Realtime: reconnecting';
+                break;
+            case 'disconnected':
+                cls = 'bg-danger';
+                text = 'Realtime: disconnected';
+                break;
+            case 'error':
+                cls = 'bg-danger';
+                text = 'Realtime: error';
+                break;
+            default:
+                cls = 'bg-secondary';
+        }
+        container.innerHTML = `<span class="badge ${cls}">${text}</span>`;
+    };
+    sseClient.onStatus(update);
 }
 
 /**

@@ -13,7 +13,9 @@ class LabRecordRepository(ABC):
         """Get a lab record by its ID."""
 
     @abstractmethod
-    async def get_by_lab_id_async(self, worker_id: str, lab_id: str) -> LabRecord | None:
+    async def get_by_lab_id_async(
+        self, worker_id: str, lab_id: str
+    ) -> LabRecord | None:
         """Get a lab record by worker ID and CML lab ID."""
 
     @abstractmethod

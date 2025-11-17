@@ -14,11 +14,15 @@ from typing import Dict, Optional
 
 from opentelemetry import trace
 
-from application.services.background_scheduler import (BackgroundTasksBus,
-                                                       RecurrentTaskDescriptor)
+from application.services.background_scheduler import (
+    BackgroundTasksBus,
+    RecurrentTaskDescriptor,
+)
+
 # Import WorkerMetricsCollectionJob for type resolution in BackgroundTaskScheduler
-from application.services.worker_metrics_collection_job import \
-    WorkerMetricsCollectionJob  # noqa: F401
+from application.services.worker_metrics_collection_job import (  # noqa: F401
+    WorkerMetricsCollectionJob,
+)
 from application.services.worker_notification_handler import WorkerNotificationHandler
 from domain.entities.cml_worker import CMLWorker
 from domain.enums import CMLWorkerStatus
@@ -136,14 +140,18 @@ class WorkerMonitoringScheduler:
 
             # Check if already monitoring (in-memory registry)
             if worker_id in self._active_jobs:
-                logger.debug(f"Already monitoring worker {worker_id} (in-memory registry)")
+                logger.debug(
+                    f"Already monitoring worker {worker_id} (in-memory registry)"
+                )
                 return
 
             # Check if job already exists in scheduler (after restart)
             try:
                 existing_job = self._background_task_scheduler.get_job(job_id)
                 if existing_job:
-                    logger.info(f"📋 Job {job_id} already exists in scheduler, registering in memory")
+                    logger.info(
+                        f"📋 Job {job_id} already exists in scheduler, registering in memory"
+                    )
                     self._active_jobs[worker_id] = job_id
                     return
             except Exception as e:

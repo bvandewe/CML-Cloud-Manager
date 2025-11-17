@@ -1,4 +1,5 @@
 """UI controller for serving HTML pages."""
+
 from pathlib import Path
 
 from classy_fastapi.decorators import get

@@ -8,12 +8,15 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from neuroglia.data.infrastructure.mongo import MotorRepository
-from neuroglia.eventing.cloud_events.infrastructure.cloud_event_ingestor import \
-    CloudEventIngestor
-from neuroglia.eventing.cloud_events.infrastructure.cloud_event_middleware import \
-    CloudEventMiddleware
-from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import \
-    CloudEventPublisher
+from neuroglia.eventing.cloud_events.infrastructure.cloud_event_ingestor import (
+    CloudEventIngestor,
+)
+from neuroglia.eventing.cloud_events.infrastructure.cloud_event_middleware import (
+    CloudEventMiddleware,
+)
+from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import (
+    CloudEventPublisher,
+)
 from neuroglia.hosting.web import SubAppConfig, WebApplicationBuilder
 from neuroglia.mapping import Mapper
 from neuroglia.mediation import Mediator
@@ -21,10 +24,17 @@ from neuroglia.observability import Observability
 from neuroglia.serialization.json import JsonSerializer
 
 from api.services import DualAuthService
-from api.services.openapi_config import (configure_api_openapi,
-                                         configure_mounted_apps_openapi_prefix)
-from application.services import (BackgroundTasksBus, BackgroundTaskScheduler,
-                                  WorkerMonitoringScheduler, WorkerNotificationHandler)
+from api.services.openapi_config import (
+    configure_api_openapi,
+    configure_mounted_apps_openapi_prefix,
+)
+from application.services import (
+    BackgroundTasksBus,
+    BackgroundTaskScheduler,
+    WorkerMonitoringScheduler,
+    WorkerNotificationHandler,
+)
+from application.services.sse_event_relay import SSEEventRelayHostedService
 from application.settings import app_settings, configure_logging
 from domain.entities import Task
 from domain.entities.cml_worker import CMLWorker
@@ -32,10 +42,12 @@ from domain.entities.lab_record import LabRecord
 from domain.repositories import TaskRepository
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
 from domain.repositories.lab_record_repository import LabRecordRepository
-from integration.repositories.motor_cml_worker_repository import \
-    MongoCMLWorkerRepository
-from integration.repositories.motor_lab_record_repository import \
-    MongoLabRecordRepository
+from integration.repositories.motor_cml_worker_repository import (
+    MongoCMLWorkerRepository,
+)
+from integration.repositories.motor_lab_record_repository import (
+    MongoLabRecordRepository,
+)
 from integration.repositories.motor_task_repository import MongoTaskRepository
 from integration.services.aws_ec2_api_client import AwsEc2Client
 
@@ -106,8 +118,9 @@ async def lifespan_with_monitoring(app: FastAPI) -> AsyncIterator[None]:
             log.info("✅ Lab record indexes created")
 
             # Schedule labs refresh job (runs every 30 minutes for all workers)
-            from application.services.background_scheduler import \
-                RecurrentTaskDescriptor
+            from application.services.background_scheduler import (
+                RecurrentTaskDescriptor,
+            )
             from application.services.labs_refresh_job import LabsRefreshJob
 
             # Create task descriptor for labs refresh job
@@ -128,7 +141,9 @@ async def lifespan_with_monitoring(app: FastAPI) -> AsyncIterator[None]:
             try:
                 initial_job = LabsRefreshJob()
                 initial_job._service_provider = scope
-                initial_job.configure()  # Not async - no await
+                from typing import Any, cast
+
+                cast(Any, initial_job).configure()  # Not async - no await
                 await initial_job.run_every()
                 log.info("✅ Initial labs refresh completed")
             except Exception as e:
@@ -254,6 +269,9 @@ def create_app() -> FastAPI:
         builder,
         modules=["application.services"],  # Scan for @backgroundjob decorated classes
     )
+
+    # Configure SSE Event Relay hosted service
+    SSEEventRelayHostedService.configure(builder)  # typed configure
 
     # Register WorkerNotificationHandler as singleton service
     # This allows jobs to look it up from service provider without pickling callback references

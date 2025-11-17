@@ -172,10 +172,10 @@ export async function enableDetailedMonitoring(region, workerId) {
 }
 
 /**
- * Get labs running on a worker
+ * Get labs for a specific worker
  * @param {string} region - AWS region
- * @param {string} workerId - Worker UUID
- * @returns {Promise<Array>}
+ * @param {string} workerId - Worker ID
+ * @returns {Promise<Array>} Array of lab objects
  */
 export async function getWorkerLabs(region, workerId) {
     const response = await apiRequest(`/api/workers/region/${region}/workers/${workerId}/labs`, {

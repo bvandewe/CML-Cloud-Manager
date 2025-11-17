@@ -12,8 +12,9 @@ from typing import Optional
 
 from neuroglia.core import OperationResult
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_bus import CloudEventBus
-from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import \
-    CloudEventPublishingOptions
+from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import (
+    CloudEventPublishingOptions,
+)
 from neuroglia.mapping import Mapper
 from neuroglia.mediation import Command, CommandHandler, Mediator
 from opentelemetry import trace
@@ -44,7 +45,7 @@ def _parse_cml_timestamp(timestamp_str: Optional[str]) -> Optional[datetime]:
     if not timestamp_str:
         return None
     try:
-        return datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+        return datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
     except (ValueError, AttributeError):
         log.warning(f"Failed to parse timestamp: {timestamp_str}")
         return None
@@ -151,6 +152,27 @@ class RefreshWorkerLabsCommandHandler(
             span.set_attribute("labs.updated", updated)
             span.set_status(Status(StatusCode.OK))
 
+            # 4. Broadcast event to SSE clients for real-time UI updates
+            try:
+                from application.services.sse_event_relay import get_sse_relay
+
+                sse_relay = get_sse_relay()
+                await sse_relay.broadcast_event(
+                    event_type="worker.labs.updated",
+                    data={
+                        "worker_id": command.worker_id,
+                        "labs_synced": synced,
+                        "labs_created": created,
+                        "labs_updated": updated,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    },
+                )
+            except Exception as e:
+                # Don't fail the command if SSE broadcast fails
+                log.warning(
+                    f"Failed to broadcast SSE event for labs refresh on worker {command.worker_id}: {e}"
+                )
+
             log.info(
                 f"✅ Labs refreshed for worker {command.worker_id}: "
                 f"synced={synced}, created={created}, updated={updated}"
@@ -191,7 +213,9 @@ class RefreshWorkerLabsCommandHandler(
         try:
             lab_ids = await cml_client.get_labs()
         except Exception as e:
-            log.error(f"Failed to fetch labs from worker {worker_id}: {e}", exc_info=True)
+            log.error(
+                f"Failed to fetch labs from worker {worker_id}: {e}", exc_info=True
+            )
             return (0, 0, 0)
 
         if not lab_ids:
@@ -255,10 +279,15 @@ class RefreshWorkerLabsCommandHandler(
                 synced += 1
 
             except Exception as e:
-                log.error(f"Failed to sync lab {lab_id} for worker {worker_id}: {e}", exc_info=True)
+                log.error(
+                    f"Failed to sync lab {lab_id} for worker {worker_id}: {e}",
+                    exc_info=True,
+                )
                 # Continue with next lab
                 continue
 
-        log.info(f"Worker {worker_id}: synced={synced}, created={created}, updated={updated}")
+        log.info(
+            f"Worker {worker_id}: synced={synced}, created={created}, updated={updated}"
+        )
 
         return (synced, created, updated)

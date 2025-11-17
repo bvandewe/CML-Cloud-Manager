@@ -6,15 +6,21 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 import boto3  # type: ignore
 from botocore.exceptions import ClientError, ParamValidationError  # type: ignore
 
-from integration.enums import (AwsRegion,
-                               Ec2InstanceResourcesUtilizationRelativeStartTime)
-from integration.exceptions import (EC2AuthenticationException,
-                                    EC2InstanceCreationException,
-                                    EC2InstanceNotFoundException,
-                                    EC2InstanceOperationException,
-                                    EC2InvalidParameterException,
-                                    EC2QuotaExceededException, EC2StatusCheckException,
-                                    EC2TagOperationException, IntegrationException)
+from integration.enums import (
+    AwsRegion,
+    Ec2InstanceResourcesUtilizationRelativeStartTime,
+)
+from integration.exceptions import (
+    EC2AuthenticationException,
+    EC2InstanceCreationException,
+    EC2InstanceNotFoundException,
+    EC2InstanceOperationException,
+    EC2InvalidParameterException,
+    EC2QuotaExceededException,
+    EC2StatusCheckException,
+    EC2TagOperationException,
+    IntegrationException,
+)
 from integration.models import CMLWorkerInstanceDto
 from integration.services.relative_time import relative_time
 
@@ -693,7 +699,8 @@ class AwsEc2Client:
                     type=instance["InstanceType"],
                     state=instance["State"]["Name"],
                     image_id=instance["ImageId"],
-                    name=name or instance["InstanceId"],  # Fallback to instance ID if no Name tag
+                    name=name
+                    or instance["InstanceId"],  # Fallback to instance ID if no Name tag
                     launch_timestamp=instance["LaunchTime"],
                     launch_time_relative=relative_time(instance["LaunchTime"]),
                     public_ip=public_ip,

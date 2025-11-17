@@ -15,6 +15,7 @@ class TaskPriority(str, Enum):
 
 class CMLWorkerStatus(str, Enum):
     """AWS EC2 instance states for CML Worker."""
+
     PENDING = "pending"  # Instance is being launched
     STARTING = "starting"  # Instance is starting < TBC if needed!
     RUNNING = "running"  # Instance is running
@@ -27,6 +28,7 @@ class CMLWorkerStatus(str, Enum):
 
 class CMLServiceStatus(str, Enum):
     """CML HTTPS service availability status."""
+
     UNAVAILABLE = "unavailable"  # Service not accessible
     STARTING = "starting"  # Service is starting up
     AVAILABLE = "available"  # Service is accessible via HTTPS
@@ -35,6 +37,7 @@ class CMLServiceStatus(str, Enum):
 
 class LicenseStatus(str, Enum):
     """CML license registration status."""
+
     UNREGISTERED = "unregistered"
     REGISTERED = "registered"
     EVALUATION = "evaluation"

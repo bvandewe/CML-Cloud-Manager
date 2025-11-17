@@ -64,10 +64,7 @@ class WorkerTelemetry:
             and not 0 <= self.memory_utilization <= 100
         ):
             raise ValueError("memory_utilization must be between 0 and 100")
-        if (
-            self.disk_utilization is not None
-            and not 0 <= self.disk_utilization <= 100
-        ):
+        if self.disk_utilization is not None and not 0 <= self.disk_utilization <= 100:
             raise ValueError("disk_utilization must be between 0 and 100")
 
     def is_idle(self) -> bool:

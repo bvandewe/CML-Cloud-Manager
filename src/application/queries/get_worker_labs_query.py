@@ -114,10 +114,22 @@ class GetWorkerLabsQueryHandler(
                     "owner_username": record.state.owner_username,
                     "node_count": record.state.node_count,
                     "link_count": record.state.link_count,
-                    "created": record.state.cml_created_at.isoformat() if record.state.cml_created_at else None,
-                    "modified": record.state.modified_at.isoformat() if record.state.modified_at else None,
+                    "created": (
+                        record.state.cml_created_at.isoformat()
+                        if record.state.cml_created_at
+                        else None
+                    ),
+                    "modified": (
+                        record.state.modified_at.isoformat()
+                        if record.state.modified_at
+                        else None
+                    ),
                     "groups": record.state.groups,
-                    "last_synced": record.state.last_synced_at.isoformat() if record.state.last_synced_at else None,
+                    "last_synced": (
+                        record.state.last_synced_at.isoformat()
+                        if record.state.last_synced_at
+                        else None
+                    ),
                 }
                 labs.append(lab_dict)
 

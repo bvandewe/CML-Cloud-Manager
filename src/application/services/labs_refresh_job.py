@@ -10,8 +10,10 @@ from typing import Optional
 
 from opentelemetry import trace
 
-from application.services.background_scheduler import (RecurrentBackgroundJob,
-                                                       backgroundjob)
+from application.services.background_scheduler import (
+    RecurrentBackgroundJob,
+    backgroundjob,
+)
 from domain.entities.lab_record import LabRecord
 from domain.enums import CMLWorkerStatus
 from domain.repositories import CMLWorkerRepository
@@ -34,7 +36,7 @@ def _parse_cml_timestamp(timestamp_str: Optional[str]) -> Optional[datetime]:
     if not timestamp_str:
         return None
     try:
-        return datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+        return datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
     except (ValueError, AttributeError):
         logger.warning(f"Failed to parse timestamp: {timestamp_str}")
         return None
@@ -112,8 +114,8 @@ class LabsRefreshJob(RecurrentBackgroundJob):
             from domain.repositories.lab_record_repository import LabRecordRepository
 
             if self._service_provider:
-                self.lab_record_repository = self._service_provider.get_required_service(
-                    LabRecordRepository
+                self.lab_record_repository = (
+                    self._service_provider.get_required_service(LabRecordRepository)
                 )
             else:
                 raise RuntimeError("Lab record repository not available")
@@ -139,7 +141,10 @@ class LabsRefreshJob(RecurrentBackgroundJob):
 
                 for worker in workers:
                     # Skip workers without HTTPS endpoint or not running
-                    if not worker.state.https_endpoint or worker.state.status != CMLWorkerStatus.RUNNING:
+                    if (
+                        not worker.state.https_endpoint
+                        or worker.state.status != CMLWorkerStatus.RUNNING
+                    ):
                         logger.debug(
                             f"Skipping worker {worker.id()} - "
                             f"status={worker.state.status}, endpoint={worker.state.https_endpoint}"
@@ -147,14 +152,16 @@ class LabsRefreshJob(RecurrentBackgroundJob):
                         continue
 
                     try:
-                        synced, created, updated = await self._refresh_worker_labs(worker)
+                        synced, created, updated = await self._refresh_worker_labs(
+                            worker
+                        )
                         total_labs_synced += synced
                         total_labs_created += created
                         total_labs_updated += updated
                     except Exception as e:
                         logger.error(
                             f"Failed to refresh labs for worker {worker.id()}: {e}",
-                            exc_info=True
+                            exc_info=True,
                         )
                         span.record_exception(e)
                         # Continue with next worker instead of failing the entire job
@@ -205,8 +212,7 @@ class LabsRefreshJob(RecurrentBackgroundJob):
             lab_ids = await cml_client.get_labs()
         except Exception as e:
             logger.error(
-                f"Failed to fetch labs from worker {worker_id}: {e}",
-                exc_info=True
+                f"Failed to fetch labs from worker {worker_id}: {e}", exc_info=True
             )
             return (0, 0, 0)
 
@@ -273,7 +279,7 @@ class LabsRefreshJob(RecurrentBackgroundJob):
             except Exception as e:
                 logger.error(
                     f"Failed to sync lab {lab_id} for worker {worker_id}: {e}",
-                    exc_info=True
+                    exc_info=True,
                 )
                 # Continue with next lab
                 continue

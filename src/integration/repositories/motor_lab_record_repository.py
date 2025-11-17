@@ -49,12 +49,13 @@ class MongoLabRecordRepository(TracedRepositoryMixin, MotorRepository[LabRecord,
         """Get a lab record by its ID."""
         return cast(LabRecord | None, await self.get_async(record_id))
 
-    async def get_by_lab_id_async(self, worker_id: str, lab_id: str) -> LabRecord | None:
+    async def get_by_lab_id_async(
+        self, worker_id: str, lab_id: str
+    ) -> LabRecord | None:
         """Get a lab record by worker ID and CML lab ID."""
-        document = await self.collection.find_one({
-            "worker_id": worker_id,
-            "lab_id": lab_id
-        })
+        document = await self.collection.find_one(
+            {"worker_id": worker_id, "lab_id": lab_id}
+        )
         if document:
             return self._deserialize_entity(document)
         return None
@@ -92,8 +93,7 @@ class MongoLabRecordRepository(TracedRepositoryMixin, MotorRepository[LabRecord,
 
         # Compound index on worker_id + lab_id for unique lookup
         await self.collection.create_index(
-            [("worker_id", 1), ("lab_id", 1)],
-            unique=True
+            [("worker_id", 1), ("lab_id", 1)], unique=True
         )
 
         # Index on last_synced_at for cleanup operations

@@ -6,9 +6,11 @@ from typing import Optional
 from multipledispatch import dispatch
 from neuroglia.data.abstractions import AggregateRoot, AggregateState
 
-from domain.events.lab_record_events import (LabRecordCreatedDomainEvent,
-                                             LabRecordUpdatedDomainEvent,
-                                             LabStateChangedDomainEvent)
+from domain.events.lab_record_events import (
+    LabRecordCreatedDomainEvent,
+    LabRecordUpdatedDomainEvent,
+    LabStateChangedDomainEvent,
+)
 
 
 class LabOperation:
@@ -38,7 +40,11 @@ class LabOperation:
     @staticmethod
     def from_dict(data: dict) -> "LabOperation":
         """Create from dictionary."""
-        timestamp = datetime.fromisoformat(data["timestamp"]) if data.get("timestamp") else datetime.now(timezone.utc)
+        timestamp = (
+            datetime.fromisoformat(data["timestamp"])
+            if data.get("timestamp")
+            else datetime.now(timezone.utc)
+        )
         return LabOperation(
             timestamp=timestamp,
             previous_state=data.get("previous_state"),
@@ -71,7 +77,9 @@ class LabRecordState(AggregateState[str]):
         self.cml_created_at: Optional[datetime] = None  # When lab was created in CML
         self.modified_at: Optional[datetime] = None  # When lab was last modified in CML
         self.last_synced_at: Optional[datetime] = None  # When we last fetched from CML
-        self.first_seen_at: Optional[datetime] = None  # When we first discovered this lab
+        self.first_seen_at: Optional[datetime] = (
+            None  # When we first discovered this lab
+        )
 
         # Operation history (stored as dicts for MongoDB serialization)
         self.operation_history: list[dict] = []  # Max 50 entries
@@ -126,7 +134,7 @@ class LabRecordState(AggregateState[str]):
         # Add to history and maintain max size
         self.operation_history.append(operation.to_dict())
         if len(self.operation_history) > self.max_history_size:
-            self.operation_history = self.operation_history[-self.max_history_size:]
+            self.operation_history = self.operation_history[-self.max_history_size :]
 
         self.state = event.new_state
 
@@ -140,6 +148,7 @@ class LabRecord(AggregateRoot[LabRecordState, str]):
     def id(self) -> str:
         """Return the aggregate identifier with a precise type."""
         from typing import cast
+
         aggregate_id = super().id()
         if aggregate_id is None:
             raise ValueError("LabRecord aggregate identifier has not been initialized")
@@ -211,9 +220,15 @@ class LabRecord(AggregateRoot[LabRecordState, str]):
             if self.state.title != title:
                 changed_fields["title"] = {"old": self.state.title, "new": title}
             if self.state.node_count != node_count:
-                changed_fields["node_count"] = {"old": self.state.node_count, "new": node_count}
+                changed_fields["node_count"] = {
+                    "old": self.state.node_count,
+                    "new": node_count,
+                }
             if self.state.link_count != link_count:
-                changed_fields["link_count"] = {"old": self.state.link_count, "new": link_count}
+                changed_fields["link_count"] = {
+                    "old": self.state.link_count,
+                    "new": link_count,
+                }
 
             state_change_event = LabStateChangedDomainEvent(
                 aggregate_id=self.id(),

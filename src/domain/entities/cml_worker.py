@@ -13,21 +13,26 @@ from multipledispatch import dispatch
 from neuroglia.data.abstractions import AggregateRoot, AggregateState
 
 from domain.enums import CMLServiceStatus, CMLWorkerStatus, LicenseStatus
-from domain.events.cloudwatch_monitoring_updated_domain_event import \
-    CloudWatchMonitoringUpdatedDomainEvent
-from domain.events.cml_worker import (CMLServiceStatusUpdatedDomainEvent,
-                                      CMLWorkerCreatedDomainEvent,
-                                      CMLWorkerEndpointUpdatedDomainEvent,
-                                      CMLWorkerImportedDomainEvent,
-                                      CMLWorkerInstanceAssignedDomainEvent,
-                                      CMLWorkerLicenseUpdatedDomainEvent,
-                                      CMLWorkerStatusUpdatedDomainEvent,
-                                      CMLWorkerTelemetryUpdatedDomainEvent,
-                                      CMLWorkerTerminatedDomainEvent)
-from domain.events.worker_metrics_events import (CloudWatchMetricsUpdatedDomainEvent,
-                                                 CMLMetricsUpdatedDomainEvent,
-                                                 EC2InstanceDetailsUpdatedDomainEvent,
-                                                 EC2MetricsUpdatedDomainEvent)
+from domain.events.cloudwatch_monitoring_updated_domain_event import (
+    CloudWatchMonitoringUpdatedDomainEvent,
+)
+from domain.events.cml_worker import (
+    CMLServiceStatusUpdatedDomainEvent,
+    CMLWorkerCreatedDomainEvent,
+    CMLWorkerEndpointUpdatedDomainEvent,
+    CMLWorkerImportedDomainEvent,
+    CMLWorkerInstanceAssignedDomainEvent,
+    CMLWorkerLicenseUpdatedDomainEvent,
+    CMLWorkerStatusUpdatedDomainEvent,
+    CMLWorkerTelemetryUpdatedDomainEvent,
+    CMLWorkerTerminatedDomainEvent,
+)
+from domain.events.worker_metrics_events import (
+    CloudWatchMetricsUpdatedDomainEvent,
+    CMLMetricsUpdatedDomainEvent,
+    EC2InstanceDetailsUpdatedDomainEvent,
+    EC2MetricsUpdatedDomainEvent,
+)
 
 
 class CMLWorkerState(AggregateState[str]):
@@ -751,7 +756,9 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
             True if worker is idle beyond threshold, False otherwise
         """
         # Check last activity from either CloudWatch or CML metrics
-        last_activity = self.state.cloudwatch_last_collected_at or self.state.cml_last_synced_at
+        last_activity = (
+            self.state.cloudwatch_last_collected_at or self.state.cml_last_synced_at
+        )
         if not last_activity:
             return False
 

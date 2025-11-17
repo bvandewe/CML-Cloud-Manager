@@ -11,8 +11,9 @@ from datetime import datetime, timezone
 
 from neuroglia.core import OperationResult
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_bus import CloudEventBus
-from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import \
-    CloudEventPublishingOptions
+from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import (
+    CloudEventPublishingOptions,
+)
 from neuroglia.mapping import Mapper
 from neuroglia.mediation import Command, CommandHandler, Mediator
 from neuroglia.observability.tracing import add_span_attributes
@@ -21,8 +22,10 @@ from opentelemetry import trace
 from application.settings import Settings
 from domain.enums import CMLServiceStatus, CMLWorkerStatus
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
-from integration.enums import (AwsRegion,
-                               Ec2InstanceResourcesUtilizationRelativeStartTime)
+from integration.enums import (
+    AwsRegion,
+    Ec2InstanceResourcesUtilizationRelativeStartTime,
+)
 from integration.exceptions import IntegrationException
 from integration.services.aws_ec2_api_client import AwsEc2Client
 from integration.services.cml_api_client import CMLApiClient
@@ -157,7 +160,9 @@ class RefreshWorkerMetricsCommandHandler(
                 )
 
                 if not status_checks:
-                    error_msg = f"EC2 instance {worker.state.aws_instance_id} not found in AWS"
+                    error_msg = (
+                        f"EC2 instance {worker.state.aws_instance_id} not found in AWS"
+                    )
                     log.error(error_msg)
                     return self.bad_request(error_msg)
 
@@ -211,7 +216,10 @@ class RefreshWorkerMetricsCommandHandler(
                 monitoring_enabled = monitoring_state == "enabled"
 
                 # Update worker monitoring status if changed
-                if worker.state.cloudwatch_detailed_monitoring_enabled != monitoring_enabled:
+                if (
+                    worker.state.cloudwatch_detailed_monitoring_enabled
+                    != monitoring_enabled
+                ):
                     worker.update_cloudwatch_monitoring(monitoring_enabled)
                     log.info(
                         f"Worker {command.worker_id} CloudWatch monitoring status updated: {monitoring_state}"
@@ -318,7 +326,9 @@ class RefreshWorkerMetricsCommandHandler(
                                     f"enterprise={system_health.is_enterprise})"
                                 )
                             span.set_attribute("health_check.passed", True)
-                            span.set_attribute("service.licensed", system_health.is_licensed)
+                            span.set_attribute(
+                                "service.licensed", system_health.is_licensed
+                            )
                         else:
                             # Service responded but not healthy
                             worker.update_service_status(
@@ -434,11 +444,23 @@ class RefreshWorkerMetricsCommandHandler(
 
                             span.set_attribute("cml.version", cml_version or "unknown")
                             span.set_attribute("cml.ready", cml_ready)
-                            span.set_attribute("cml.licensed", system_health.is_licensed if system_health else False)
-                            span.set_attribute("cml.valid", system_health.valid if system_health else False)
-                            span.set_attribute("cml.nodes_running", system_stats.running_nodes)
-                            span.set_attribute("cml.nodes_total", system_stats.total_nodes)
-                            span.set_attribute("cml.cpu_allocated", system_stats.allocated_cpus)
+                            span.set_attribute(
+                                "cml.licensed",
+                                system_health.is_licensed if system_health else False,
+                            )
+                            span.set_attribute(
+                                "cml.valid",
+                                system_health.valid if system_health else False,
+                            )
+                            span.set_attribute(
+                                "cml.nodes_running", system_stats.running_nodes
+                            )
+                            span.set_attribute(
+                                "cml.nodes_total", system_stats.total_nodes
+                            )
+                            span.set_attribute(
+                                "cml.cpu_allocated", system_stats.allocated_cpus
+                            )
 
                             log.info(
                                 f"Worker {command.worker_id} CML stats: "
@@ -540,6 +562,28 @@ class RefreshWorkerMetricsCommandHandler(
                 "updated_at": datetime.now(timezone.utc).isoformat(),
                 "metrics": metrics_summary,
             }
+
+            # 7. Broadcast event to SSE clients for real-time UI updates
+            try:
+                from application.services.sse_event_relay import get_sse_relay
+
+                sse_relay = get_sse_relay()
+                await sse_relay.broadcast_event(
+                    event_type="worker.metrics.updated",
+                    data={
+                        "worker_id": command.worker_id,
+                        "status": worker.state.status.value,
+                        "cpu_utilization": worker.state.cloudwatch_cpu_utilization,
+                        "memory_utilization": worker.state.cloudwatch_memory_utilization,
+                        "labs_count": worker.state.cml_labs_count,
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    },
+                )
+            except Exception as e:
+                # Don't fail the command if SSE broadcast fails
+                log.warning(
+                    f"Failed to broadcast SSE event for worker {command.worker_id}: {e}"
+                )
 
             log.info(f"✅ Metrics refresh completed for worker {command.worker_id}")
             return self.ok(response)

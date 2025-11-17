@@ -14,8 +14,10 @@ from opentelemetry import trace
 
 from domain.enums import CMLWorkerStatus
 from domain.repositories import CMLWorkerRepository
-from integration.enums import (AwsRegion,
-                               Ec2InstanceResourcesUtilizationRelativeStartTime)
+from integration.enums import (
+    AwsRegion,
+    Ec2InstanceResourcesUtilizationRelativeStartTime,
+)
 from integration.services.aws_ec2_api_client import AwsEc2Client
 
 logger = logging.getLogger(__name__)
