@@ -38,6 +38,17 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
   - **Delete button in Worker Details modal footer**: Delete Worker button added to the footer of the Worker Details modal
     - Positioned on the left side, separated from Refresh and Close buttons
     - Opens the Delete Worker modal when clicked
+
+#### Dark Theme Support
+
+- **Native Bootstrap Theme Switcher**: Toggle between light and dark themes
+  - Theme toggle button in navbar with moon/sun icon
+  - Dark theme: pure white text on black background
+  - Light theme: standard black text on white background (Bootstrap default)
+  - Theme preference persisted in localStorage
+  - Applies Bootstrap's `data-bs-theme` attribute for native dark mode
+  - Custom CSS overrides for cards, tables, modals, and form controls
+  - Icon changes based on current theme (moon for light mode, sun for dark mode)
     - Pre-fills modal with current worker's information
     - Admin-only visibility (hidden for non-admin users)
 - **Admin-Only Controls**: Delete functionality restricted to administrators

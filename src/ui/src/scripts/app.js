@@ -8,6 +8,7 @@ import { login, logout, showLoginForm, showDashboard } from './ui/auth.js';
 import { loadTasks, handleCreateTask, handleUpdateTask } from './ui/tasks.js';
 import { initializeWorkersView } from './ui/workers.js';
 import { initializeSystemView } from './ui/system.js';
+import { initializeTheme } from './services/theme.js';
 
 // Current user and active view
 let currentUser = null;
