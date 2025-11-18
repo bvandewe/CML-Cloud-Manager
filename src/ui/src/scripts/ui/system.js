@@ -229,47 +229,45 @@ async function loadWorkerMonitoring() {
 }
 
 /**
- * Load metrics collectors status
+ * Delete a scheduled job (admin only)
  */
-async function loadMetricsCollectors() {
+async function deleteJob(jobId) {
+    if (!checkRole('admin')) {
+        showToast('Permission denied. Admin access required.', 'error');
+        return;
+    }
+
+    if (!confirm(`Are you sure you want to delete job "${jobId}"?`)) {
+        return;
+    }
+
     try {
-        const data = await systemApi.getMetricsCollectorsStatus();
+        const response = await fetch(`/api/system/scheduler/jobs/${jobId}`, {
+            method: 'DELETE',
+            credentials: 'include',
+        });
 
-        const container = document.getElementById('collectors-list');
-        if (container) {
-            container.innerHTML = renderCollectorsList(data);
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || 'Failed to delete job');
         }
+
+        showToast('Job deleted successfully', 'success');
+        await refreshScheduler();
     } catch (error) {
-        console.error('Failed to load metrics collectors:', error);
-        const container = document.getElementById('collectors-list');
-
-        // Check if it's a permission error
-        const isPermissionError = error.message && error.message.includes('Permission denied');
-
-        if (container) {
-            if (isPermissionError) {
-                container.innerHTML = `
-                    <div class="alert alert-warning">
-                        <i class="bi bi-shield-lock me-2"></i>
-                        ${error.message}
-                    </div>
-                `;
-            } else {
-                container.innerHTML = `
-                    <div class="alert alert-danger">
-                        <i class="bi bi-exclamation-circle me-2"></i>
-                        Failed to load metrics collectors
-                    </div>
-                `;
-            }
-        }
-
-        // Only show toast for non-permission errors
-        if (!isPermissionError) {
-            showToast('Failed to load metrics collectors', 'error');
-        }
+        console.error('Failed to delete job:', error);
+        showToast(error.message || 'Failed to delete job', 'error');
     }
 }
+
+// Export public API
+window.systemApp = {
+    init,
+    refreshHealth,
+    refreshScheduler,
+    refreshMonitoring,
+    deleteJob,
+};
 
 /**
  * Render health components HTML
@@ -316,6 +314,8 @@ function renderHealthComponents(components) {
  * Render scheduler jobs table
  */
 function renderSchedulerJobs(jobs) {
+    const isAdmin = checkRole('admin');
+
     let html = `
         <div class="table-responsive">
             <table class="table table-hover">
@@ -327,6 +327,7 @@ function renderSchedulerJobs(jobs) {
                         <th>Trigger</th>
                         <th>Next Run</th>
                         <th>Status</th>
+                        ${isAdmin ? '<th>Actions</th>' : ''}
                     </tr>
                 </thead>
                 <tbody>
@@ -344,6 +345,16 @@ function renderSchedulerJobs(jobs) {
                 <td><small>${job.trigger || 'N/A'}</small></td>
                 <td>${nextRun}</td>
                 <td>${statusBadge}</td>
+                ${
+                    isAdmin
+                        ? `
+                <td>
+                    <button class="btn btn-sm btn-outline-danger" onclick="window.systemApp.deleteJob('${job.id}')" title="Delete Job">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>`
+                        : ''
+                }
             </tr>
         `;
     });
@@ -386,40 +397,18 @@ function renderMonitoringDetails(monitoring) {
             </div>
             <div class="text-muted small mt-3">
                 <strong>Note:</strong> There is one monitoring job per CML Worker. Each job polls AWS EC2 and CloudWatch APIs every 5 minutes to track worker status and metrics.
+                To view individual monitoring jobs, check the <strong>Scheduler</strong> tab.
             </div>
         `;
-    } else if (monitoring.jobs && monitoring.jobs.length > 0) {
+    } else {
         html += `
-            <h6 class="mb-3">Active Monitoring Jobs (${monitoring.jobs.length})</h6>
-            <div class="table-responsive">
-                <table class="table table-sm table-hover">
-                    <thead>
-                        <tr>
-                            <th>Job ID</th>
-                            <th>Name</th>
-                            <th>Next Run</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-        `;
-
-        monitoring.jobs.forEach(job => {
-            const nextRun = job.next_run_time ? formatDateTime(job.next_run_time) : 'N/A';
-            html += `
-                <tr>
-                    <td><code class="small">${job.id}</code></td>
-                    <td>${job.name || 'Unnamed Job'}</td>
-                    <td>${nextRun}</td>
-                </tr>
-            `;
-        });
-
-        html += `
-                    </tbody>
-                </table>
+            <div class="alert alert-success">
+                <i class="bi bi-check-circle me-2"></i>
+                Currently monitoring <strong>${monitoring.monitoring_job_count}</strong> worker(s).
+                To view individual monitoring jobs and manage them, check the <strong>Scheduler</strong> tab.
             </div>
             <div class="text-muted small mt-3">
-                <strong>Note:</strong> Each job monitors one CML Worker's EC2 instance and collects CloudWatch metrics.
+                <strong>Note:</strong> Each CML Worker has a dedicated monitoring job that polls AWS EC2 and CloudWatch APIs every 5 minutes.
             </div>
         `;
     }
@@ -430,65 +419,6 @@ function renderMonitoringDetails(monitoring) {
 /**
  * Render collectors list
  */
-function renderCollectorsList(data) {
-    const collectors = data.collectors || [];
-
-    if (collectors.length === 0) {
-        return `
-            <div class="alert alert-info">
-                <i class="bi bi-info-circle me-2"></i>
-                ${data.message || 'No collectors configured. Collectors are created automatically when workers are imported or created.'}
-            </div>
-            <div class="text-muted small mt-3">
-                <strong>Note:</strong> There is one metrics collector per CML Worker. Each collector monitors the worker's EC2 instance status and CloudWatch metrics.
-            </div>
-        `;
-    }
-
-    let html = `
-        <div class="alert alert-info mb-3">
-            <i class="bi bi-info-circle me-2"></i>
-            <strong>Active Collectors:</strong> ${data.active_collectors} of ${data.total_collectors}
-            (Polling every ${data.poll_interval}s)
-        </div>
-        <div class="table-responsive">
-            <table class="table table-hover">
-                <thead>
-                    <tr>
-                        <th>Worker ID</th>
-                        <th>Job ID</th>
-                        <th>Status</th>
-                        <th>Poll Interval</th>
-                    </tr>
-                </thead>
-                <tbody>
-    `;
-
-    collectors.forEach(collector => {
-        const statusBadge = collector.status === 'active' ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-danger">Inactive</span>';
-
-        html += `
-            <tr>
-                <td><code>${collector.worker_id}</code></td>
-                <td><code class="small">${collector.job_id}</code></td>
-                <td>${statusBadge}</td>
-                <td>${collector.interval}</td>
-            </tr>
-        `;
-    });
-
-    html += `
-                </tbody>
-            </table>
-        </div>
-        <div class="text-muted small mt-3">
-            <strong>Note:</strong> Each CML Worker has a dedicated metrics collector that polls AWS EC2 and CloudWatch APIs to monitor instance status and resource utilization.
-        </div>
-    `;
-
-    return html;
-}
-
 /**
  * Helper: Get status badge HTML
  */
