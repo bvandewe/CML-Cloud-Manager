@@ -1384,7 +1384,7 @@ async function loadCloudWatchMetrics(workerId, region) {
 
     try {
         // Get worker data to access CML telemetry metrics
-        const worker = await workersApi.getWorkerById(region, workerId);
+        const worker = await workersApi.getWorkerDetails(region, workerId);
 
         const cpuValue = worker.cpu_utilization;
         const memValue = worker.memory_utilization;
