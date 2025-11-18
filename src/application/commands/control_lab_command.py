@@ -2,6 +2,7 @@
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from enum import Enum
 
 from neuroglia.core import OperationResult
@@ -14,6 +15,10 @@ from neuroglia.mediation import Command, CommandHandler, Mediator
 from opentelemetry import trace
 
 from application.commands.command_handler_base import CommandHandlerBase
+from application.jobs.on_demand_worker_data_refresh_job import (
+    OnDemandWorkerDataRefreshJob,
+)
+from application.services.background_scheduler import BackgroundTaskScheduler
 from application.settings import Settings
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
 from integration.services.cml_api_client import CMLApiClient
@@ -58,6 +63,7 @@ class ControlLabCommandHandler(
         cloud_event_bus: CloudEventBus,
         cloud_event_publishing_options: CloudEventPublishingOptions,
         cml_worker_repository: CMLWorkerRepository,
+        background_task_scheduler: BackgroundTaskScheduler,
         settings: Settings,
     ):
         super().__init__(
@@ -67,6 +73,7 @@ class ControlLabCommandHandler(
             cloud_event_publishing_options,
         )
         self.cml_worker_repository = cml_worker_repository
+        self.background_task_scheduler = background_task_scheduler
         self.settings = settings
 
     async def handle_async(self, request: ControlLabCommand) -> OperationResult[dict]:
@@ -137,6 +144,10 @@ class ControlLabCommandHandler(
                     log.info(
                         f"Successfully performed {command.action.value} on lab {command.lab_id}"
                     )
+
+                    # Schedule on-demand worker data refresh after lab operation
+                    await self._schedule_worker_refresh(command.worker_id)
+
                     return self.ok(
                         {
                             "lab_id": command.lab_id,
@@ -153,3 +164,32 @@ class ControlLabCommandHandler(
                 error_msg = f"Error performing {command.action.value} on lab {command.lab_id}: {str(e)}"
                 log.error(error_msg, exc_info=True)
                 return self.bad_request(error_msg)
+
+    async def _schedule_worker_refresh(self, worker_id: str) -> None:
+        """Schedule an on-demand worker data refresh after lab operation.
+
+        Args:
+            worker_id: ID of the worker to refresh
+        """
+        try:
+            job_id = f"on_demand_refresh_{worker_id}"
+
+            # Create and schedule job
+            job = OnDemandWorkerDataRefreshJob(worker_id=worker_id)
+            job.__task_id__ = job_id
+            job.__task_name__ = "OnDemandWorkerDataRefreshJob"
+            job.__background_task_type__ = "scheduled"
+            job.__scheduled_at__ = datetime.now(timezone.utc)
+
+            # Enqueue via scheduler
+            await self.background_task_scheduler.enqueue_task_async(job)
+
+            log.info(
+                f"Scheduled on-demand refresh for worker {worker_id} after lab operation"
+            )
+        except Exception as ex:
+            # Log but don't fail the lab operation if refresh scheduling fails
+            log.warning(
+                f"Failed to schedule worker refresh for {worker_id}: {ex}",
+                exc_info=True,
+            )

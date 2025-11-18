@@ -6,6 +6,14 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ## [Unreleased]
 
+### Added
+
+- **Lab Operations Auto-Refresh**: Lab control commands (start/stop/wipe) now automatically schedule on-demand worker data refresh
+  - Ensures worker metrics and lab states are updated after lab operations
+  - Non-blocking: refresh scheduling failures don't affect lab operation success
+  - Uses existing `OnDemandWorkerDataRefreshJob` infrastructure
+  - Improves data consistency and real-time UI updates
+
 ### Changed
 
 - **Import Organization**: Removed all inline imports from application layer (jobs, commands, queries, event handlers)
