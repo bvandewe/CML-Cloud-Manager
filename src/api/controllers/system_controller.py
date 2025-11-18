@@ -53,6 +53,13 @@ class SystemController(ControllerBase):
             jobs = []
             if scheduler and scheduler._scheduler:
                 for job in scheduler._scheduler.get_jobs():
+                    # Extract the actual command/job class name from kwargs
+                    command_name = (
+                        job.kwargs.get("task_type_name", "N/A")
+                        if hasattr(job, "kwargs") and job.kwargs
+                        else job.name or "N/A"
+                    )
+
                     jobs.append(
                         {
                             "id": job.id,
@@ -63,7 +70,7 @@ class SystemController(ControllerBase):
                                 else None
                             ),
                             "trigger": str(job.trigger),
-                            "func": f"{job.func.__module__}.{job.func.__name__}",
+                            "command": command_name,
                             "pending": job.pending,
                         }
                     )

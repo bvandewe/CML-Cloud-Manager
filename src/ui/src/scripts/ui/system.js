@@ -310,7 +310,7 @@ function renderSchedulerJobs(jobs) {
                     <tr>
                         <th>Job ID</th>
                         <th>Name</th>
-                        <th>Function</th>
+                        <th>Command</th>
                         <th>Trigger</th>
                         <th>Next Run</th>
                         <th>Status</th>
@@ -328,7 +328,7 @@ function renderSchedulerJobs(jobs) {
             <tr>
                 <td><code>${job.id}</code></td>
                 <td>${job.name || 'N/A'}</td>
-                <td><small>${job.func || 'N/A'}</small></td>
+                <td><small>${job.command || 'N/A'}</small></td>
                 <td><small>${job.trigger || 'N/A'}</small></td>
                 <td>${nextRun}</td>
                 <td>${statusBadge}</td>
