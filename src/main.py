@@ -1,8 +1,6 @@
 """Main application entry point with SubApp mounting."""
 
 import logging
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -28,12 +26,7 @@ from api.services.openapi_config import (
     configure_api_openapi,
     configure_mounted_apps_openapi_prefix,
 )
-from application.services import (
-    BackgroundTasksBus,
-    BackgroundTaskScheduler,
-    WorkerMonitoringScheduler,
-    WorkerNotificationHandler,
-)
+from application.services.background_scheduler import BackgroundTaskScheduler
 from application.services.sse_event_relay import SSEEventRelayHostedService
 from application.settings import app_settings, configure_logging
 from domain.entities import Task
@@ -53,114 +46,6 @@ from integration.services.aws_ec2_api_client import AwsEc2Client
 
 configure_logging(log_level=app_settings.log_level)
 log = logging.getLogger(__name__)
-
-
-# Global reference to monitoring scheduler for lifecycle management
-_monitoring_scheduler: WorkerMonitoringScheduler | None = None
-
-
-@asynccontextmanager
-async def lifespan_with_monitoring(app: FastAPI) -> AsyncIterator[None]:
-    """Lifespan context manager for worker monitoring startup and shutdown.
-
-    Manages the lifecycle of the worker monitoring scheduler:
-    - Startup: Creates and starts the monitoring scheduler with scoped dependencies
-    - Shutdown: Stops the monitoring scheduler
-
-    Args:
-        app: FastAPI application instance with configured services
-
-    Yields:
-        Control to the application during its runtime
-    """
-    global _monitoring_scheduler
-
-    # Startup
-    if app_settings.worker_monitoring_enabled:
-        log.info("🚀 Starting worker monitoring scheduler...")
-
-        # Create a scope to access scoped services like repositories
-        # Note: create_scope() returns a regular context manager, not async
-        scope = app.state.services.create_scope()
-        try:
-            # Get required dependencies from scoped service provider
-            worker_repository = scope.get_required_service(CMLWorkerRepository)
-            lab_record_repository = scope.get_required_service(LabRecordRepository)
-            aws_client = scope.get_required_service(AwsEc2Client)
-            background_task_bus = scope.get_required_service(BackgroundTasksBus)
-            background_task_scheduler = scope.get_required_service(
-                BackgroundTaskScheduler
-            )
-
-            # Get notification handler singleton from service provider
-            notification_handler = scope.get_required_service(WorkerNotificationHandler)
-
-            # Create monitoring scheduler
-            scheduler = WorkerMonitoringScheduler(
-                worker_repository=worker_repository,
-                aws_client=aws_client,
-                notification_handler=notification_handler,
-                background_task_bus=background_task_bus,
-                background_task_scheduler=background_task_scheduler,
-                poll_interval=app_settings.worker_metrics_poll_interval,
-            )
-
-            # Store reference for lifecycle management
-            _monitoring_scheduler = scheduler
-
-            # Start the scheduler
-            await _monitoring_scheduler.start_async()
-
-            log.info("✅ Worker monitoring scheduler started")
-
-            # Create lab record indexes
-            await lab_record_repository.ensure_indexes_async()
-            log.info("✅ Lab record indexes created")
-
-            # Schedule labs refresh job (runs every 30 minutes for all workers)
-            from application.services.background_scheduler import (
-                RecurrentTaskDescriptor,
-            )
-            from application.services.labs_refresh_job import LabsRefreshJob
-
-            # Create task descriptor for labs refresh job
-            labs_refresh_task = RecurrentTaskDescriptor(
-                id="labs-refresh-global",
-                name="LabsRefreshJob",
-                data={},  # No worker_id needed - this job processes all workers
-                interval=1800,  # 30 minutes in seconds
-            )
-
-            # Schedule via BackgroundTasksBus
-            background_task_bus.schedule_task(labs_refresh_task)
-
-            log.info("✅ Scheduled labs refresh job (30-minute interval)")
-
-            # Run initial labs refresh immediately on startup to preload data
-            log.info("🔄 Running initial labs refresh on startup...")
-            try:
-                initial_job = LabsRefreshJob()
-                initial_job._service_provider = scope
-                from typing import Any, cast
-
-                cast(Any, initial_job).configure()  # Not async - no await
-                await initial_job.run_every()
-                log.info("✅ Initial labs refresh completed")
-            except Exception as e:
-                log.error(f"❌ Initial labs refresh failed: {e}", exc_info=True)
-        finally:
-            # Dispose the scope after initialization
-            scope.dispose()
-    else:
-        log.info("⚠️ Worker monitoring disabled in settings")
-
-    yield  # Application runs
-
-    # Shutdown
-    if _monitoring_scheduler:
-        log.info("🛑 Stopping worker monitoring scheduler...")
-        await _monitoring_scheduler.stop_async()
-        log.info("✅ Worker monitoring scheduler stopped")
 
 
 def create_app() -> FastAPI:
@@ -247,23 +132,16 @@ def create_app() -> FastAPI:
     # Configure BackgroundTaskScheduler for worker monitoring jobs
     BackgroundTaskScheduler.configure(
         builder,
-        modules=["application.services"],  # Scan for @backgroundjob decorated classes
+        modules=["application.jobs"],  # Scan for @backgroundjob decorated classes
     )
 
     # Configure SSE Event Relay hosted service
-    SSEEventRelayHostedService.configure(builder)  # typed configure
+    SSEEventRelayHostedService.configure(builder)
 
-    # Register WorkerNotificationHandler as singleton service
-    # This allows jobs to look it up from service provider without pickling callback references
+    # Schedule recurring background jobs if monitoring enabled
     if app_settings.worker_monitoring_enabled:
-        notification_handler_instance = WorkerNotificationHandler(
-            cpu_threshold=90.0,
-            memory_threshold=90.0,
-        )
-        builder.services.add_singleton(
-            WorkerNotificationHandler, singleton=notification_handler_instance
-        )
-        log.info("✅ Registered WorkerNotificationHandler as singleton service")
+        # Jobs will be scheduled after application startup via lifespan context
+        log.info("✅ Worker monitoring enabled - jobs will be scheduled on startup")
 
     # Configure authentication services (session store + auth service)
     DualAuthService.configure(builder)
@@ -307,14 +185,6 @@ def create_app() -> FastAPI:
         version="1.0.0",
         debug=True,
     )
-
-    # Integrate worker monitoring lifespan
-    # Since build_app_with_lifespan already manages core lifespan,
-    # we add monitoring as an additional router with lifespan
-    from fastapi import APIRouter
-
-    monitoring_router = APIRouter(lifespan=lifespan_with_monitoring)
-    app.include_router(monitoring_router)
 
     # Configure OpenAPI path prefixes for all mounted sub-apps
     configure_mounted_apps_openapi_prefix(app)

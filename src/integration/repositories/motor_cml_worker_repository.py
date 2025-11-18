@@ -167,6 +167,49 @@ class MongoCMLWorkerRepository(TracedRepositoryMixin, MotorRepository[CMLWorker,
         """
         return cast(CMLWorker, await super().update_async(entity))
 
+    async def update_many_async(self, entities: list[CMLWorker]) -> int:
+        """Update multiple CML workers in a batch operation.
+
+        Uses MongoDB's bulk_write for efficient batch updates.
+
+        Args:
+            entities: List of CMLWorker entities to update
+
+        Returns:
+            Number of workers updated
+        """
+        if not entities:
+            return 0
+
+        from pymongo import UpdateOne
+
+        operations = []
+        for entity in entities:
+            # Serialize the entity state
+            serialized = self._serializer.serialize(entity.state)
+
+            # Create update operation using Motor's collection
+            operations.append(
+                UpdateOne(
+                    {"id": entity.id()},
+                    {"$set": serialized},
+                )
+            )
+
+        # Execute bulk write using Motor's async bulk_write
+        result = await self.collection.bulk_write(operations, ordered=False)
+
+        # Publish domain events for each entity (if mediator configured)
+        if self._mediator:
+            for entity in entities:
+                # Use the _pending_events attribute from AggregateRoot
+                if hasattr(entity, "_pending_events") and entity._pending_events:
+                    for event in entity._pending_events:
+                        await self._mediator.publish_async(event)
+                    entity.clear_pending_events()
+
+        return result.modified_count
+
     async def delete_async(
         self, worker_id: str, worker: Optional[CMLWorker] = None
     ) -> bool:

@@ -62,6 +62,18 @@ class CMLWorkerRepository(ABC):
         pass
 
     @abstractmethod
+    async def update_many_async(self, entities: list[CMLWorker]) -> int:
+        """Update multiple CML workers in a batch operation.
+
+        Args:
+            entities: List of CMLWorker entities to update
+
+        Returns:
+            Number of workers updated
+        """
+        pass
+
+    @abstractmethod
     async def delete_async(
         self, worker_id: str, worker: Optional[CMLWorker] = None
     ) -> bool:
