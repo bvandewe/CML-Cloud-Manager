@@ -40,7 +40,8 @@ except ImportError:
     AsyncIOScheduler = None
 
 if TYPE_CHECKING:
-    from neuroglia.hosting.abstractions import ApplicationBuilderBase, HostedService
+    from neuroglia.hosting.abstractions import HostedService
+    from neuroglia.hosting.web import WebApplicationBuilder
 else:
     # Avoid circular imports
     try:
@@ -682,8 +683,13 @@ class BackgroundTaskScheduler(HostedService):
             return None
 
     @staticmethod
-    def configure(builder, modules: list[str]):
-        """Register and configure background task services in the application builder."""
+    def configure(builder: "WebApplicationBuilder", modules: list[str]) -> None:
+        """Register and configure background task services in the application builder.
+
+        Args:
+            builder: Application builder instance
+            modules: List of module names to scan for background tasks
+        """
         try:
             if AsyncIOScheduler is None:
                 raise BackgroundTaskException(
@@ -839,9 +845,7 @@ class BackgroundTaskScheduler(HostedService):
                     BackgroundTaskScheduler
                 ),
             )
-            log.info("Background task scheduler services registered successfully")
-
-            return builder
+            log.info("✅ Background task scheduler services registered successfully")
 
         except Exception as ex:
             log.error(f"Error configuring background task scheduler: {ex}")

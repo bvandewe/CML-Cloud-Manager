@@ -6,6 +6,17 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ## [Unreleased]
 
+### Changed
+
+- **Service Registration Patterns**: Unified DI registration patterns across all `application.services`
+  - Standardized to `@staticmethod` decorator (removed `@classmethod`)
+  - Consistent `implementation_factory=lambda` pattern for services with dependencies
+  - All `configure()` methods now return `None` (builder modified in-place)
+  - Added docstrings with Args sections for clarity
+  - Unified log messages with ✅ emoji for consistency
+  - Affects: `SSEEventRelayHostedService`, `WorkerMetricsService`, `BackgroundTaskScheduler`
+  - See: `notes/SERVICE_REGISTRATION_PATTERNS_UNIFIED.md`
+
 ### Fixed
 
 - **Metrics Display Consistency**: Fixed inconsistent CPU/memory metrics between table and modal views

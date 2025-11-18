@@ -78,24 +78,6 @@ class WorkerMetricsService:
         self._aws_client = aws_ec2_client
         self._scheduler = background_task_scheduler
 
-    @staticmethod
-    def configure(builder: "WebApplicationBuilder") -> None:
-        """Configure the metrics service in the application builder.
-
-        Args:
-            builder: Application builder instance
-        """
-
-        def create_service(service_provider):
-            """Factory to create WorkerMetricsService with dependencies."""
-            aws_client = service_provider.get_required_service(AwsEc2Client)
-            scheduler = service_provider.get_required_service(BackgroundTaskScheduler)
-            return WorkerMetricsService(aws_client, scheduler)
-
-        # Register as singleton with factory function (no singleton= parameter)
-        builder.services.add_singleton(WorkerMetricsService, create_service)
-        logger.info("✅ WorkerMetricsService configured as singleton")
-
     async def collect_worker_metrics(
         self,
         worker: CMLWorker,
@@ -326,6 +308,22 @@ class WorkerMetricsService:
         }
 
         return state_mapping.get(ec2_state, CMLWorkerStatus.UNKNOWN)
-        return state_mapping.get(ec2_state, CMLWorkerStatus.UNKNOWN)
-        return state_mapping.get(ec2_state, CMLWorkerStatus.UNKNOWN)
-        return state_mapping.get(ec2_state, CMLWorkerStatus.UNKNOWN)
+
+    @staticmethod
+    def configure(builder: "WebApplicationBuilder") -> None:
+        """Configure the metrics service in the application builder.
+
+        Args:
+            builder: Application builder instance
+        """
+        # Register as singleton with factory (depends on AwsEc2Client and BackgroundTaskScheduler)
+        builder.services.add_singleton(
+            WorkerMetricsService,
+            implementation_factory=lambda provider: WorkerMetricsService(
+                aws_ec2_client=provider.get_required_service(AwsEc2Client),
+                background_task_scheduler=provider.get_required_service(
+                    BackgroundTaskScheduler
+                ),
+            ),
+        )
+        logger.info("✅ WorkerMetricsService configured as singleton")

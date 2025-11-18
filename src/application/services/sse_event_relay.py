@@ -4,10 +4,13 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from neuroglia.hosting.abstractions import HostedService
+
+if TYPE_CHECKING:
+    from neuroglia.hosting.web import WebApplicationBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -181,16 +184,24 @@ class SSEEventRelayHostedService(HostedService):
             logger.warning(f"Exception when broadcasting shutdown event: {e}")
         self._started = False
 
-    @classmethod
-    def configure(cls, builder: Any) -> Any:
-        """Register the relay and hosted service with the DI builder."""
+    @staticmethod
+    def configure(builder: "WebApplicationBuilder") -> None:
+        """Register the relay and hosted service with the DI builder.
+
+        Args:
+            builder: Application builder instance
+        """
+        # Register SSEEventRelay as singleton (no dependencies)
         builder.services.add_singleton(SSEEventRelay)
+
+        # Register SSEEventRelayHostedService with factory (depends on relay)
         builder.services.add_singleton(
             SSEEventRelayHostedService,
             implementation_factory=lambda provider: SSEEventRelayHostedService(
                 provider.get_required_service(SSEEventRelay)
             ),
         )
+
         # Attempt to also register as generic HostedService if available
         try:
             builder.services.add_singleton(
@@ -203,5 +214,5 @@ class SSEEventRelayHostedService(HostedService):
             logger.warning(
                 f"Exception when registering SSEEventRelayHostedService: {e}"
             )
-        logger.info("Registered SSEEventRelayHostedService")
-        return builder
+
+        logger.info("✅ SSEEventRelayHostedService configured as singleton")
