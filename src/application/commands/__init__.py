@@ -46,6 +46,10 @@ from .refresh_worker_metrics_command import (
     RefreshWorkerMetricsCommand,
     RefreshWorkerMetricsCommandHandler,
 )
+from .request_worker_data_refresh_command import (
+    RequestWorkerDataRefreshCommand,
+    RequestWorkerDataRefreshCommandHandler,
+)
 from .start_cml_worker_command import (
     StartCMLWorkerCommand,
     StartCMLWorkerCommandHandler,
@@ -104,6 +108,8 @@ __all__ = [
     "RefreshWorkerLabsCommandHandler",
     "RefreshWorkerMetricsCommand",
     "RefreshWorkerMetricsCommandHandler",
+    "RequestWorkerDataRefreshCommand",
+    "RequestWorkerDataRefreshCommandHandler",
     "StartCMLWorkerCommand",
     "StartCMLWorkerCommandHandler",
     "StopCMLWorkerCommand",

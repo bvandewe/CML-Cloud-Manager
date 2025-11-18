@@ -18,6 +18,7 @@ from domain.events.cml_worker import (
     CMLWorkerTelemetryUpdatedDomainEvent,
     CMLWorkerTerminatedDomainEvent,
 )
+from domain.repositories.cml_worker_repository import CMLWorkerRepository
 
 log = logging.getLogger(__name__)
 
@@ -29,10 +30,12 @@ def _utc_iso(dt: datetime) -> str:
 class CMLWorkerCreatedDomainEventHandler(
     DomainEventHandler[CMLWorkerCreatedDomainEvent]
 ):
-    def __init__(self, sse_relay: SSEEventRelay):
+    def __init__(self, sse_relay: SSEEventRelay, repository: CMLWorkerRepository):
         self._sse_relay = sse_relay
+        self._repository = repository
 
     async def handle_async(self, notification: CMLWorkerCreatedDomainEvent) -> None:  # type: ignore[override]
+        # Original specific event
         await self._sse_relay.broadcast_event(
             event_type="worker.created",
             data={
@@ -45,15 +48,25 @@ class CMLWorkerCreatedDomainEventHandler(
             },
             source="domain.cml_worker",
         )
-        log.info("Broadcasted worker.created for %s", notification.aggregate_id)
+        # Snapshot event
+        await _broadcast_worker_snapshot(
+            self._repository,
+            self._sse_relay,
+            notification.aggregate_id,
+            reason="created",
+        )
+        log.info(
+            "Broadcasted worker.created + snapshot for %s", notification.aggregate_id
+        )
         return None
 
 
 class CMLWorkerStatusUpdatedDomainEventHandler(
     DomainEventHandler[CMLWorkerStatusUpdatedDomainEvent]
 ):
-    def __init__(self, sse_relay: SSEEventRelay):
+    def __init__(self, sse_relay: SSEEventRelay, repository: CMLWorkerRepository):
         self._sse_relay = sse_relay
+        self._repository = repository
 
     async def handle_async(self, notification: CMLWorkerStatusUpdatedDomainEvent) -> None:  # type: ignore[override]
         await self._sse_relay.broadcast_event(
@@ -66,28 +79,25 @@ class CMLWorkerStatusUpdatedDomainEventHandler(
             },
             source="domain.cml_worker",
         )
-        log.info("Broadcasted worker.status.updated for %s", notification.aggregate_id)
+        await _broadcast_worker_snapshot(
+            self._repository,
+            self._sse_relay,
+            notification.aggregate_id,
+            reason="status_updated",
+        )
+        log.info(
+            "Broadcasted worker.status.updated + snapshot for %s",
+            notification.aggregate_id,
+        )
         return None
 
 
 class CMLWorkerTerminatedDomainEventHandler(
     DomainEventHandler[CMLWorkerTerminatedDomainEvent]
 ):
-    """Handler for worker termination events.
-
-    Broadcasts SSE notification for worker termination.
-    """
-
-    def __init__(
-        self,
-        sse_relay: SSEEventRelay,
-    ) -> None:
-        """Initialize the handler.
-
-        Args:
-            sse_relay: SSE event relay for broadcasting events.
-        """
+    def __init__(self, sse_relay: SSEEventRelay, repository: CMLWorkerRepository):
         self._sse_relay = sse_relay
+        self._repository = repository
 
     async def handle_async(self, notification: CMLWorkerTerminatedDomainEvent) -> None:  # type: ignore[override]
         await self._sse_relay.broadcast_event(
@@ -99,23 +109,24 @@ class CMLWorkerTerminatedDomainEventHandler(
             },
             source="domain.cml_worker",
         )
-        log.info("Broadcasted worker.terminated for %s", notification.aggregate_id)
+        await _broadcast_worker_snapshot(
+            self._repository,
+            self._sse_relay,
+            notification.aggregate_id,
+            reason="terminated",
+        )
+        log.info(
+            "Broadcasted worker.terminated + snapshot for %s", notification.aggregate_id
+        )
         return None
 
 
 class CMLWorkerTelemetryUpdatedDomainEventHandler(
     DomainEventHandler[CMLWorkerTelemetryUpdatedDomainEvent]
 ):
-    """Handler for worker telemetry update events.
-
-    Broadcasts SSE notifications for telemetry updates.
-    """
-
-    def __init__(
-        self,
-        sse_relay: SSEEventRelay,
-    ):
+    def __init__(self, sse_relay: SSEEventRelay, repository: CMLWorkerRepository):
         self._sse_relay = sse_relay
+        self._repository = repository
 
     async def handle_async(self, notification: CMLWorkerTelemetryUpdatedDomainEvent) -> None:  # type: ignore[override]
         event_data = {
@@ -126,8 +137,6 @@ class CMLWorkerTelemetryUpdatedDomainEventHandler(
             "memory_utilization": notification.memory_utilization,
             "updated_at": _utc_iso(notification.updated_at),
         }
-
-        # Include event fields if provided (backward compatibility)
         if notification.poll_interval is not None:
             event_data["poll_interval"] = notification.poll_interval
         if notification.next_refresh_at is not None:
@@ -138,8 +147,108 @@ class CMLWorkerTelemetryUpdatedDomainEventHandler(
             data=event_data,
             source="domain.cml_worker",
         )
+        await _broadcast_worker_snapshot(
+            self._repository,
+            self._sse_relay,
+            notification.aggregate_id,
+            reason="telemetry_updated",
+        )
         log.debug(
-            "Broadcasted worker.metrics.updated (telemetry) for %s",
+            "Broadcasted worker.metrics.updated + snapshot for %s",
             notification.aggregate_id,
         )
         return None
+
+
+# --- Snapshot Helper & Additional Event Handlers ---
+
+
+async def _broadcast_worker_snapshot(
+    repository: CMLWorkerRepository,
+    relay: SSEEventRelay,
+    worker_id: str,
+    reason: str | None = None,
+) -> None:
+    try:
+        worker = await repository.get_by_id_async(worker_id)
+        if not worker:
+            return
+        s = worker.state
+        # Derive utilization from CML stats if available
+        cpu_util = s.cloudwatch_cpu_utilization
+        mem_util = s.cloudwatch_memory_utilization
+        storage_util = None
+        if s.cml_system_info:
+            first_compute = next(iter(s.cml_system_info.values()), {})
+            stats = first_compute.get("stats", {})
+            disk_stats = stats.get("disk", {})
+            mem_stats = stats.get("memory", {})
+            cpu_stats = stats.get("cpu", {})
+            # CPU (prefer CML percent sum if present)
+            if cpu_stats:
+                user_percent = cpu_stats.get("user_percent")
+                system_percent = cpu_stats.get("system_percent")
+                if user_percent is not None and system_percent is not None:
+                    cpu_util = user_percent + system_percent
+            # Memory utilization from total/available
+            if mem_stats:
+                total_kb = mem_stats.get("total_kb") or mem_stats.get("total")
+                available_kb = mem_stats.get("available_kb") or mem_stats.get("free")
+                if (
+                    isinstance(total_kb, (int, float))
+                    and isinstance(available_kb, (int, float))
+                    and total_kb > 0
+                ):
+                    used_kb = total_kb - available_kb
+                    mem_util = (used_kb / total_kb) * 100
+            # Disk utilization
+            size_kb = disk_stats.get("size_kb") or disk_stats.get("used")
+            capacity_kb = disk_stats.get("capacity_kb") or disk_stats.get("total")
+            if (
+                isinstance(size_kb, (int, float))
+                and isinstance(capacity_kb, (int, float))
+                and capacity_kb > 0
+            ):
+                storage_util = (size_kb / capacity_kb) * 100
+
+        snapshot = {
+            "worker_id": s.id,
+            "name": s.name,
+            "region": s.aws_region,
+            "status": s.status.value,
+            "service_status": s.service_status.value,
+            "instance_type": s.instance_type,
+            "aws_instance_id": s.aws_instance_id,
+            "public_ip": s.public_ip,
+            "private_ip": s.private_ip,
+            "ami_id": s.ami_id,
+            "ami_name": s.ami_name,
+            "ami_description": s.ami_description,
+            "ami_creation_date": s.ami_creation_date,
+            "https_endpoint": s.https_endpoint,
+            "license_status": s.license_status.value if s.license_status else None,
+            "cml_version": s.cml_version,
+            "cml_ready": s.cml_ready,
+            "cml_uptime_seconds": s.cml_uptime_seconds,
+            "cml_labs_count": s.cml_labs_count,
+            "cpu_utilization": cpu_util,
+            "memory_utilization": mem_util,
+            "storage_utilization": storage_util,
+            "poll_interval": s.poll_interval,
+            "next_refresh_at": (
+                s.next_refresh_at.isoformat() if s.next_refresh_at else None
+            ),
+            "updated_at": s.updated_at.isoformat() + "Z" if s.updated_at else None,
+            "terminated_at": (
+                s.terminated_at.isoformat() + "Z" if s.terminated_at else None
+            ),
+        }
+        if reason:
+            snapshot["_reason"] = reason
+        await relay.broadcast_event(
+            event_type="worker.snapshot",
+            data=snapshot,
+            source="domain.cml_worker.snapshot",
+        )
+    except Exception as e:
+        log.warning("Failed to broadcast worker snapshot for %s: %s", worker_id, e)

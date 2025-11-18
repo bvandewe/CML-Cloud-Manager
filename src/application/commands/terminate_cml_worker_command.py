@@ -14,6 +14,7 @@ from neuroglia.observability.tracing import add_span_attributes
 from opentelemetry import trace
 
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
+from integration.enums import AwsRegion
 from integration.exceptions import (
     EC2AuthenticationException,
     EC2InstanceNotFoundException,
@@ -118,8 +119,6 @@ class TerminateCMLWorkerCommandHandler(
             if worker.state.aws_instance_id:
                 with tracer.start_as_current_span("terminate_ec2_instance") as span:
                     try:
-                        from integration.enums import AwsRegion
-
                         aws_region = AwsRegion(worker.state.aws_region)
 
                         success = self.aws_ec2_client.terminate_instance(

@@ -386,6 +386,61 @@ CML_WORKER_SUBNET_ID
 
 - **Enforcement**: Pre-commit hooks required; exceptions must be documented with rationale
 
+### Import Guidelines
+
+**All imports MUST be at module level (top of file)**:
+
+- Place all `import` and `from ... import` statements at the beginning of the file
+- Organize imports in standard order: stdlib → third-party → local (enforced by isort)
+- **No inline imports** inside functions, methods, or classes except for:
+  - Circular dependency resolution (document with comment explaining why)
+  - `TYPE_CHECKING` imports for type hints (use `if TYPE_CHECKING:` block)
+
+**Correct pattern:**
+
+```python
+# Standard library
+import logging
+from dataclasses import dataclass
+
+# Third-party
+from neuroglia.mediation import Command, CommandHandler
+
+# Local application
+from domain.repositories import CMLWorkerRepository
+from integration.enums import AwsRegion
+
+class CreateWorkerCommandHandler(CommandHandler):
+    def handle_async(self, command):
+        region = AwsRegion(command.region)  # ✅ Import at top
+```
+
+**Incorrect pattern:**
+
+```python
+class CreateWorkerCommandHandler(CommandHandler):
+    def handle_async(self, command):
+        from integration.enums import AwsRegion  # ❌ Inline import
+        region = AwsRegion(command.region)
+```
+
+**TYPE_CHECKING exception (acceptable):**
+
+```python
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from domain.entities import CMLWorker  # ✅ Acceptable for type hints only
+```
+
+**Benefits of module-level imports**:
+
+- Explicit dependency declaration at file start
+- Better readability and maintainability
+- Easier to detect circular dependencies
+- Faster repeated execution (no repeated import overhead)
+- Clearer for static analysis tools
+
 **Commit conventions**:
 
 - **Style**: `<type>: <description>` (feat, fix, docs, refactor, test, chore)

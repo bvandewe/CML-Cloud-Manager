@@ -8,6 +8,14 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ### Changed
 
+- **Import Organization**: Removed all inline imports from application layer (jobs, commands, queries, event handlers)
+  - Moved 30+ inline imports to module level following Python PEP 8 best practices
+  - Improved code readability with explicit dependency declarations at file start
+  - Affected files: 21 commands, 2 jobs, 6 queries (29 files total)
+  - Common patterns: `AwsRegion`, `CMLWorkerStatus`, `boto3`, service imports
+  - Updated `.github/copilot-instructions.md` with comprehensive import guidelines
+  - Benefits: Better maintainability, easier circular dependency detection, clearer for static analysis
+
 - **Service Registration Patterns**: Unified DI registration patterns across all `application.services`
   - Standardized to `@staticmethod` decorator (removed `@classmethod`)
   - Consistent `implementation_factory=lambda` pattern for services with dependencies

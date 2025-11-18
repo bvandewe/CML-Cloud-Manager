@@ -14,6 +14,7 @@ from neuroglia.observability.tracing import add_span_attributes
 from opentelemetry import trace
 
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
+from integration.enums import AwsRegion
 from integration.exceptions import (
     EC2AuthenticationException,
     EC2InstanceNotFoundException,
@@ -125,7 +126,6 @@ class UpdateCMLWorkerTagsCommandHandler(
 
             with tracer.start_as_current_span("add_ec2_tags") as span:
                 # Add/update tags on EC2 instance
-                from integration.enums import AwsRegion
 
                 aws_region = AwsRegion(worker.state.aws_region)
 

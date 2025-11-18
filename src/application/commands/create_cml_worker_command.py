@@ -18,6 +18,7 @@ from application.settings import Settings
 from domain.entities.cml_worker import CMLWorker
 from domain.enums import CMLWorkerStatus
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
+from integration.enums import AwsRegion
 from integration.exceptions import (
     EC2AuthenticationException,
     EC2InstanceCreationException,
@@ -134,8 +135,6 @@ class CreateCMLWorkerCommandHandler(
 
                 # Fetch full AMI details from AWS
                 if ami_id:
-                    from integration.enums import AwsRegion
-
                     aws_region = AwsRegion(command.aws_region)
                     ami_details = self.aws_ec2_client.get_ami_details(
                         aws_region=aws_region, ami_id=ami_id
@@ -174,8 +173,6 @@ class CreateCMLWorkerCommandHandler(
 
             with tracer.start_as_current_span("provision_ec2_instance") as span:
                 # Provision EC2 instance
-                from integration.enums import AwsRegion
-
                 aws_region = AwsRegion(command.aws_region)
 
                 instance_dto = self.aws_ec2_client.create_instance(

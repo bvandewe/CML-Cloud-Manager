@@ -58,6 +58,9 @@ _service_provider_context: contextvars.ContextVar = contextvars.ContextVar(
     "service_provider", default=None
 )
 
+# Global scheduler instance for access in job wrappers
+_global_scheduler_instance = None
+
 
 class BackgroundTaskException(Exception):
     """Exception raised by background task operations."""
@@ -275,6 +278,8 @@ async def scheduled_job_wrapper(
         # Let the task configure its own dependencies
         # Get service provider from context variable (thread-safe, async-safe)
         service_provider = _service_provider_context.get()
+        if not service_provider and _global_scheduler_instance:
+            service_provider = _global_scheduler_instance._service_provider
         if hasattr(task, "configure"):
             task.configure(service_provider=service_provider)
 
@@ -421,6 +426,10 @@ class BackgroundTaskScheduler(HostedService):
         self._background_task_bus = background_task_bus
         self._service_provider = service_provider
         self._started = False
+
+        # Set global instance for job wrapper access
+        global _global_scheduler_instance
+        _global_scheduler_instance = self
 
         if scheduler:
             self._scheduler = scheduler

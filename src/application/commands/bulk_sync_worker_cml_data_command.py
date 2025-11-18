@@ -14,6 +14,7 @@ from neuroglia.mediation import Command, CommandHandler, Mediator
 from neuroglia.observability.tracing import add_span_attributes
 from opentelemetry import trace
 
+from domain.enums import CMLWorkerStatus
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
 
 from .command_handler_base import CommandHandlerBase
@@ -115,7 +116,6 @@ class BulkSyncWorkerCMLDataCommandHandler(
                     log.info("Syncing CML data for all running workers")
                     # Get all workers and filter for RUNNING status
                     all_workers = await self.cml_worker_repository.get_all_async()
-                    from domain.enums import CMLWorkerStatus
 
                     workers = [
                         w

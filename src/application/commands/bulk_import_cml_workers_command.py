@@ -16,6 +16,7 @@ from opentelemetry import trace
 from application.settings import Settings
 from domain.entities.cml_worker import CMLWorker
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
+from integration.enums import AwsRegion
 from integration.exceptions import (
     EC2AuthenticationException,
     EC2InvalidParameterException,
@@ -120,7 +121,6 @@ class BulkImportCMLWorkersCommandHandler(
         )
 
         try:
-            from integration.enums import AwsRegion
 
             aws_region = AwsRegion(command.aws_region)
             instances = []

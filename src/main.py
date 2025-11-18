@@ -140,6 +140,8 @@ def create_app() -> FastAPI:
     # Configure WorkerMetricsService as singleton (depends on AwsEc2Client and BackgroundTaskScheduler)
     WorkerMetricsService.configure(builder)
 
+    # Note: WorkerMetricsOrchestrator removed - using RefreshWorkerMetricsCommand directly via Mediator for simplicity
+
     # Configure WorkerRefreshThrottle as singleton for rate-limiting
     WorkerRefreshThrottle.configure(builder)
 

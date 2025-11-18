@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 from opentelemetry import trace
 
 from application.services.background_scheduler import BackgroundTaskScheduler
+from application.settings import app_settings
 from domain.entities.cml_worker import CMLWorker
 from domain.enums import CMLWorkerStatus
 from integration.enums import (
@@ -200,8 +201,6 @@ class WorkerMetricsService:
 
                             # Calculate next refresh time for countdown timer
                             # Get the actual next run time from APScheduler (if available)
-                            from application.settings import app_settings
-
                             poll_interval = app_settings.worker_metrics_poll_interval
 
                             # Try to get actual next run time from scheduler

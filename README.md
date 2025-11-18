@@ -213,6 +213,17 @@ See [deployment/keycloak/cml-cloud-manager-realm-export.json](./deployment/keycl
 | Status Updates | `UpdateCMLWorkerStatusCommand` | Manual & scheduled reconciliation |
 | Telemetry Events | Domain handlers | On state change |
 
+### SSE-First Worker Metadata
+
+Worker list, details, and telemetry now derive exclusively from Server-Sent Events:
+
+- `worker.snapshot` events provide full authoritative metadata + derived CPU / memory / storage utilization.
+- REST list & per-row enrichment calls were removed from the UI code; `loadWorkers()` is deprecated.
+- Manual refresh actions will transition to asynchronous scheduling that emits request/skip events and relies on subsequent metrics updates.
+- Simplicity goal: a single state flow (Aggregate → Domain Events → Snapshot Broadcast → UI render).
+
+If snapshots fail to arrive within a short window, a passive "Awaiting worker snapshot events" message is shown instead of performing fallback REST polling.
+
 UI auto-refreshes worker list, details modal, and Labs tab. A badge shows connection status: connected / reconnecting / disconnected / error.
 
 ## 👤 Extending Real-Time Events

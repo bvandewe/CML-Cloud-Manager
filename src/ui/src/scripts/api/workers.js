@@ -119,10 +119,12 @@ export async function registerLicense(region, workerId, licenseToken) {
 }
 
 /**
- * Refresh worker state from AWS and ensure monitoring is active
+ * Request worker metrics refresh (asynchronous, event-driven)
+ * This schedules a background job and emits SSE events for the refresh progress.
+ * SSE events: worker.refresh.requested or worker.refresh.skipped, followed by worker.metrics.updated
  * @param {string} region - AWS region
  * @param {string} workerId - Worker UUID
- * @returns {Promise<Object>}
+ * @returns {Promise<Object>} Scheduling decision {scheduled: boolean, reason?: string, eta_seconds?: number}
  */
 export async function refreshWorker(region, workerId) {
     const response = await apiRequest(`/api/workers/region/${region}/workers/${workerId}/refresh`, {
@@ -180,7 +182,7 @@ export async function enableDetailedMonitoring(region, workerId) {
  * @returns {Promise<Array>} Array of lab objects
  */
 export async function getWorkerLabs(region, workerId) {
-    const response = await apiRequest(`/api/workers/region/${region}/workers/${workerId}/labs`, {
+    const response = await apiRequest(`/api/labs/region/${region}/workers/${workerId}/labs`, {
         method: 'GET',
     });
     return await response.json();
@@ -194,7 +196,7 @@ export async function getWorkerLabs(region, workerId) {
  * @returns {Promise<Object>}
  */
 export async function startLab(region, workerId, labId) {
-    const response = await apiRequest(`/api/workers/region/${region}/workers/${workerId}/labs/${labId}/start`, {
+    const response = await apiRequest(`/api/labs/region/${region}/workers/${workerId}/labs/${labId}/start`, {
         method: 'POST',
     });
     return await response.json();
@@ -208,7 +210,7 @@ export async function startLab(region, workerId, labId) {
  * @returns {Promise<Object>}
  */
 export async function stopLab(region, workerId, labId) {
-    const response = await apiRequest(`/api/workers/region/${region}/workers/${workerId}/labs/${labId}/stop`, {
+    const response = await apiRequest(`/api/labs/region/${region}/workers/${workerId}/labs/${labId}/stop`, {
         method: 'POST',
     });
     return await response.json();
@@ -222,7 +224,7 @@ export async function stopLab(region, workerId, labId) {
  * @returns {Promise<Object>}
  */
 export async function wipeLab(region, workerId, labId) {
-    const response = await apiRequest(`/api/workers/region/${region}/workers/${workerId}/labs/${labId}/wipe`, {
+    const response = await apiRequest(`/api/labs/region/${region}/workers/${workerId}/labs/${labId}/wipe`, {
         method: 'POST',
     });
     return await response.json();
@@ -235,7 +237,7 @@ export async function wipeLab(region, workerId, labId) {
  * @returns {Promise<Object>} Summary with synced/created/updated counts
  */
 export async function refreshWorkerLabs(region, workerId) {
-    const response = await apiRequest(`/api/workers/region/${region}/workers/${workerId}/labs/refresh`, {
+    const response = await apiRequest(`/api/labs/region/${region}/workers/${workerId}/labs/refresh`, {
         method: 'POST',
     });
     return await response.json();

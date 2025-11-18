@@ -7,6 +7,7 @@ Run this for instances created before detailed monitoring was added.
 import logging
 from dataclasses import dataclass
 
+import boto3
 from neuroglia.core import OperationResult
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_bus import CloudEventBus
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import (
@@ -91,8 +92,6 @@ class EnableWorkerDetailedMonitoringCommandHandler(
                 return self.bad_request(error_msg)
 
             # Enable monitoring via boto3 client
-            import boto3
-
             ec2_client = boto3.client(
                 "ec2",
                 aws_access_key_id=self.aws_ec2_client.aws_account_credentials.aws_access_key_id,

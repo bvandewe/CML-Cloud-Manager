@@ -15,6 +15,7 @@ from opentelemetry import trace
 
 from domain.enums import CMLWorkerStatus
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
+from integration.enums import AwsRegion
 from integration.exceptions import (
     EC2AuthenticationException,
     EC2InstanceNotFoundException,
@@ -121,7 +122,6 @@ class UpdateCMLWorkerStatusCommandHandler(
 
             with tracer.start_as_current_span("get_ec2_status_checks") as span:
                 # Get instance status checks from AWS
-                from integration.enums import AwsRegion
 
                 aws_region = AwsRegion(worker.state.aws_region)
 

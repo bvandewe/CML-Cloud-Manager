@@ -14,7 +14,9 @@ from neuroglia.mediation import Mediator
 from neuroglia.mvc import ControllerBase
 
 from api.dependencies import get_current_user
+from application.events.domain.cml_worker_events import _broadcast_worker_snapshot
 from application.services.sse_event_relay import SSEEventRelay
+from domain.repositories.cml_worker_repository import CMLWorkerRepository
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +63,26 @@ class EventsController(ControllerBase):
 
             # Send initial connection event
             yield f"event: connected\ndata: {json.dumps({'status': 'connected', 'user': user_info.get('username'), 'client_id': client_id})}\n\n"
+
+            # Initial full worker snapshots (SSE-first model) unless client filtered by event_types excluding snapshots
+            try:
+                worker_repo = self.service_provider.get_required_service(CMLWorkerRepository)  # type: ignore[attr-defined]
+                if worker_repo:
+                    if worker_ids:
+                        # Specific workers only
+                        for wid in worker_ids:
+                            await _broadcast_worker_snapshot(
+                                worker_repo, self._sse_relay, wid, reason="initial"
+                            )
+                    else:
+                        # All active workers
+                        workers = await worker_repo.get_active_workers_async()
+                        for w in workers:
+                            await _broadcast_worker_snapshot(
+                                worker_repo, self._sse_relay, w.id(), reason="initial"
+                            )
+            except Exception as e:
+                logger.warning(f"Failed to send initial worker snapshots: {e}")
 
             # Heartbeat interval (30 seconds)
             heartbeat_interval = 30

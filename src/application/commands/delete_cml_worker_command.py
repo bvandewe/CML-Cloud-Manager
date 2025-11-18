@@ -13,7 +13,9 @@ from neuroglia.mediation import Command, CommandHandler, Mediator
 from neuroglia.observability.tracing import add_span_attributes
 from opentelemetry import trace
 
+from domain.enums import CMLWorkerStatus
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
+from integration.enums import AwsRegion
 from integration.exceptions import (
     EC2AuthenticationException,
     EC2InstanceNotFoundException,
@@ -123,8 +125,6 @@ class DeleteCMLWorkerCommandHandler(
             if command.terminate_instance and worker.state.aws_instance_id:
                 with tracer.start_as_current_span("terminate_ec2_instance") as span:
                     try:
-                        from integration.enums import AwsRegion
-
                         aws_region = AwsRegion(worker.state.aws_region)
 
                         success = self.aws_ec2_client.terminate_instance(
@@ -167,8 +167,6 @@ class DeleteCMLWorkerCommandHandler(
 
             # Mark worker as terminated in domain before deletion
             with tracer.start_as_current_span("mark_worker_terminated") as span:
-                from domain.enums import CMLWorkerStatus
-
                 if worker.state.status != CMLWorkerStatus.TERMINATED:
                     worker.terminate(terminated_by=command.deleted_by)
                     span.set_attribute("cml_worker.marked_terminated", True)

@@ -1,276 +1,219 @@
-# Refresh Worker Metrics Implementation Plan
+# Refresh Worker Metrics Implementation Plan (Revised)
 
-## Current State Analysis
+This revision aligns the plan with the CURRENT implementation and defines the delta required to meet the new requirements for asynchronous on‑demand metric refresh via scheduling & SSE broadcasting.
 
-### Critical Architecture Violations
+## Recent Simplifications (SSE-First Metadata)
 
-1. **❌ Controller bypasses CQRS** - `/refresh` endpoint directly instantiates `WorkerMetricsCollectionJob` instead of dispatching a command
-2. **❌ Missing CML API Client** - No integration with CML REST API running on worker instances
-3. **❌ Background job has too many responsibilities** - Job queries AWS, updates aggregates, publishes events, manages observers
-4. **❌ OTEL metrics disconnected** - Metrics collection doesn't update OpenTelemetry gauges/counters
+The UI was refactored to remove REST-based worker list fetching and per-row enrichment calls.
+It now relies exclusively on `worker.snapshot` SSE events for initial population and all subsequent
+metadata and telemetry updates. Legacy functions `loadWorkers()` and `enrichWorkersTableMetrics()`
+were deprecated or removed. A minimal placeholder remains only to avoid breaking existing call sites
+during transition. This reduces HTTP chatter, eliminates duplication, and ensures a single
+authoritative source of truth (aggregate → domain events → snapshot broadcast).
 
-### What Exists vs What's Missing
+Implications:
 
-**✅ Exists:**
+- Worker list renders immediately as snapshots arrive; no API fallback unless snapshots fail to appear (lightweight UX message after ~5s).
+- Metrics progress bars use values embedded in snapshot (fallback derivation from `cml_system_info` occurs server-side before broadcast).
+- Future refresh mechanisms MUST update aggregate state so snapshot + metrics events remain consistent; UI will not parse refresh HTTP responses.
+- Documentation updated to describe SSE-first model (see README section "SSE-First Worker Metadata").
 
-- AWS EC2 client for instance metadata
-- AWS CloudWatch client for CPU/memory metrics
-- CMLWorker aggregate with basic status fields
-- Domain events for state changes
-- Background job infrastructure (APScheduler)
+## 1. Current State (As Implemented)
 
-**❌ Missing:**
+Already implemented components (verified in code):
 
-- CML API client for application-level metadata
-- RefreshWorkerMetricsCommand + handler
-- CML system information in worker aggregate
-- OTEL metrics updates in collection flow
-- Proper command-driven refresh workflow
+1. `RefreshWorkerMetricsCommand` orchestrates EC2 status, CloudWatch metrics, and CML data (via `SyncWorkerEC2StatusCommand`, `CollectWorkerCloudWatchMetricsCommand`, `SyncWorkerCMLDataCommand`).
+2. Recurrent `WorkerMetricsCollectionJob` polls metrics for all active workers at the configured interval (`WORKER_METRICS_POLL_INTERVAL`).
+3. `WorkerMetricsService` encapsulates AWS collection logic used by the recurrent job (and indirectly the sub-commands).
+4. Domain events (`CMLWorkerTelemetryUpdatedDomainEvent`, etc.) update the aggregate and trigger SSE broadcasts via handlers in `application/events/domain/cml_worker_events.py`.
+5. SSE pipeline (`SSEEventRelay`) broadcasts `worker.metrics.updated`, `worker.status.updated`, etc.
+6. OTEL gauges for CPU, memory, labs count, and status already updated inside the refresh command handler.
+7. Worker aggregate root stores telemetry (CPU, memory, poll interval, next refresh, CML metadata, labs count, etc.).
+8. Throttling of manual refresh via `WorkerRefreshThrottle` prevents rapid command repetition.
 
-## Implementation Plan
+Outdated items in original plan (now incorrect):
 
-### Phase 1: Proper Command Pattern (IMMEDIATE)
+- CQRS violation (controller bypassing mediator) – FIXED: controller dispatches command.
+- Missing CML API integration – PARTIALLY FIXED: `SyncWorkerCMLDataCommand` and system info/labs licensing fields present.
+- Background job “too many responsibilities” – Partially acceptable trade‑off; it now focuses on polling & updating aggregates. Still does persistence + telemetry but duplication with command logic can be reduced.
+- OTEL metrics disconnected – FIXED; gauges set in command handler.
 
-**Goal**: Fix architecture by using CQRS properly for refresh operations.
+## 2. New Requirements Summary
 
-**Steps:**
+1. UI triggers a new lightweight on‑demand command: `RequestWorkerMetricsRefreshCommand` (distinct from the full orchestration) per single worker.
+2. Command MUST only proceed (schedule execution) if:
+    - Worker is RUNNING.
+    - No recurrent global metrics job will execute within 10 seconds for the same data set.
+3. Command MUST NOT perform synchronous metrics collection; it schedules a one‑time immediate background job (unless imminent global job).
+4. UI must receive SSE signal indicating whether refresh will execute or was skipped (e.g. `worker.refresh.requested` or `worker.refresh.skipped`).
+5. All metric & metadata updates arrive via SSE only (UI now fully migrated; no synchronous HTTP payload dependency).
+6. Recurrent global job continues to poll RUNNING workers and broadcasts metrics via the same SSE event types used by on‑demand refresh.
+7. Both flows share the same refresh logic through an application service (single orchestration path) to avoid duplication.
+8. Background job executes per worker refresh concurrently (existing semaphore logic remains for multi‑worker polling). For on‑demand single worker job, concurrency is trivial but reuse service.
+9. All changes to worker state persisted through aggregate root operations (no bypass writes).
 
-1. Create `RefreshWorkerMetricsCommand` + `RefreshWorkerMetricsCommandHandler`
-2. Command orchestrates:
-   - Query AWS EC2 for instance state
-   - Query AWS CloudWatch for metrics
-   - Update worker aggregate (triggers domain events)
-   - Update OTEL gauges/counters
-   - Schedule/ensure background monitoring active
-3. Controller invokes command via mediator (not job directly)
-4. Background job delegates to command (thin wrapper)
+## 3. Gap Analysis (Delta Work)
 
-**Files to Create:**
+Missing to meet new requirements:
 
-```
-src/application/commands/refresh_worker_metrics_command.py
-```
+- Distinct request/schedule command (`RequestWorkerMetricsRefreshCommand`).
+- One‑time scheduled job type for single-worker manual refresh (`OnDemandWorkerMetricsRefreshJob`).
+- SSE events for refresh ACK/skip (currently only metrics/status events exist).
+- Unification: a shared orchestration function/service extracted from synchronous command handler logic so both OnDemand job and recurrent job reuse identical code path.
+- Controller endpoint adjustment: return scheduling decision only (stop returning aggregated metrics payload).
+- Frontend: adapt `workersApi.refreshWorker` to treat response as acknowledgement and rely solely on SSE updates.
 
-**Files to Modify:**
+## 4. Revised Architectural Objectives
 
-```
-src/api/controllers/workers_controller.py - Use command via mediator
-src/application/services/worker_metrics_collection_job.py - Delegate to command
-src/application/commands/__init__.py - Export new command
-```
+Objective A: Asynchronous manual refresh (low latency) – schedule & respond quickly.
+Objective B: Single orchestration core – no logic drift between command vs job.
+Objective C: Event-first UI – all state deltas via SSE; HTTP only for control plane actions.
+Objective D: Clear event taxonomy – distinguish request outcome events from metrics update events.
 
-**Command Handler Responsibilities:**
+## 5. Proposed Components
 
-- ✅ Query AWS EC2 for current instance status
-- ✅ Query AWS CloudWatch for CPU/memory metrics (last 5 minutes)
-- ✅ Load worker aggregate from repository
-- ✅ Update worker aggregate state (status, IPs, metrics, etc.)
-- ✅ Persist worker aggregate (triggers domain event publishing)
-- ✅ Update OTEL metrics gauges
-- ⚠️ Skip CML API call if worker not RUNNING or no https_endpoint
-- ⚠️ Schedule background monitoring if worker RUNNING (use WorkerMonitoringScheduler)
+### 5.1 New Command: RequestWorkerMetricsRefreshCommand
 
-### Phase 2: CML API Client Integration (NEXT)
+Responsibilities:
 
-**Goal**: Collect application-level metadata from CML instances.
+- Validate worker existence & RUNNING status.
+- Check throttle & imminent global job window (≤10s).
+- If skipped → emit SSE `worker.refresh.skipped` with reason and next expected time.
+- If accepted → schedule `OnDemandWorkerMetricsRefreshJob` immediately (run_at ≈ now) then emit `worker.refresh.requested` SSE.
+- Return lightweight HTTP 200 `{ scheduled: true|false, reason?, eta_seconds? }`.
 
-**Steps:**
+### 5.2 One-Time Job: OnDemandWorkerMetricsRefreshJob
 
-1. Create `CMLApiClient` for REST API integration
-2. Implement core endpoints:
-   - `GET /api/v0/system_information` - CML version, uptime, system details
-   - `GET /api/v0/labs` - Active labs (count, names, states)
-   - `GET /api/v0/licensing` - License status, expiration
-3. Extend `CMLWorkerState` with CML metadata fields
-4. Create domain event `CMLSystemInfoUpdatedDomainEvent`
-5. Update command handler to call CML API when worker RUNNING
-6. Handle CML API errors gracefully (worker may be booting, network issues)
+Responsibilities:
 
-**Files to Create:**
+- Execute shared orchestration (same as current RefreshWorkerMetricsCommand logic) for a single worker.
+- Persist aggregate changes (domain events fire → existing `worker.metrics.updated`).
+- Include trace attributes `refresh.trigger=on_demand`.
 
-```
-src/integration/services/cml_api_client.py
-src/integration/models/cml_system_info_dto.py
-src/integration/models/cml_lab_dto.py
-src/integration/models/cml_license_info_dto.py
-src/domain/events/cml_worker.py - Add CMLSystemInfoUpdatedDomainEvent
-```
+### 5.3 Shared Orchestration Service
 
-**Files to Modify:**
+Create `WorkerMetricsOrchestrator` service (or extend `WorkerMetricsService`) with method `refresh_full(worker_id, include_cml: bool = True)` performing:
 
-```
-src/domain/entities/cml_worker.py - Add CML metadata fields to state
-src/application/commands/refresh_worker_metrics_command.py - Call CML API
-src/integration/services/__init__.py - Export CMLApiClient
-```
+1. Sync EC2 status.
+2. Collect CloudWatch metrics (if running).
+3. Sync CML data (if running & endpoint available).
+4. Update aggregate + record telemetry (emits domain events).
 
-**CML Metadata to Store:**
+Command handler & jobs delegate to this method.
 
-```python
-class CMLWorkerState(AggregateState[str]):
-    # ... existing fields ...
+### 5.4 SSE Event Extensions
 
-    # CML-specific metadata from API
-    cml_system_info: dict | None          # Raw system info JSON
-    cml_ready: bool                        # CML service ready flag
-    cml_uptime_seconds: int | None        # System uptime
-    labs_count: int                        # Active labs count (from API)
-    last_cml_api_sync_at: datetime | None # Last successful CML API call
-    last_cml_api_error: str | None        # Last API error message
-```
+Add two new broadcasts (no new domain events needed – can be application events):
 
-### Phase 3: OTEL Metrics Integration
+- `worker.refresh.requested` → { worker_id, requested_at, eta_seconds }
+- `worker.refresh.skipped` → { worker_id, skipped_at, reason, seconds_until_next }.
 
-**Goal**: Expose worker metrics via OpenTelemetry.
+These fire inside the request command handler (using `SSEEventRelay` directly, not domain events).
+Metrics updates remain via existing domain telemetry event → `worker.metrics.updated`.
 
-**Steps:**
+## 6. Flow Diagrams (Conceptual)
 
-1. Define OTEL gauges in observability module:
-   - `cml.worker.status` (gauge with status as attribute)
-   - `cml.worker.cpu_utilization` (gauge, percentage)
-   - `cml.worker.memory_utilization` (gauge, percentage)
-   - `cml.worker.labs_count` (gauge)
-   - `cml.worker.uptime_seconds` (gauge)
-2. Update gauges in command handler after worker update
-3. Add worker_id and region as metric attributes
+On-Demand Request:
+UI Button → POST /refresh-async → RequestWorkerMetricsRefreshCommand → (schedule or skip) → SSE (requested|skipped) → Background Job → Orchestrator → Aggregate updates → Domain telemetry event → SSE `worker.metrics.updated`.
 
-**Files to Create/Modify:**
+Global Polling:
+APScheduler triggers WorkerMetricsCollectionJob → For each RUNNING worker (concurrent) → Orchestrator → Aggregate updates → Domain telemetry event → SSE `worker.metrics.updated`.
 
-```
-src/observability/metrics/worker_metrics.py - Define OTEL instruments
-src/application/commands/refresh_worker_metrics_command.py - Update metrics
-```
+## 7. Detailed Logic & Edge Cases
 
-### Phase 4: Background Monitoring Refactoring (LATER)
+| Check | Outcome | Action |
+|-------|---------|--------|
+| Worker not found | 404 | Return error (no SSE) |
+| Worker not running | Skip | SSE `worker.refresh.skipped` reason=not_running |
+| Global job in ≤10s | Skip | SSE `worker.refresh.skipped` reason=background_imminent |
+| Throttled by min interval | Skip | SSE `worker.refresh.skipped` reason=rate_limited, retry_after |
+| Already scheduled on-demand job pending | Skip | SSE `worker.refresh.skipped` reason=already_scheduled |
+| Accept | Schedule immediate job | SSE `worker.refresh.requested` |
 
-**Goal**: Simplify background job to be thin wrapper around command.
+Idempotent scheduling: deterministic job ID `on_demand_refresh_<worker_id>`; if job exists with next_run_time within threshold → treat as already_scheduled.
 
-**Current State:**
+## 8. Implementation Steps (Revised)
 
-- `WorkerMetricsCollectionJob` duplicates logic (AWS queries, aggregate updates)
-- Job has direct dependencies on AWS clients, repositories
-- Difficult to test job vs command independently
+1. Create `RequestWorkerMetricsRefreshCommand` + handler.
+2. Add SSE broadcasts inside handler for request outcome.
+3. Add `OnDemandWorkerMetricsRefreshJob` (@backgroundjob scheduled) using run_at wrapper.
+4. Extract orchestration logic from existing `RefreshWorkerMetricsCommandHandler` into `WorkerMetricsOrchestrator` (command handler becomes a thin shim calling orchestrator; recurrent job updated similarly).
+5. Refactor `RefreshWorkerMetricsCommandHandler` to optionally operate in “direct” mode (for backward compatibility) but mark synchronous path deprecated.
+6. Update controller: add `/refresh-async` endpoint invoking new command; deprecate synchronous response fields (or keep legacy endpoint temporarily).
+7. Update frontend: change refresh button to call `/refresh-async`; stop parsing metrics from HTTP response; listen only to SSE events for updates.
+8. Extend `WorkerRefreshThrottle` to track pending scheduled job state (optional) OR rely solely on APScheduler job presence.
+9. Add integration tests: request command scheduling + SSE emitted; job execution triggers telemetry SSE; skip conditions.
+10. Update documentation (README, notes) and changelog.
 
-**Target State:**
+## 9. Data & State Integrity
 
-- Job is thin wrapper that invokes `RefreshWorkerMetricsCommand`
-- All business logic in command handler (single source of truth)
-- Job only responsible for scheduling and error handling
+All writes continue through aggregate root (no direct DB field manipulation). Domain events originate from aggregate changes; SSE broadcast for request/skip is orthogonal and does not mutate state.
 
-**Implementation:**
+## 10. Observability Enhancements
 
-```python
-class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
-    async def run_every(self, *args, **kwargs) -> None:
-        # Get mediator from service provider
-        mediator = self._service_provider.get_required_service(Mediator)
+- Add trace attribute `refresh.mode=on_demand|recurrent`.
+- Add counter `cml.worker.refresh.requests` with labels (mode, outcome, reason?).
+- Include scheduling latency: time from request command to metrics updated event (frontend can measure with timestamps).
 
-        # Dispatch command (all logic lives here)
-        command = RefreshWorkerMetricsCommand(worker_id=self.worker_id)
-        result = await mediator.execute_async(command)
+## 11. Backward Compatibility Strategy
 
-        if not result.is_success:
-            logger.error(f"Metrics collection failed: {result.errors}")
-            # Notify observers of failure
-        else:
-            # Notify observers of success (metrics data in result)
-```
+- Keep existing `/refresh` synchronous endpoint for a short deprecation period; mark response field `deprecated=true`.
+- Frontend feature flag (or version check) to switch to async endpoint once backend changes deployed.
 
-## Implementation Order
+## 12. Testing Strategy (Updated)
 
-### ✅ Step 1: Create RefreshWorkerMetricsCommand (NOW)
+Unit:
 
-- Command + handler skeleton
-- AWS EC2/CloudWatch queries
-- Worker aggregate update
-- Basic OTEL metrics (if instrumentation exists)
+- Orchestrator logic (mock sub-commands or AWS/CML clients).
+- Request command decision matrix (throttle, imminent job, not running).
 
-### 🔨 Step 2: Integrate in Controller (NOW)
+Integration:
 
-- Remove direct job instantiation
-- Dispatch command via mediator
-- Use WorkerMonitoringScheduler for background scheduling
+- End-to-end async refresh (HTTP → schedule → job run → SSE metrics).
+- Recurrent job multi-worker concurrency and SSE broadcast count.
 
-### 📝 Step 3: Build CML API Client (NEXT SESSION)
+Frontend Manual:
 
-- CMLApiClient with system_information endpoint
-- Extend worker state with CML metadata
-- Add CML API call to command handler
+- Press Refresh: immediate SSE request event; later metrics update event with new telemetry.
+- Edge: pressing twice rapidly triggers rate_limited skip SSE.
+- Edge: request just before global job → skip SSE reason=background_imminent.
 
-### 🔄 Step 4: Refactor Background Job (AFTER CML API)
+## 13. Event Taxonomy (Final)
 
-- Job delegates to command
-- Remove duplicate logic
-- Simplify configuration
+| Event | Source | Purpose |
+|-------|--------|---------|
+| worker.refresh.requested | command handler | Acknowledges accepted scheduled refresh |
+| worker.refresh.skipped | command handler | Explains why refresh not scheduled |
+| worker.metrics.updated | domain telemetry event | Delivers new metrics & timing info |
+| worker.status.updated | domain status event | Status lifecycle changes |
+| worker.created / terminated | domain | Lifecycle notifications |
 
-## Success Criteria
+## 14. Success Criteria (Revised)
 
-### Phase 1 Complete When
+1. Asynchronous endpoint returns within <100ms under normal load.
+2. Refresh request always yields at least one SSE (requested or skipped) within 1s.
+3. Metrics SSE arrives for accepted requests within configurable timeout (e.g. 15s) unless failed.
+4. No duplicated refresh logic across command/job – single orchestrator.
+5. Aggregate root remains sole persistence path; domain events fire for all metric changes.
+6. No synchronous metrics payload dependency in UI.
 
-- [ ] `RefreshWorkerMetricsCommand` exists and handles AWS queries
-- [ ] Controller uses command via mediator (not direct job)
-- [ ] Worker aggregate updated with latest AWS state
-- [ ] Domain events published on state changes
-- [ ] Background monitoring scheduled via WorkerMonitoringScheduler
-- [ ] OTEL metrics updated (if instrumentation exists)
+## 15. Risks & Mitigations
 
-### Phase 2 Complete When
+| Risk | Impact | Mitigation |
+|------|--------|-----------|
+| Lost SSE while scheduling | UI lacks feedback | Add client timeout & fallback poll |
+| Job scheduling race conditions | Duplicate jobs | Deterministic job ID + existence check |
+| Increased complexity | Maintenance overhead | Central orchestration service & clear docs |
+| User confusion during transition | UX inconsistency | Deprecation notice + consistent toasts |
 
-- [ ] `CMLApiClient` can call CML REST API endpoints
-- [ ] Worker aggregate stores CML metadata (version, labs, uptime)
-- [ ] Command handler calls CML API when worker RUNNING
-- [ ] Errors handled gracefully (worker booting, network issues)
-- [ ] UI displays CML metadata in worker details modal
+## 16. Documentation Updates
 
-### Phase 3 Complete When
+Update:
 
-- [ ] OTEL gauges defined for worker metrics
-- [ ] Metrics updated after each refresh
-- [ ] Prometheus/Grafana can scrape worker metrics
-- [ ] Metrics include proper labels (worker_id, region)
+- This plan file (done).
+- `CHANGELOG.md` (feature: async worker metric refresh).
+- `README.md` (explain event-driven refresh model).
+- `notes/` add `ASYNC_WORKER_REFRESH_DESIGN.md` (optional) with sequence diagrams.
 
-## Architecture Principles
-
-### ✅ Do This
-
-- **Commands for write operations** - RefreshWorkerMetricsCommand is a write operation
-- **Queries for read operations** - GetCMLWorkerByIdQuery already exists
-- **Aggregate as single source of truth** - All state in CMLWorkerState
-- **Domain events for side effects** - Events trigger notifications, monitoring
-- **Thin background jobs** - Jobs delegate to commands/queries
-
-### ❌ Don't Do This
-
-- **Controllers calling jobs directly** - Bypass mediator pattern
-- **Jobs with business logic** - Logic belongs in command handlers
-- **Multiple sources of truth** - Don't duplicate state across models
-- **Silent failures** - Always handle errors and log clearly
-- **Tight coupling** - Use dependency injection, not direct imports
-
-## Testing Strategy
-
-### Unit Tests
-
-- Command handler logic (AWS queries, aggregate updates)
-- CML API client (mock HTTP responses)
-- Worker aggregate methods (state transitions)
-
-### Integration Tests
-
-- End-to-end refresh flow (controller → command → repository)
-- Background job scheduling (APScheduler integration)
-- Domain event publishing (mediator pipeline)
-
-### Manual Tests
-
-- UI refresh button triggers metrics collection
-- Worker details modal shows updated data
-- Background monitoring continues after manual refresh
-- CML API errors don't crash application
-
-## Notes
-
-- CML API documentation: https://developer.cisco.com/docs/modeling-labs/
-- CML API authentication: Basic auth or API token (check settings)
-- OTEL metrics export: Configured via `src/observability/` module
-- APScheduler persistence: Redis job store for distributed execution
+---
+This revised plan reflects current implementation status and enumerates only the necessary delta to achieve the new asynchronous, SSE-first refresh workflow.

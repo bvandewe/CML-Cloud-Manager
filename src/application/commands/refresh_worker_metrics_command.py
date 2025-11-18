@@ -64,12 +64,14 @@ _worker_status_gauge = meter.create_gauge(
 class RefreshWorkerMetricsCommand(Command[OperationResult[dict]]):
     """Command to refresh worker metrics from AWS and CML.
 
-    This command orchestrates three focused sub-commands:
+    This command orchestrates focused sub-commands to refresh worker metrics:
     1. SyncWorkerEC2StatusCommand - EC2 instance state and details
     2. CollectWorkerCloudWatchMetricsCommand - CloudWatch CPU/memory metrics
     3. SyncWorkerCMLDataCommand - CML service health, version, stats, licensing
 
-    Returns dict with aggregated metrics summary.
+    Note: Labs refresh should be orchestrated separately via RefreshWorkerLabsCommand.
+
+    Returns dict with aggregated refresh summary.
     """
 
     worker_id: str
@@ -79,7 +81,7 @@ class RefreshWorkerMetricsCommandHandler(
     CommandHandlerBase,
     CommandHandler[RefreshWorkerMetricsCommand, OperationResult[dict]],
 ):
-    """Handle worker metrics refresh by orchestrating focused sub-commands."""
+    """Handle worker refresh by orchestrating focused sub-commands for metadata and metrics."""
 
     def __init__(
         self,
@@ -102,13 +104,16 @@ class RefreshWorkerMetricsCommandHandler(
     async def handle_async(
         self, request: RefreshWorkerMetricsCommand
     ) -> OperationResult[dict]:
-        """Handle refresh worker metrics command by orchestrating sub-commands.
+        """Handle refresh worker command by orchestrating sub-commands.
+
+        Refreshes EC2 status, CloudWatch metrics, and CML data.
+        Labs refresh should be handled separately.
 
         Args:
             request: Refresh command with worker ID
 
         Returns:
-            OperationResult with aggregated metrics summary dict or error
+            OperationResult with aggregated refresh summary dict or error
         """
         command = request
 
@@ -116,7 +121,7 @@ class RefreshWorkerMetricsCommandHandler(
         add_span_attributes(
             {
                 "cml_worker.id": command.worker_id,
-                "operation": "refresh_metrics_orchestration",
+                "operation": "refresh_worker_orchestration",
             }
         )
 
@@ -321,7 +326,7 @@ class RefreshWorkerMetricsCommandHandler(
             }
 
             log.info(
-                f"Completed metrics refresh orchestration for worker {command.worker_id}: "
+                f"Completed worker refresh orchestration for worker {command.worker_id}: "
                 f"overall_success={aggregated_result['overall_success']}"
             )
 
@@ -329,9 +334,9 @@ class RefreshWorkerMetricsCommandHandler(
 
         except Exception as ex:
             log.error(
-                f"Failed to orchestrate metrics refresh for worker {command.worker_id}: {ex}",
+                f"Failed to orchestrate worker refresh for worker {command.worker_id}: {ex}",
                 exc_info=True,
             )
             return self.internal_server_error(
-                f"Failed to orchestrate worker metrics refresh: {str(ex)}"
+                f"Failed to orchestrate worker refresh: {str(ex)}"
             )

@@ -143,11 +143,6 @@ class LabsRefreshJob(RecurrentBackgroundJob):
             scope = self._service_provider.create_scope()
 
             try:
-                from domain.repositories import CMLWorkerRepository
-                from domain.repositories.lab_record_repository import (
-                    LabRecordRepository,
-                )
-
                 # Get repositories from scope
                 worker_repository = scope.get_required_service(CMLWorkerRepository)
                 lab_record_repository = scope.get_required_service(LabRecordRepository)

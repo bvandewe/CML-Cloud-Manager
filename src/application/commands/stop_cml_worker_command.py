@@ -15,6 +15,7 @@ from opentelemetry import trace
 
 from domain.enums import CMLWorkerStatus
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
+from integration.enums import AwsRegion
 from integration.exceptions import (
     EC2AuthenticationException,
     EC2InstanceNotFoundException,
@@ -130,7 +131,6 @@ class StopCMLWorkerCommandHandler(
 
             with tracer.start_as_current_span("stop_ec2_instance") as span:
                 # Stop EC2 instance
-                from integration.enums import AwsRegion
 
                 aws_region = AwsRegion(worker.state.aws_region)
 

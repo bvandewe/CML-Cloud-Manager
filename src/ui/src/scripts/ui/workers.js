@@ -373,6 +373,75 @@ function setupEventListeners() {
 function setupSSEHandlers() {
     console.log('[setupSSEHandlers] Registering SSE event handlers');
 
+    // Full snapshot handler (authoritative source of worker metadata & metrics)
+    sseClient.on('worker.snapshot', msg => {
+        const data = msg.data || msg; // accommodate different envelope shapes
+        const w = data;
+        if (!w || !w.worker_id) return;
+        const nowIso = new Date().toISOString();
+        const existingIndex = workersData.findIndex(x => x.id === w.worker_id);
+        const normalized = {
+            id: w.worker_id,
+            name: w.name,
+            aws_region: w.region,
+            status: w.status,
+            service_status: w.service_status,
+            instance_type: w.instance_type,
+            aws_instance_id: w.aws_instance_id,
+            public_ip: w.public_ip,
+            private_ip: w.private_ip,
+            ami_id: w.ami_id,
+            ami_name: w.ami_name,
+            ami_description: w.ami_description,
+            ami_creation_date: w.ami_creation_date,
+            https_endpoint: w.https_endpoint,
+            license_status: w.license_status,
+            cml_version: w.cml_version,
+            cml_ready: w.cml_ready,
+            cml_uptime_seconds: w.cml_uptime_seconds,
+            cml_labs_count: w.cml_labs_count,
+            cpu_utilization: w.cpu_utilization,
+            memory_utilization: w.memory_utilization,
+            storage_utilization: w.storage_utilization,
+            poll_interval: w.poll_interval,
+            next_refresh_at: w.next_refresh_at,
+            updated_at: w.updated_at || nowIso,
+            terminated_at: w.terminated_at,
+            _reason: w._reason || 'snapshot',
+        };
+
+        if (existingIndex === -1) {
+            workersData.push(normalized);
+            console.log('[SSE] Added new worker snapshot:', normalized.id, 'reason:', normalized._reason);
+        } else {
+            workersData[existingIndex] = { ...workersData[existingIndex], ...normalized };
+            console.log('[SSE] Updated worker snapshot:', normalized.id, 'reason:', normalized._reason);
+        }
+
+        // Persist timing info if provided
+        if (normalized.poll_interval && normalized.next_refresh_at) {
+            saveWorkerMetricsInfo(normalized.id, {
+                poll_interval: normalized.poll_interval,
+                next_refresh_at: normalized.next_refresh_at,
+                last_refreshed_at: nowIso,
+            });
+        }
+
+        // Re-render views based on role
+        if (hasAdminAccess(currentUser)) {
+            renderWorkersTable();
+            updateStatistics();
+        } else {
+            renderWorkersCards();
+        }
+
+        // Update modal if open for this worker
+        if (currentWorkerDetails && currentWorkerDetails.id === normalized.id) {
+            // Lightweight metric section refresh
+            loadCloudWatchMetrics(normalized.id, normalized.aws_region);
+        }
+    });
+
     // Handle worker metrics updated
     sseClient.on('worker.metrics.updated', data => {
         const timestamp = new Date().toISOString();
@@ -484,6 +553,27 @@ function setupSSEHandlers() {
         }
     });
 
+    // Handle async refresh requested
+    sseClient.on('worker.refresh.requested', data => {
+        console.log('[SSE] Worker refresh requested:', data);
+        const etaSec = data.eta_seconds || 1;
+        showToast(`Metrics refresh scheduled for worker (ETA: ${etaSec}s)`, 'info');
+    });
+
+    // Handle async refresh skipped
+    sseClient.on('worker.refresh.skipped', data => {
+        console.log('[SSE] Worker refresh skipped:', data);
+        const reason = data.reason || 'unknown';
+        const etaSec = data.seconds_until_next;
+
+        let message = `Refresh skipped: ${reason}`;
+        if (etaSec) {
+            message += ` (retry in ${etaSec}s)`;
+        }
+
+        showToast(message, 'warning');
+    });
+
     console.log('[setupSSEHandlers] SSE event handlers registered');
 }
 
@@ -555,40 +645,79 @@ function cleanupStaleWorkerMetrics() {
  * Load workers from API
  */
 async function loadWorkers() {
+    console.log('[loadWorkers] Fetching initial workers list from API');
     try {
-        const filterStatus = document.getElementById('filter-status');
-        const status = filterStatus?.value || null;
+        const workers = await workersApi.listWorkers(currentRegion);
+        console.log(`[loadWorkers] Received ${workers.length} workers from API`);
 
-        const response = await workersApi.listWorkers(currentRegion, status);
-        console.log('API response:', response, 'Type:', typeof response, 'IsArray:', Array.isArray(response));
+        // Process each worker as if it were a snapshot event
+        workers.forEach(worker => {
+            const normalized = {
+                id: worker.id || worker.worker_id,
+                name: worker.name,
+                aws_region: worker.aws_region || worker.region,
+                status: worker.status,
+                service_status: worker.service_status,
+                instance_type: worker.instance_type,
+                aws_instance_id: worker.aws_instance_id,
+                public_ip: worker.public_ip,
+                private_ip: worker.private_ip,
+                ami_id: worker.ami_id,
+                ami_name: worker.ami_name,
+                ami_description: worker.ami_description,
+                ami_creation_date: worker.ami_creation_date,
+                https_endpoint: worker.https_endpoint,
+                license_status: worker.license_status,
+                cml_version: worker.cml_version,
+                cml_ready: worker.cml_ready,
+                cml_uptime_seconds: worker.cml_uptime_seconds,
+                cml_labs_count: worker.cml_labs_count,
+                cpu_utilization: worker.cpu_utilization,
+                memory_utilization: worker.memory_utilization,
+                storage_utilization: worker.storage_utilization,
+                poll_interval: worker.poll_interval,
+                next_refresh_at: worker.next_refresh_at,
+                updated_at: worker.updated_at,
+                terminated_at: worker.terminated_at,
+                _reason: 'initial_load',
+            };
 
-        // Handle different response formats
-        if (Array.isArray(response)) {
-            workersData = response;
-        } else if (response?.data && Array.isArray(response.data)) {
-            workersData = response.data;
-        } else if (response?.result && Array.isArray(response.result)) {
-            workersData = response.result;
-        } else {
-            console.warn('Unexpected response format:', response);
-            workersData = [];
-        }
+            workersData.push(normalized);
 
-        console.log('Workers data:', workersData, 'Length:', workersData.length);
+            // Persist timing info if provided
+            if (normalized.poll_interval && normalized.next_refresh_at) {
+                saveWorkerMetricsInfo(normalized.id, {
+                    poll_interval: normalized.poll_interval,
+                    next_refresh_at: normalized.next_refresh_at,
+                    last_refreshed_at: normalized.updated_at || new Date().toISOString(),
+                });
+            }
+        });
 
+        // Render the appropriate view
         if (hasAdminAccess(currentUser)) {
-            updateStatistics();
             renderWorkersTable();
+            updateStatistics();
         } else {
             renderWorkersCards();
         }
 
-        // Clean up stale metrics storage after loading workers
-        cleanupStaleWorkerMetrics();
+        console.log('[loadWorkers] Initial workers loaded and rendered');
     } catch (error) {
-        console.error('Failed to load workers:', error);
-        workersData = [];
-        showToast('Failed to load workers', 'error');
+        console.error('[loadWorkers] Failed to load workers:', error);
+        showToast('Failed to load workers', 'danger');
+
+        // Show error message in the UI
+        const tbody = document.getElementById('workers-table-body');
+        if (tbody) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="10" class="text-center text-danger py-4">
+                        <i class="bi bi-exclamation-triangle fs-1 d-block mb-2"></i>
+                        Failed to load workers. Please refresh the page.
+                    </td>
+                </tr>`;
+        }
     }
 }
 
@@ -604,9 +733,18 @@ function updateStatistics() {
     document.getElementById('running-workers-count').textContent = running;
     document.getElementById('stopped-workers-count').textContent = stopped;
 
-    // Calculate average CPU
-    const withCpu = workersData.filter(w => w.cpu_utilization !== null);
-    const avgCpu = withCpu.length ? (withCpu.reduce((sum, w) => sum + w.cpu_utilization, 0) / withCpu.length).toFixed(1) : 0;
+    // Helper to compute CPU percent from CML system stats when top-level value missing
+    const deriveCpuPercent = w => {
+        if (w.cpu_utilization != null) return w.cpu_utilization;
+        if (w.cml_system_info) {
+            const firstCompute = Object.values(w.cml_system_info)[0];
+            const percent = firstCompute?.stats?.cpu?.percent;
+            if (percent != null) return parseFloat(percent);
+        }
+        return null;
+    };
+    const cpuPercents = workersData.map(deriveCpuPercent).filter(v => v != null);
+    const avgCpu = cpuPercents.length ? (cpuPercents.reduce((s, v) => s + v, 0) / cpuPercents.length).toFixed(1) : 0;
     document.getElementById('avg-cpu-usage').textContent = `${avgCpu}%`;
 }
 
@@ -620,7 +758,7 @@ function renderWorkersTable() {
     if (workersData.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="9" class="text-center text-muted py-4">
+                <td colspan="10" class="text-center text-muted py-4">
                     <i class="bi bi-inbox fs-1 d-block mb-2"></i>
                     No workers found
                 </td>
@@ -630,9 +768,24 @@ function renderWorkersTable() {
     }
 
     tbody.innerHTML = workersData
-        .map(
-            worker => `
-        <tr class="cursor-pointer" onclick="window.workersApp.showWorkerDetails('${worker.id}', '${worker.aws_region}')">
+        .map(worker => {
+            // Derive telemetry percentages (prefer top-level; fallback to system_info)
+            let cpuPct = worker.cpu_utilization;
+            let memPct = worker.memory_utilization;
+            let diskPct = worker.storage_utilization;
+            if ((cpuPct == null || memPct == null || diskPct == null) && worker.cml_system_info) {
+                const firstCompute = Object.values(worker.cml_system_info)[0];
+                const stats = firstCompute?.stats || {};
+                if (cpuPct == null && stats.cpu?.percent != null) cpuPct = parseFloat(stats.cpu.percent);
+                if (memPct == null && stats.memory?.total && stats.memory?.used != null) {
+                    memPct = (stats.memory.used / stats.memory.total) * 100;
+                }
+                if (diskPct == null && stats.disk?.total && stats.disk?.used != null) {
+                    diskPct = (stats.disk.used / stats.disk.total) * 100;
+                }
+            }
+            return `
+        <tr class="cursor-pointer" data-worker-id="${worker.id}" data-worker-region="${worker.aws_region}" onclick="window.workersApp.showWorkerDetails('${worker.id}', '${worker.aws_region}')">
             <td>
                 <span class="badge ${getStatusBadgeClass(worker.status)}">
                     ${worker.status}
@@ -655,24 +808,27 @@ function renderWorkersTable() {
             </td>
             <td>
                 ${
-                    worker.cpu_utilization != null
+                    cpuPct != null
                         ? `<div class="progress" style="height: 20px;">
-                        <div class="progress-bar ${getCpuProgressClass(worker.cpu_utilization)}"
-                             style="width: ${worker.cpu_utilization}%">
-                            ${worker.cpu_utilization.toFixed(1)}%
-                        </div>
+                        <div class="progress-bar ${getCpuProgressClass(cpuPct)}" style="width: ${cpuPct}%">${cpuPct.toFixed(1)}%</div>
                     </div>`
                         : '<span class="text-muted">-</span>'
                 }
             </td>
             <td>
                 ${
-                    worker.memory_utilization != null
+                    memPct != null
                         ? `<div class="progress" style="height: 20px;">
-                        <div class="progress-bar ${getMemoryProgressClass(worker.memory_utilization)}"
-                             style="width: ${worker.memory_utilization}%">
-                            ${worker.memory_utilization.toFixed(1)}%
-                        </div>
+                        <div class="progress-bar ${getMemoryProgressClass(memPct)}" style="width: ${memPct}%">${memPct.toFixed(1)}%</div>
+                    </div>`
+                        : '<span class="text-muted">-</span>'
+                }
+            </td>
+            <td>
+                ${
+                    diskPct != null
+                        ? `<div class="progress" style="height: 20px;">
+                        <div class="progress-bar ${getDiskProgressClass(diskPct)}" style="width: ${diskPct}%">${diskPct.toFixed(1)}%</div>
                     </div>`
                         : '<span class="text-muted">-</span>'
                 }
@@ -714,9 +870,11 @@ function renderWorkersTable() {
                 </div>
             </td>
         </tr>
-    `
-        )
+    `;
+        })
         .join('');
+
+    // Removed enrichment step: SSE snapshots provide complete telemetry.
 
     // Initialize Bootstrap tooltips for date icons
     initializeDateTooltips();
@@ -728,6 +886,8 @@ function renderWorkersTable() {
         });
     }
 }
+
+// Removed enrichWorkersTableMetrics(): no longer required with snapshot-driven model.
 
 /**
  * Render workers cards (user view)
@@ -1383,12 +1543,31 @@ async function loadCloudWatchMetrics(workerId, region) {
     if (!metricsSection) return;
 
     try {
-        // Get worker data to access CML telemetry metrics
         const worker = await workersApi.getWorkerDetails(region, workerId);
+        // Prefer top-level utilization; fallback to CML system stats
+        let cpuValue = worker.cpu_utilization;
+        let memValue = worker.memory_utilization;
+        let diskValue = worker.storage_utilization;
+        if (worker.cml_system_info) {
+            const firstCompute = Object.values(worker.cml_system_info)[0];
+            const stats = firstCompute?.stats || {};
+            if (cpuValue == null && stats.cpu?.percent != null) cpuValue = parseFloat(stats.cpu.percent);
+            if (memValue == null && stats.memory?.total && stats.memory?.used != null) {
+                memValue = (stats.memory.used / stats.memory.total) * 100;
+            }
+            if (diskValue == null && stats.disk?.total && stats.disk?.used != null) {
+                diskValue = (stats.disk.used / stats.disk.total) * 100;
+            }
+        }
 
-        const cpuValue = worker.cpu_utilization;
-        const memValue = worker.memory_utilization;
-        const diskValue = worker.storage_utilization;
+        const renderBar = (val, type) => {
+            if (val == null) {
+                const icon = type === 'cpu' ? 'exclamation-triangle' : 'info-circle';
+                return `<div class="alert alert-sm alert-warning py-1 mb-0"><i class="bi bi-${icon}"></i> No ${type.toUpperCase()} data available</div>`;
+            }
+            const cls = type === 'cpu' ? getCpuProgressClass(val) : type === 'memory' ? getMemoryProgressClass(val) : getDiskProgressClass(val);
+            return `<div class="progress" style="height: 20px;"><div class="progress-bar ${cls}" style="width: ${val}%"></div></div>`;
+        };
 
         metricsSection.innerHTML = `
             <div class="row">
@@ -1398,16 +1577,7 @@ async function loadCloudWatchMetrics(workerId, region) {
                             <small class="text-muted"><i class="bi bi-cpu"></i> CPU Usage</small>
                             <small><strong>${cpuValue != null ? cpuValue.toFixed(1) + '%' : 'N/A'}</strong></small>
                         </div>
-                        ${
-                            cpuValue != null
-                                ? `
-                        <div class="progress" style="height: 20px;">
-                            <div class="progress-bar ${getCpuProgressClass(cpuValue)}"
-                                 style="width: ${cpuValue}%">
-                            </div>
-                        </div>`
-                                : '<div class="alert alert-sm alert-warning py-1 mb-0"><i class="bi bi-exclamation-triangle"></i> No CPU data available</div>'
-                        }
+                        ${renderBar(cpuValue, 'cpu')}
                     </div>
                 </div>
                 <div class="col-md-4">
@@ -1416,16 +1586,7 @@ async function loadCloudWatchMetrics(workerId, region) {
                             <small class="text-muted"><i class="bi bi-memory"></i> Memory Usage</small>
                             <small><strong>${memValue != null ? memValue.toFixed(1) + '%' : 'N/A'}</strong></small>
                         </div>
-                        ${
-                            memValue != null
-                                ? `
-                        <div class="progress" style="height: 20px;">
-                            <div class="progress-bar ${getMemoryProgressClass(memValue)}"
-                                 style="width: ${memValue}%">
-                            </div>
-                        </div>`
-                                : '<div class="alert alert-sm alert-info py-1 mb-0"><i class="bi bi-info-circle"></i> No memory data available</div>'
-                        }
+                        ${renderBar(memValue, 'memory')}
                     </div>
                 </div>
                 <div class="col-md-4">
@@ -1434,16 +1595,7 @@ async function loadCloudWatchMetrics(workerId, region) {
                             <small class="text-muted"><i class="bi bi-hdd"></i> Storage Usage</small>
                             <small><strong>${diskValue != null ? diskValue.toFixed(1) + '%' : 'N/A'}</strong></small>
                         </div>
-                        ${
-                            diskValue != null
-                                ? `
-                        <div class="progress" style="height: 20px;">
-                            <div class="progress-bar ${getDiskProgressClass(diskValue)}"
-                                 style="width: ${diskValue}%">
-                            </div>
-                        </div>`
-                                : '<div class="alert alert-sm alert-info py-1 mb-0"><i class="bi bi-info-circle"></i> No storage data available</div>'
-                        }
+                        ${renderBar(diskValue, 'disk')}
                     </div>
                 </div>
             </div>
@@ -1453,11 +1605,7 @@ async function loadCloudWatchMetrics(workerId, region) {
         `;
     } catch (error) {
         console.error('Failed to load CloudWatch metrics:', error);
-        metricsSection.innerHTML = `
-            <div class="alert alert-warning mb-0">
-                <i class="bi bi-exclamation-triangle"></i> Unable to load CloudWatch metrics: ${error.message}
-            </div>
-        `;
+        metricsSection.innerHTML = `<div class="alert alert-warning mb-0"><i class="bi bi-exclamation-triangle"></i> Unable to load CloudWatch metrics: ${error.message}</div>`;
     }
 }
 
@@ -2574,11 +2722,15 @@ function setupRefreshButton() {
 
                 try {
                     console.log('[CLICK HANDLER] Showing info toast');
-                    showToast('Refreshing worker state from AWS...', 'info');
+                    showToast('Requesting worker metrics refresh...', 'info');
 
                     console.log('[CLICK HANDLER] Calling workersApi.refreshWorker');
-                    const refreshedWorker = await workersApi.refreshWorker(region, id);
-                    console.log('[CLICK HANDLER] Refresh response:', refreshedWorker);
+                    const refreshResult = await workersApi.refreshWorker(region, id);
+                    console.log('[CLICK HANDLER] Refresh response:', refreshResult);
+
+                    // Response indicates if refresh was scheduled or skipped
+                    // Actual metrics will arrive via SSE worker.metrics.updated event
+                    // SSE also provides worker.refresh.requested or worker.refresh.skipped events
 
                     // Also refresh labs data from CML API
                     try {
@@ -2591,40 +2743,16 @@ function setupRefreshButton() {
                     } catch (labsError) {
                         // Don't fail the whole refresh if labs refresh fails
                         console.warn('[CLICK HANDLER] Labs refresh failed (non-fatal):', labsError);
-                        // Show a warning toast but don't block the refresh
-                        showToast('Worker refreshed, but labs refresh failed: ' + (labsError.message || 'Unknown error'), 'warning');
+                        showToast('Metrics refresh requested, but labs refresh failed: ' + (labsError.message || 'Unknown error'), 'warning');
                     }
 
-                    showToast('Worker state refreshed successfully', 'success');
-
-                    // Re-enable button before reloading modal (so it gets cloned in correct state)
+                    // Re-enable button (SSE will handle updates automatically)
                     newBtn.disabled = false;
                     newBtn.innerHTML = originalHtml;
-                    console.log('[CLICK HANDLER] Button re-enabled before reload');
-
-                    // TODO: Replace manual refresh with SSE (Server-Sent Events)
-                    // Once Labs tab and all metrics are finalized, implement real-time
-                    // updates via CloudEventBus streaming. This will auto-update the UI
-                    // when scheduled jobs complete (every 5 minutes) without user action.
-                    // See TODO.md for full SSE implementation plan.
-
-                    // Reload the workers list to reflect updated state
-                    console.log('[CLICK HANDLER] Reloading workers list');
-                    await loadWorkers();
-
-                    // Reload the worker details modal with fresh data
-                    console.log('[CLICK HANDLER] Reloading worker details modal');
-                    await showWorkerDetails(id, region);
-
-                    // If Labs tab is active, reload it to show updated lab data
-                    const labsTab = document.querySelector('#worker-details-tabs button[data-bs-target="#worker-details-labs"]');
-                    if (labsTab && labsTab.classList.contains('active')) {
-                        console.log('[CLICK HANDLER] Labs tab is active, reloading labs data');
-                        await loadLabsTab();
-                    }
+                    console.log('[CLICK HANDLER] Button re-enabled - awaiting SSE updates');
                 } catch (error) {
                     console.error('[CLICK HANDLER] Error during refresh:', error);
-                    showToast(error.message || 'Failed to refresh worker state', 'error');
+                    showToast(error.message || 'Failed to request worker refresh', 'error');
 
                     // Re-enable button on error
                     newBtn.disabled = false;

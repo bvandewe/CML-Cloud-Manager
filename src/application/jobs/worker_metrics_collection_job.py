@@ -1,21 +1,33 @@
-"""Worker metrics collection background job.
+"""Worker data collection background job.
 
-This module defines a RecurrentBackgroundJob for collecting worker metrics at regular intervals.
-It's invoked by APScheduler and processes all active workers concurrently.
+This module defines a RecurrentBackgroundJob for collecting worker data at regular intervals.
+It orchestrates both RefreshWorkerMetricsCommand and RefreshWorkerLabsCommand via Mediator
+for all active workers concurrently.
 """
 
 import asyncio
 import logging
 
+from motor.motor_asyncio import AsyncIOMotorClient
+from neuroglia.mediation import Mediator
+from neuroglia.serialization.json import JsonSerializer
 from opentelemetry import trace
 
+from application.commands.refresh_worker_labs_command import RefreshWorkerLabsCommand
+from application.commands.refresh_worker_metrics_command import (
+    RefreshWorkerMetricsCommand,
+)
 from application.services.background_scheduler import (
     RecurrentBackgroundJob,
     backgroundjob,
 )
-from application.services.worker_metrics_service import WorkerMetricsService
-from application.settings import app_settings  # Import settings to read interval
-from integration.services.aws_ec2_api_client import AwsEc2Client
+from application.settings import app_settings
+from domain.entities.cml_worker import CMLWorker
+from domain.repositories import CMLWorkerRepository
+from integration.repositories.motor_cml_worker_repository import (
+    MongoCMLWorkerRepository,
+)
+from integration.services.aws_ec2_api_client import AwsAccountCredentials, AwsEc2Client
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -25,19 +37,17 @@ tracer = trace.get_tracer(__name__)
     task_type="recurrent", interval=app_settings.worker_metrics_poll_interval
 )
 class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
-    """Recurrent background job for collecting metrics from all active CML Workers.
+    """Recurrent background job for collecting data from all active CML Workers.
 
     This job is scheduled by the BackgroundTaskScheduler and runs at regular intervals
     (configurable via WORKER_METRICS_POLL_INTERVAL env var, default: 300s/5min).
 
-    It iterates through all active workers and polls AWS EC2/CloudWatch APIs to:
-    - Sync worker status with EC2 instance state
-    - Collect CPU/memory utilization metrics
-    - Check instance health status
-    - Update worker telemetry in database
+    It orchestrates two commands via Mediator for each active worker:
+    1. RefreshWorkerMetricsCommand - EC2 status, CloudWatch metrics, CML system data
+    2. RefreshWorkerLabsCommand - CML labs topology and state (conditional)
 
-    This single-job approach is simpler and more efficient than creating
-    one job per worker for small-to-medium scale deployments (<100 workers).
+    This approach ensures consistent command orchestration logic between on-demand
+    (single worker) and background (all workers) refresh operations.
     """
 
     def __init__(
@@ -78,19 +88,12 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
 
         # Inject or instantiate AwsEc2Client
         if not hasattr(self, "aws_ec2_client") or not self.aws_ec2_client:
-            from integration.services.aws_ec2_api_client import AwsEc2Client
-
             if self._service_provider:
                 self.aws_ec2_client = self._service_provider.get_required_service(
                     AwsEc2Client
                 )
             else:
                 # Directly instantiate for horizontal scaling
-                from application.settings import app_settings
-                from integration.services.aws_ec2_api_client import (
-                    AwsAccountCredentials,
-                )
-
                 credentials = AwsAccountCredentials(
                     aws_access_key_id=app_settings.aws_access_key_id,
                     aws_secret_access_key=app_settings.aws_secret_access_key,
@@ -140,21 +143,10 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
                 scope = None
 
             try:
-                from domain.repositories import CMLWorkerRepository
-
                 if scope:
                     worker_repository = scope.get_required_service(CMLWorkerRepository)
                 else:
                     # No service provider - create repository directly for horizontal scaling
-                    from motor.motor_asyncio import AsyncIOMotorClient
-                    from neuroglia.serialization.json import JsonSerializer
-
-                    from application.settings import app_settings
-                    from domain.entities.cml_worker import CMLWorker
-                    from integration.repositories.motor_cml_worker_repository import (
-                        MongoCMLWorkerRepository,
-                    )
-
                     # Get MongoDB connection string
                     mongo_uri = app_settings.connection_strings.get("mongo")
                     if not mongo_uri:
@@ -183,30 +175,73 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
                 logger.info(f"📊 Collecting metrics for {len(workers)} active workers")
                 span.set_attribute("worker_count", len(workers))
 
-                # 2. Create metrics service
-                metrics_service = WorkerMetricsService(self.aws_ec2_client)
+                # 2. Get Mediator for command orchestration
+                if scope:
+                    mediator = scope.get_required_service(Mediator)
+                else:
+                    logger.error(
+                        "❌ No service provider - cannot get Mediator for command orchestration"
+                    )
+                    return
 
-                # 3. Process workers concurrently with semaphore (limit to 10 concurrent AWS API calls)
+                # 3. Process workers concurrently with semaphore (limit to 10 concurrent operations)
                 semaphore = asyncio.Semaphore(10)
 
                 async def process_worker_with_semaphore(worker):
-                    """Process single worker with semaphore limit."""
+                    """Process single worker by orchestrating metrics and labs refresh commands."""
                     async with semaphore:
                         try:
-                            result = await metrics_service.collect_worker_metrics(
-                                worker, collect_cloudwatch=True
+                            worker_id = worker.id()
+
+                            # Step 1: Refresh metrics (EC2, CloudWatch, CML system data)
+                            metrics_result = await mediator.execute_async(
+                                RefreshWorkerMetricsCommand(worker_id=worker_id)
                             )
-                            if result.error:
+
+                            if metrics_result.status != 200:
                                 logger.warning(
-                                    f"⚠️ Metrics collection error for worker {worker.id()}: {result.error}"
+                                    f"⚠️ Metrics refresh failed for worker {worker_id}: {metrics_result.detail}"
                                 )
-                            return worker, result
+                                return worker_id, False, "metrics_failed"
+
+                            # Step 2: Refresh labs (only if worker is running and CML is ready)
+                            operations = metrics_result.data.get("operations", {})
+                            worker_running = (
+                                operations.get("ec2_sync", {}).get("worker_status")
+                                == "running"
+                            )
+                            cml_ready = (
+                                operations.get("cml_sync", {}).get("cml_ready") is True
+                            )
+
+                            if worker_running and cml_ready:
+                                labs_result = await mediator.execute_async(
+                                    RefreshWorkerLabsCommand(worker_id=worker_id)
+                                )
+
+                                if labs_result.status != 200:
+                                    logger.warning(
+                                        f"⚠️ Labs refresh failed for worker {worker_id}: {labs_result.detail}"
+                                    )
+                                    return worker_id, True, "labs_failed"
+
+                                logger.debug(
+                                    f"✅ Full data refresh completed for worker {worker_id}"
+                                )
+                                return worker_id, True, "success"
+                            else:
+                                logger.debug(
+                                    f"⏭️ Skipping labs refresh for worker {worker_id} - "
+                                    f"not running or CML not ready"
+                                )
+                                return worker_id, True, "labs_skipped"
+
                         except Exception as e:
                             logger.error(
                                 f"❌ Failed to process worker {worker.id()}: {e}",
                                 exc_info=True,
                             )
-                            return worker, None
+                            return worker.id(), False, f"exception: {str(e)}"
 
                 # Process all workers concurrently
                 results = await asyncio.gather(
@@ -214,43 +249,32 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
                     return_exceptions=True,
                 )
 
-                # 4. Separate successful and failed updates
-                updated_workers = []
+                # 4. Aggregate results
+                success_count = 0
                 errors = 0
+                labs_skipped = 0
+
                 for result in results:
                     if isinstance(result, Exception):
                         errors += 1
                         logger.error(f"Worker processing exception: {result}")
                     elif result:
-                        worker, metrics_result = result
-                        if metrics_result and not metrics_result.error:
-                            updated_workers.append(worker)
+                        worker_id, success, status = result
+                        if success:
+                            success_count += 1
+                            if status == "labs_skipped":
+                                labs_skipped += 1
                         else:
                             errors += 1
 
-                span.set_attribute("workers_updated", len(updated_workers))
+                span.set_attribute("workers_processed", success_count)
+                span.set_attribute("labs_skipped", labs_skipped)
                 span.set_attribute("errors", errors)
 
-                # 5. Batch update to database
-                if updated_workers:
-                    try:
-                        await worker_repository.update_many_async(updated_workers)
-                        logger.info(
-                            f"✅ Completed metrics collection: {len(updated_workers)} workers updated, {errors} errors"
-                        )
-                    except Exception as e:
-                        logger.error(f"❌ Failed batch update: {e}", exc_info=True)
-                        # Fall back to individual updates
-                        logger.info("⚠️ Falling back to individual updates")
-                        for worker in updated_workers:
-                            try:
-                                await worker_repository.update_async(worker)
-                            except Exception as update_error:
-                                logger.error(
-                                    f"Failed to update worker {worker.id()}: {update_error}"
-                                )
-                else:
-                    logger.warning("No workers successfully updated")
+                logger.info(
+                    f"✅ Completed metrics collection: {success_count} workers processed, "
+                    f"{labs_skipped} labs skipped, {errors} errors"
+                )
 
             except Exception as e:
                 logger.error(
@@ -261,5 +285,7 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
                 raise
             finally:
                 # Dispose the scope to release scoped services
+                if scope:
+                    scope.dispose()
                 if scope:
                     scope.dispose()
