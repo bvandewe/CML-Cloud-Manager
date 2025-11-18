@@ -32,6 +32,7 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
   - Renamed "Function" column to "Command" for better understanding
   - Display actual job class name (e.g., "WorkerMetricsCollectionJob") instead of generic wrapper function
   - Makes it easier to identify which background job is scheduled
+  - Applied same improvement to Worker Details modal Jobs tab
 
 - **Import Organization**: Removed all inline imports from application layer (jobs, commands, queries, event handlers)
   - Moved 30+ inline imports to module level following Python PEP 8 best practices

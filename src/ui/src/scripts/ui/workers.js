@@ -2495,7 +2495,7 @@ async function loadJobsTab() {
                     <thead>
                         <tr>
                             <th>Job ID</th>
-                            <th>Name</th>
+                            <th>Command</th>
                             <th>Next Run</th>
                             <th>Trigger</th>
                             <th>Status</th>
@@ -2511,7 +2511,7 @@ async function loadJobsTab() {
             html += `
                 <tr>
                     <td><code class="small">${escapeHtml(job.id)}</code></td>
-                    <td>${escapeHtml(job.name || job.func || 'Unknown')}</td>
+                    <td>${escapeHtml(job.command || job.name || 'Unknown')}</td>
                     <td>${escapeHtml(nextRun)}</td>
                     <td><small class="text-muted">${escapeHtml(job.trigger || 'N/A')}</small></td>
                     <td>${statusBadge}</td>
