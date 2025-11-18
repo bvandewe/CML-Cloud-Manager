@@ -8,6 +8,12 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ### Fixed
 
+- **Metrics Display Consistency**: Fixed inconsistent CPU/memory metrics between table and modal views
+  - Unified data source: both views now use CML native telemetry (not CloudWatch)
+  - SSE handler updates local cache directly instead of triggering full page reload
+  - Added disk utilization to modal's Resource Utilization card (3-column layout)
+  - Real-time metrics sync: table rows and modal update simultaneously on SSE events
+
 - **WorkerMetricsService DI Registration**: Fixed factory function registration to properly inject service instances
   - Changed from `singleton=create_service` to positional `create_service` argument
   - Resolves AttributeError where handlers received factory function instead of service instance

@@ -397,18 +397,29 @@ function setupSSEHandlers() {
             saveWorkerMetricsInfo(data.worker_id, info);
         }
 
-        // Update the worker in the list if it's visible
+        // Update the worker in the local cache with new metrics
         const workerIndex = workersData.findIndex(w => w.id === data.worker_id);
         if (workerIndex !== -1) {
-            // Reload workers to get fresh data
-            loadWorkers();
+            // Update metrics in local cache
+            workersData[workerIndex].cpu_utilization = data.cpu_utilization;
+            workersData[workerIndex].memory_utilization = data.memory_utilization;
+            console.log('[SSE] Updated local worker cache with metrics:', {
+                worker_id: data.worker_id,
+                cpu: data.cpu_utilization,
+                memory: data.memory_utilization,
+            });
+
+            // Refresh the table display with updated data
+            renderWorkersTable(workersData);
         }
 
         // If worker details modal is open for this worker, update displays
         if (currentWorkerDetails && currentWorkerDetails.id === data.worker_id) {
-            console.log('[SSE] Updating timing displays for open modal');
+            console.log('[SSE] Updating modal displays for open worker');
             // Reset the countdown timer when metrics are updated
             resetMetricsCountdown(data);
+            // Reload CloudWatch metrics section in the CML tab
+            loadCloudWatchMetrics(data.worker_id, currentWorkerDetails.region);
         }
     });
 
@@ -1300,7 +1311,7 @@ async function showWorkerDetails(workerId, region) {
             </div>
             <div class="row mt-3">
                 <div class="col-md-12">
-                    <h5 class="border-bottom pb-2 mb-3">Resource Utilization (Last 10 Minutes)</h5>
+                    <h5 class="border-bottom pb-2 mb-3">Resource Utilization</h5>
                     <div id="cloudwatch-metrics-section">
                         <div class="text-center py-3">
                             <div class="spinner-border spinner-border-sm" role="status"></div>
@@ -1364,24 +1375,27 @@ async function showWorkerDetails(workerId, region) {
 }
 
 /**
- * Load CloudWatch metrics and display in overview
+ * Load CML metrics and display in overview
+ * Uses CML's native telemetry API data (same as table view)
  */
 async function loadCloudWatchMetrics(workerId, region) {
     const metricsSection = document.getElementById('cloudwatch-metrics-section');
     if (!metricsSection) return;
 
     try {
-        const resources = await workersApi.getWorkerResources(region, workerId, '10m');
+        // Get worker data to access CML telemetry metrics
+        const worker = await workersApi.getWorkerById(region, workerId);
 
-        const cpuValue = resources.avg_cpu_utilization;
-        const memValue = resources.avg_memory_utilization;
+        const cpuValue = worker.cpu_utilization;
+        const memValue = worker.memory_utilization;
+        const diskValue = worker.storage_utilization;
 
         metricsSection.innerHTML = `
             <div class="row">
-                <div class="col-md-6">
+                <div class="col-md-4">
                     <div class="mb-3">
                         <div class="d-flex justify-content-between mb-1">
-                            <small class="text-muted"><i class="bi bi-cpu"></i> CPU Usage (avg)</small>
+                            <small class="text-muted"><i class="bi bi-cpu"></i> CPU Usage</small>
                             <small><strong>${cpuValue != null ? cpuValue.toFixed(1) + '%' : 'N/A'}</strong></small>
                         </div>
                         ${
@@ -1392,14 +1406,14 @@ async function loadCloudWatchMetrics(workerId, region) {
                                  style="width: ${cpuValue}%">
                             </div>
                         </div>`
-                                : '<div class="alert alert-sm alert-warning py-1 mb-0"><i class="bi bi-exclamation-triangle"></i> No CPU data available - enable detailed monitoring</div>'
+                                : '<div class="alert alert-sm alert-warning py-1 mb-0"><i class="bi bi-exclamation-triangle"></i> No CPU data available</div>'
                         }
                     </div>
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-4">
                     <div class="mb-3">
                         <div class="d-flex justify-content-between mb-1">
-                            <small class="text-muted"><i class="bi bi-memory"></i> Memory Usage (avg)</small>
+                            <small class="text-muted"><i class="bi bi-memory"></i> Memory Usage</small>
                             <small><strong>${memValue != null ? memValue.toFixed(1) + '%' : 'N/A'}</strong></small>
                         </div>
                         ${
@@ -1410,13 +1424,31 @@ async function loadCloudWatchMetrics(workerId, region) {
                                  style="width: ${memValue}%">
                             </div>
                         </div>`
-                                : '<div class="alert alert-sm alert-info py-1 mb-0"><i class="bi bi-info-circle"></i> Requires CloudWatch Agent installation</div>'
+                                : '<div class="alert alert-sm alert-info py-1 mb-0"><i class="bi bi-info-circle"></i> No memory data available</div>'
+                        }
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <small class="text-muted"><i class="bi bi-hdd"></i> Storage Usage</small>
+                            <small><strong>${diskValue != null ? diskValue.toFixed(1) + '%' : 'N/A'}</strong></small>
+                        </div>
+                        ${
+                            diskValue != null
+                                ? `
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar ${getDiskProgressClass(diskValue)}"
+                                 style="width: ${diskValue}%">
+                            </div>
+                        </div>`
+                                : '<div class="alert alert-sm alert-info py-1 mb-0"><i class="bi bi-info-circle"></i> No storage data available</div>'
                         }
                     </div>
                 </div>
             </div>
             <div class="text-muted small">
-                <i class="bi bi-clock"></i> Period: ${new Date(resources.start_time).toLocaleTimeString()} - ${new Date(resources.end_time).toLocaleTimeString()}
+                <i class="bi bi-info-circle"></i> Data from CML native telemetry (last refresh: ${formatRelativeTime(worker.updated_at)})
             </div>
         `;
     } catch (error) {
@@ -2878,6 +2910,12 @@ function getMemoryProgressClass(value) {
     if (value >= 90) return 'bg-danger';
     if (value >= 70) return 'bg-warning';
     return 'bg-info';
+}
+
+function getDiskProgressClass(value) {
+    if (value >= 90) return 'bg-danger';
+    if (value >= 70) return 'bg-warning';
+    return 'bg-primary';
 }
 
 function escapeHtml(text) {
