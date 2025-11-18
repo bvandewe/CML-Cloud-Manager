@@ -1,8 +1,8 @@
 import logging
 from typing import Any, List
 
-from classy_fastapi.decorators import get
-from fastapi import Depends
+from classy_fastapi.decorators import delete, get
+from fastapi import Depends, HTTPException
 from neuroglia.dependency_injection import ServiceProviderBase
 from neuroglia.mapping.mapper import Mapper
 from neuroglia.mediation.mediator import Mediator
@@ -72,6 +72,67 @@ class SystemController(ControllerBase):
         except Exception as e:
             logger.error(f"Failed to retrieve scheduler jobs: {e}")
             return []
+
+    @delete(
+        "/scheduler/jobs/{job_id}",
+        response_model=dict,
+        response_description="Job deletion result",
+        status_code=200,
+        responses={
+            **ControllerBase.error_responses,
+            404: {"description": "Job not found"},
+        },
+    )
+    async def delete_scheduler_job(
+        self,
+        job_id: str,
+        token: str = Depends(get_current_user),
+        roles: str = Depends(require_roles("admin")),
+    ) -> Any:
+        """Delete a scheduled job by ID.
+
+        This endpoint allows administrators to remove background jobs from the scheduler.
+        The job will be immediately removed and will not run again.
+
+        (**Requires admin role.**)"""
+        try:
+            from application.services import BackgroundTaskScheduler
+
+            scheduler: BackgroundTaskScheduler = (
+                self.service_provider.get_required_service(BackgroundTaskScheduler)
+            )
+
+            if not scheduler or not scheduler._scheduler:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Scheduler not available",
+                )
+
+            # Check if job exists
+            job = scheduler._scheduler.get_job(job_id)
+            if not job:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Job '{job_id}' not found",
+                )
+
+            # Remove the job
+            scheduler._scheduler.remove_job(job_id)
+            logger.info(f"Job '{job_id}' deleted successfully by user")
+
+            return {
+                "success": True,
+                "message": f"Job '{job_id}' deleted successfully",
+                "job_id": job_id,
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to delete job '{job_id}': {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to delete job: {str(e)}",
+            )
 
     @get(
         "/scheduler/status",
@@ -145,54 +206,54 @@ class SystemController(ControllerBase):
     ) -> Any:
         """Get worker monitoring service status.
 
-        Returns information about the worker monitoring scheduler including:
-        - Active monitoring jobs
-        - Monitored workers count
-        - Last update times
+        Returns information about the background job scheduler including:
+        - Active background jobs
+        - Job count
+        - Scheduler running state
 
         (**Requires authenticated user.**)"""
         try:
-            # Import global monitoring scheduler reference
-            from main import _monitoring_scheduler
+            from application.services.background_scheduler import (
+                BackgroundTaskScheduler,
+            )
 
-            monitoring_scheduler = _monitoring_scheduler
+            scheduler: BackgroundTaskScheduler = (
+                self.service_provider.get_required_service(BackgroundTaskScheduler)
+            )
 
-            if monitoring_scheduler and monitoring_scheduler._background_task_scheduler:
-                # Get jobs from the background task scheduler
-                bg_scheduler = monitoring_scheduler._background_task_scheduler
-                if bg_scheduler and bg_scheduler._scheduler:
-                    jobs = bg_scheduler._scheduler.get_jobs()
-                    return {
-                        "status": "active",
-                        "scheduler_running": bg_scheduler._scheduler.running,
-                        "monitoring_job_count": len(monitoring_scheduler._active_jobs),
-                        "jobs": [
-                            {
-                                "id": job.id,
-                                "name": job.name,
-                                "next_run_time": (
-                                    job.next_run_time.isoformat()
-                                    if job.next_run_time
-                                    else None
-                                ),
-                            }
-                            for job in jobs
-                        ],
-                    }
+            if scheduler and scheduler._scheduler:
+                jobs = scheduler._scheduler.get_jobs()
+                return {
+                    "status": "active",
+                    "scheduler_running": scheduler._scheduler.running,
+                    "job_count": len(jobs),
+                    "jobs": [
+                        {
+                            "id": job.id,
+                            "name": job.name,
+                            "next_run_time": (
+                                job.next_run_time.isoformat()
+                                if job.next_run_time
+                                else None
+                            ),
+                        }
+                        for job in jobs
+                    ],
+                }
             else:
                 return {
                     "status": "inactive",
                     "scheduler_running": False,
-                    "monitoring_job_count": 0,
+                    "job_count": 0,
                     "jobs": [],
                 }
         except Exception as e:
-            logger.error(f"Failed to retrieve worker monitoring status: {e}")
+            logger.error(f"Failed to retrieve background job scheduler status: {e}")
             return {
                 "status": "error",
                 "error": str(e),
                 "scheduler_running": False,
-                "monitoring_job_count": 0,
+                "job_count": 0,
                 "jobs": [],
             }
 

@@ -2,31 +2,91 @@
 
 import asyncio
 import logging
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Set
 from uuid import uuid4
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class SSEClientSubscription:
+    """Subscription details for an SSE client with filtering support."""
+
+    client_id: str
+    event_queue: asyncio.Queue = field(default_factory=asyncio.Queue)
+    worker_ids: Optional[Set[str]] = None
+    event_types: Optional[Set[str]] = None
+
+    def matches_event(self, event_type: str, data: dict) -> bool:
+        """Check if event matches client's filter criteria.
+
+        Args:
+            event_type: Type of the event
+            data: Event data dictionary
+
+        Returns:
+            True if event matches filters (or no filters set), False otherwise
+        """
+        # If event_types filter is set, check if event type matches
+        if self.event_types is not None and event_type not in self.event_types:
+            return False
+
+        # If worker_ids filter is set, check if worker_id in data matches
+        if self.worker_ids is not None:
+            worker_id = data.get("worker_id")
+            if worker_id is None or worker_id not in self.worker_ids:
+                return False
+
+        return True
 
 
 class SSEEventRelay:
     """Relay service for broadcasting events to SSE clients.
 
     This service maintains a registry of connected SSE clients and
-    broadcasts worker-related events to all subscribed clients.
+    broadcasts worker-related events to subscribed clients with optional filtering.
+
+    Filters:
+    - worker_ids: Only send events for specific workers
+    - event_types: Only send specific event types
     """
 
     def __init__(self):
-        self._clients: Dict[str, asyncio.Queue] = {}
+        self._clients: Dict[str, SSEClientSubscription] = {}
         self._lock = asyncio.Lock()
 
-    async def register_client(self) -> tuple[str, asyncio.Queue]:
+    async def register_client(
+        self,
+        worker_ids: Optional[Set[str]] = None,
+        event_types: Optional[Set[str]] = None,
+    ) -> tuple[str, asyncio.Queue]:
+        """Register a new SSE client with optional filters.
+
+        Args:
+            worker_ids: Optional set of worker IDs to filter events by
+            event_types: Optional set of event types to filter by
+
+        Returns:
+            Tuple of (client_id, event_queue)
+        """
         client_id = str(uuid4())
-        event_queue: asyncio.Queue = asyncio.Queue()
+        subscription = SSEClientSubscription(
+            client_id=client_id, worker_ids=worker_ids, event_types=event_types
+        )
         async with self._lock:
-            self._clients[client_id] = event_queue
-        logger.info(f"SSE client registered: {client_id} (total: {len(self._clients)})")
-        return client_id, event_queue
+            self._clients[client_id] = subscription
+        filters_str = []
+        if worker_ids:
+            filters_str.append(f"worker_ids={worker_ids}")
+        if event_types:
+            filters_str.append(f"event_types={event_types}")
+        filter_desc = f" with filters: {', '.join(filters_str)}" if filters_str else ""
+        logger.info(
+            f"SSE client registered: {client_id}{filter_desc} (total: {len(self._clients)})"
+        )
+        return client_id, subscription.event_queue
 
     async def unregister_client(self, client_id: str) -> None:
         async with self._lock:
@@ -39,6 +99,17 @@ class SSEEventRelay:
     async def broadcast_event(
         self, event_type: str, data: dict, source: str = "cml-cloud-manager"
     ) -> None:
+        """Broadcast event to all matching clients based on their filters.
+
+        Args:
+            event_type: Type of event (e.g., "worker.metrics.updated")
+            data: Event data dictionary (must include worker_id if filtering by worker)
+            source: Event source identifier
+
+        Note:
+            Events are only sent to clients whose filters match the event.
+            If a client has no filters, it receives all events.
+        """
         event_message = {
             "type": event_type,
             "source": source,
@@ -46,14 +117,32 @@ class SSEEventRelay:
             "data": data,
         }
         async with self._lock:
-            client_queues = list(self._clients.values())
-        for queue in client_queues:
+            matching_clients = [
+                subscription
+                for subscription in self._clients.values()
+                if subscription.matches_event(event_type, data)
+            ]
+
+        broadcast_count = 0
+        for subscription in matching_clients:
             try:
-                await asyncio.wait_for(queue.put(event_message), timeout=0.1)
+                await asyncio.wait_for(
+                    subscription.event_queue.put(event_message), timeout=0.1
+                )
+                broadcast_count += 1
             except asyncio.TimeoutError:
-                logger.warning("SSE client queue full, event dropped")
+                logger.warning(
+                    f"SSE client {subscription.client_id} queue full, event dropped"
+                )
             except Exception as e:
-                logger.error(f"Failed to queue event for SSE client: {e}")
+                logger.error(
+                    f"Failed to queue event for SSE client {subscription.client_id}: {e}"
+                )
+
+        if broadcast_count > 0:
+            logger.debug(
+                f"Broadcasted event {event_type} to {broadcast_count}/{len(self._clients)} clients"
+            )
 
     def get_connected_clients_count(self) -> int:
         return len(self._clients)

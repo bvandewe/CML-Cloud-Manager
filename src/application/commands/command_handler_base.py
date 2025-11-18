@@ -13,12 +13,12 @@ from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import
 )
 from neuroglia.integration.models import IntegrationEvent
 from neuroglia.mapping import Mapper
-from neuroglia.mediation import Mediator
+from neuroglia.mediation import CommandHandler, Mediator
 
 log = logging.getLogger(__name__)
 
 
-class CommandHandlerBase:
+class CommandHandlerBase(CommandHandler):
     """Represents the base class for all services used to handle CML Worker Commands."""
 
     mediator: Mediator

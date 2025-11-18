@@ -5,6 +5,19 @@ from .bulk_import_cml_workers_command import (
     BulkImportCMLWorkersCommandHandler,
     BulkImportResult,
 )
+from .bulk_sync_worker_cml_data_command import (
+    BulkSyncWorkerCMLDataCommand,
+    BulkSyncWorkerCMLDataCommandHandler,
+)
+from .bulk_sync_worker_ec2_status_command import (
+    BulkSyncResult,
+    BulkSyncWorkerEC2StatusCommand,
+    BulkSyncWorkerEC2StatusCommandHandler,
+)
+from .collect_worker_cloudwatch_metrics_command import (
+    CollectWorkerCloudWatchMetricsCommand,
+    CollectWorkerCloudWatchMetricsCommandHandler,
+)
 from .command_handler_base import CommandHandlerBase
 from .control_lab_command import ControlLabCommand, ControlLabCommandHandler, LabAction
 from .create_cml_worker_command import (
@@ -38,6 +51,14 @@ from .start_cml_worker_command import (
     StartCMLWorkerCommandHandler,
 )
 from .stop_cml_worker_command import StopCMLWorkerCommand, StopCMLWorkerCommandHandler
+from .sync_worker_cml_data_command import (
+    SyncWorkerCMLDataCommand,
+    SyncWorkerCMLDataCommandHandler,
+)
+from .sync_worker_ec2_status_command import (
+    SyncWorkerEC2StatusCommand,
+    SyncWorkerEC2StatusCommandHandler,
+)
 from .terminate_cml_worker_command import (
     TerminateCMLWorkerCommand,
     TerminateCMLWorkerCommandHandler,
@@ -56,6 +77,13 @@ __all__ = [
     "BulkImportCMLWorkersCommand",
     "BulkImportCMLWorkersCommandHandler",
     "BulkImportResult",
+    "BulkSyncWorkerCMLDataCommand",
+    "BulkSyncWorkerCMLDataCommandHandler",
+    "BulkSyncWorkerEC2StatusCommand",
+    "BulkSyncWorkerEC2StatusCommandHandler",
+    "BulkSyncResult",
+    "CollectWorkerCloudWatchMetricsCommand",
+    "CollectWorkerCloudWatchMetricsCommandHandler",
     "CommandHandlerBase",
     "ControlLabCommand",
     "ControlLabCommandHandler",
@@ -80,6 +108,10 @@ __all__ = [
     "StartCMLWorkerCommandHandler",
     "StopCMLWorkerCommand",
     "StopCMLWorkerCommandHandler",
+    "SyncWorkerCMLDataCommand",
+    "SyncWorkerCMLDataCommandHandler",
+    "SyncWorkerEC2StatusCommand",
+    "SyncWorkerEC2StatusCommandHandler",
     "TerminateCMLWorkerCommand",
     "TerminateCMLWorkerCommandHandler",
     "UpdateCMLWorkerStatusCommand",

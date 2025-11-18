@@ -3,10 +3,10 @@
 import asyncio
 import json
 import logging
-from typing import AsyncIterator
+from typing import AsyncIterator, Optional
 
 from classy_fastapi.decorators import get as get_route
-from fastapi import Depends, Request
+from fastapi import Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from neuroglia.dependency_injection import ServiceProviderBase
 from neuroglia.mapping import Mapper
@@ -33,18 +33,26 @@ class EventsController(ControllerBase):
         self._sse_relay = service_provider.get_required_service(SSEEventRelay)
 
     async def _event_generator(
-        self, request: Request, user_info: dict
+        self,
+        request: Request,
+        user_info: dict,
+        worker_ids: Optional[set[str]] = None,
+        event_types: Optional[set[str]] = None,
     ) -> AsyncIterator[str]:
-        """Generate SSE events from SSEEventRelay.
+        """Generate SSE events from SSEEventRelay with optional filtering.
 
         Args:
             request: FastAPI request object (to detect client disconnect)
             user_info: User authentication info
+            worker_ids: Optional set of worker IDs to filter events by
+            event_types: Optional set of event types to filter by
 
         Yields:
             SSE-formatted event strings
         """
-        client_id, event_queue = await self._sse_relay.register_client()
+        client_id, event_queue = await self._sse_relay.register_client(
+            worker_ids=worker_ids, event_types=event_types
+        )
 
         try:
             logger.info(
@@ -109,7 +117,17 @@ class EventsController(ControllerBase):
         },
     )
     async def stream_events(
-        self, request: Request, user_info: dict = Depends(get_current_user)
+        self,
+        request: Request,
+        user_info: dict = Depends(get_current_user),
+        worker_ids: Optional[str] = Query(
+            None,
+            description="Comma-separated list of worker IDs to filter events (e.g., 'worker1,worker2')",
+        ),
+        event_types: Optional[str] = Query(
+            None,
+            description="Comma-separated list of event types to filter (e.g., 'worker.metrics.updated,worker.status.changed')",
+        ),
     ) -> StreamingResponse:
         """Stream server-sent events for real-time UI updates.
 
@@ -121,17 +139,36 @@ class EventsController(ControllerBase):
 
         The stream includes periodic heartbeats and auto-reconnection support.
 
+        Optional filtering by worker IDs and/or event types reduces bandwidth usage.
+
         (**Requires authenticated user.**)
 
         Args:
             request: FastAPI request object
             user_info: Current user information from authentication
+            worker_ids: Comma-separated worker IDs to filter by
+            event_types: Comma-separated event types to filter by
 
         Returns:
             StreamingResponse with SSE events
+
+        Example:
+            GET /api/events/stream?worker_ids=abc123,def456&event_types=worker.metrics.updated
         """
+        # Parse comma-separated filters
+        worker_ids_set = (
+            set(wid.strip() for wid in worker_ids.split(",") if wid.strip())
+            if worker_ids
+            else None
+        )
+        event_types_set = (
+            set(et.strip() for et in event_types.split(",") if et.strip())
+            if event_types
+            else None
+        )
+
         return StreamingResponse(
-            self._event_generator(request, user_info),
+            self._event_generator(request, user_info, worker_ids_set, event_types_set),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",

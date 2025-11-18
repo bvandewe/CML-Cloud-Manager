@@ -371,18 +371,8 @@ class WorkersController(ControllerBase):
             logger.error(f"Failed to refresh worker {worker_id}: {refresh_result}")
             return self.process(refresh_result)
 
-        # Get the monitoring scheduler from main module
-        from main import _monitoring_scheduler
-
-        # If monitoring is enabled and scheduler exists, ensure worker is being monitored
-        if _monitoring_scheduler:
-            try:
-                await _monitoring_scheduler.start_monitoring_worker_async(worker_id)
-                logger.info(f"✅ Monitoring started/verified for worker {worker_id}")
-            except Exception as e:
-                logger.warning(
-                    f"⚠️ Could not start monitoring for worker {worker_id}: {e}"
-                )
+        # Note: Worker monitoring is automatically managed by BackgroundJobsInitializer
+        # No need to manually start monitoring jobs here
 
         # Return the command result (which already includes the refreshed worker data)
         return self.process(refresh_result)

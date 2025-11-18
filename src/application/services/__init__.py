@@ -7,23 +7,16 @@ from .background_scheduler import (
     ScheduledBackgroundJob,
     backgroundjob,
 )
-from .labs_refresh_job import LabsRefreshJob
-from .logger import configure_logging
-from .worker_metrics_collection_job import WorkerMetricsCollectionJob
-from .worker_monitoring_scheduler import WorkerMonitoringScheduler
-from .worker_notification_handler import WorkerNotificationHandler
+from .worker_metrics_service import MetricsResult, WorkerMetricsService
 
 __all__ = [
     "BackgroundJob",
     "BackgroundTaskScheduler",
     "BackgroundTasksBus",
     "BackgroundTaskSchedulerOptions",
-    "LabsRefreshJob",
     "RecurrentBackgroundJob",
     "ScheduledBackgroundJob",
-    "WorkerMetricsCollectionJob",
-    "WorkerMonitoringScheduler",
-    "WorkerNotificationHandler",
     "backgroundjob",
-    "configure_logging",
+    "WorkerMetricsService",
+    "MetricsResult",
 ]
