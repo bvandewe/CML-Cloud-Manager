@@ -226,10 +226,9 @@ function resetMetricsCountdown(data) {
     // Update the last refreshed display
     updateLastRefreshedDisplay();
 
-    // Restart the countdown with new info
-    if (metricsCountdownInterval) {
-        startMetricsCountdown();
-    }
+    // Restart the countdown with new info (stop existing interval first)
+    stopMetricsCountdown();
+    startMetricsCountdown();
 }
 
 /**
@@ -252,10 +251,13 @@ function updateMetricsCountdownDisplay() {
     const remainingMs = nextRefreshTime - now;
 
     if (remainingMs <= 0) {
-        countdownElement.textContent = '0:00';
+        // Countdown expired - job should be running or about to run
+        countdownElement.textContent = 'Refreshing...';
+        countdownElement.classList.add('text-muted');
         return;
     }
 
+    countdownElement.classList.remove('text-muted');
     const remainingSeconds = Math.floor(remainingMs / 1000);
     const minutes = Math.floor(remainingSeconds / 60);
     const seconds = remainingSeconds % 60;
@@ -373,7 +375,16 @@ function setupSSEHandlers() {
 
     // Handle worker metrics updated
     sseClient.on('worker.metrics.updated', data => {
-        console.log('[SSE] Worker metrics updated:', data);
+        const timestamp = new Date().toISOString();
+        console.log(`[SSE] [${timestamp}] Worker metrics updated:`, {
+            worker_id: data.worker_id,
+            cpu_utilization: data.cpu_utilization,
+            memory_utilization: data.memory_utilization,
+            poll_interval: data.poll_interval,
+            next_refresh_at: data.next_refresh_at,
+            has_timing_info: !!(data.poll_interval && data.next_refresh_at),
+            modal_open: !!(currentWorkerDetails && currentWorkerDetails.id === data.worker_id),
+        });
 
         // Save metrics timing info to localStorage if provided
         if (data.worker_id && (data.next_refresh_at || data.poll_interval)) {
@@ -1165,14 +1176,42 @@ async function showWorkerDetails(workerId, region) {
         // Initialize timing info from worker data if available
         if (worker.poll_interval && worker.next_refresh_at) {
             console.log('[showWorkerDetails] Initializing timing info from worker data');
-            saveWorkerMetricsInfo(workerId, {
-                poll_interval: worker.poll_interval,
+
+            // Check if next_refresh_at is in the future
+            const nextRefreshTime = new Date(worker.next_refresh_at).getTime();
+            const now = Date.now();
+            const isStale = nextRefreshTime <= now;
+
+            console.log('[showWorkerDetails] Timing info validation:', {
                 next_refresh_at: worker.next_refresh_at,
-                last_refreshed_at: worker.cloudwatch_last_collected_at || new Date().toISOString(),
+                nextRefreshTime,
+                now,
+                isStale,
+                diff_seconds: Math.floor((nextRefreshTime - now) / 1000),
             });
-            // Update displays
+
+            if (isStale) {
+                console.log('[showWorkerDetails] next_refresh_at is stale - calculating fresh value');
+                // Calculate fresh next_refresh_at based on current time + poll_interval
+                const freshNextRefresh = new Date(now + worker.poll_interval * 1000).toISOString();
+                saveWorkerMetricsInfo(workerId, {
+                    poll_interval: worker.poll_interval,
+                    next_refresh_at: freshNextRefresh,
+                    last_refreshed_at: worker.cloudwatch_last_collected_at || new Date().toISOString(),
+                });
+                console.log('[showWorkerDetails] Saved fresh timing info:', { next_refresh_at: freshNextRefresh });
+            } else {
+                // Use original timing info if still valid
+                saveWorkerMetricsInfo(workerId, {
+                    poll_interval: worker.poll_interval,
+                    next_refresh_at: worker.next_refresh_at,
+                    last_refreshed_at: worker.cloudwatch_last_collected_at || new Date().toISOString(),
+                });
+            }
+
+            // Update displays and start countdown
             updateLastRefreshedDisplay();
-            updateMetricsCountdownDisplay();
+            startMetricsCountdown();
         } else {
             console.log('[showWorkerDetails] No timing info in worker data - triggering manual refresh');
             // Trigger a metrics refresh to populate timing data if worker is running
@@ -1181,7 +1220,7 @@ async function showWorkerDetails(workerId, region) {
                 // Use setTimeout to avoid blocking the modal display
                 setTimeout(async () => {
                     try {
-                        await workersApi.refreshWorkerMetrics(region, workerId);
+                        await workersApi.refreshWorker(region, workerId);
                         console.log('[showWorkerDetails] Manual metrics refresh triggered successfully');
                     } catch (error) {
                         console.error('[showWorkerDetails] Failed to trigger metrics refresh:', error);

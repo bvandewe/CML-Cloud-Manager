@@ -7,6 +7,7 @@ Single Responsibility Principle while maintaining backward compatibility.
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from neuroglia.core import OperationResult
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_bus import CloudEventBus
@@ -18,6 +19,9 @@ from neuroglia.mediation import Command, CommandHandler, Mediator
 from neuroglia.observability.tracing import add_span_attributes
 from opentelemetry import trace
 
+from application.services.background_scheduler import BackgroundTaskScheduler
+from application.settings import app_settings
+from infrastructure.services.worker_refresh_throttle import WorkerRefreshThrottle
 from observability.metrics import meter
 
 from .collect_worker_cloudwatch_metrics_command import (
@@ -83,6 +87,8 @@ class RefreshWorkerMetricsCommandHandler(
         mapper: Mapper,
         cloud_event_bus: CloudEventBus,
         cloud_event_publishing_options: CloudEventPublishingOptions,
+        refresh_throttle: WorkerRefreshThrottle,
+        background_task_scheduler: BackgroundTaskScheduler,
     ):
         super().__init__(
             mediator,
@@ -90,6 +96,8 @@ class RefreshWorkerMetricsCommandHandler(
             cloud_event_bus,
             cloud_event_publishing_options,
         )
+        self._refresh_throttle = refresh_throttle
+        self._background_task_scheduler = background_task_scheduler
 
     async def handle_async(
         self, request: RefreshWorkerMetricsCommand
@@ -113,6 +121,64 @@ class RefreshWorkerMetricsCommandHandler(
         )
 
         try:
+            # Rate-limiting: Check if refresh is allowed
+            if not self._refresh_throttle.can_refresh(command.worker_id):
+                retry_after = self._refresh_throttle.get_time_until_next_refresh(
+                    command.worker_id
+                )
+                log.info(
+                    f"Refresh throttled for worker {command.worker_id} - "
+                    f"retry after {retry_after:.1f}s"
+                )
+                return self.ok(
+                    {
+                        "worker_id": command.worker_id,
+                        "refresh_skipped": True,
+                        "reason": "rate_limited",
+                        "retry_after_seconds": retry_after,
+                        "last_refresh_at": (
+                            self._refresh_throttle.get_last_refresh(
+                                command.worker_id
+                            ).isoformat()
+                            if self._refresh_throttle.get_last_refresh(
+                                command.worker_id
+                            )
+                            else None
+                        ),
+                    }
+                )
+
+            # Check if global background job is imminent
+            global_job = self._background_task_scheduler.get_job(
+                "WorkerMetricsCollectionJob"
+            )
+            if global_job and global_job.next_run_time:
+                now_utc = datetime.now(timezone.utc)
+                next_run_utc = global_job.next_run_time.replace(tzinfo=timezone.utc)
+                time_until_job = (next_run_utc - now_utc).total_seconds()
+
+                if (
+                    0
+                    < time_until_job
+                    <= app_settings.worker_refresh_check_upcoming_job_threshold
+                ):
+                    log.info(
+                        f"Skipping manual refresh for worker {command.worker_id} - "
+                        f"background job scheduled in {time_until_job:.1f}s"
+                    )
+                    return self.ok(
+                        {
+                            "worker_id": command.worker_id,
+                            "refresh_skipped": True,
+                            "reason": "background_job_imminent",
+                            "next_background_job_at": global_job.next_run_time.isoformat(),
+                            "seconds_until_background_job": time_until_job,
+                        }
+                    )
+
+            # Record refresh attempt
+            self._refresh_throttle.record_refresh(command.worker_id)
+
             results = {}
 
             # 1. Sync EC2 status (always run first)

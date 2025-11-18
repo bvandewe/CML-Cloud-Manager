@@ -36,6 +36,7 @@ from domain.entities.lab_record import LabRecord
 from domain.repositories import TaskRepository
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
 from domain.repositories.lab_record_repository import LabRecordRepository
+from infrastructure.services.worker_refresh_throttle import WorkerRefreshThrottle
 from integration.repositories.motor_cml_worker_repository import (
     MongoCMLWorkerRepository,
 )
@@ -130,14 +131,17 @@ def create_app() -> FastAPI:
     # Configure AWS EC2 Client
     AwsEc2Client.configure(builder)
 
-    # Configure WorkerMetricsService as singleton (depends on AwsEc2Client)
-    builder.services.add_singleton(WorkerMetricsService, WorkerMetricsService)
-
     # Configure BackgroundTaskScheduler for worker monitoring jobs
     BackgroundTaskScheduler.configure(
         builder,
         modules=["application.jobs"],  # Scan for @backgroundjob decorated classes
     )
+
+    # Configure WorkerMetricsService as singleton (depends on AwsEc2Client and BackgroundTaskScheduler)
+    WorkerMetricsService.configure(builder)
+
+    # Configure WorkerRefreshThrottle as singleton for rate-limiting
+    WorkerRefreshThrottle.configure(builder)
 
     # Configure SSE Event Relay hosted service
     SSEEventRelayHostedService.configure(builder)

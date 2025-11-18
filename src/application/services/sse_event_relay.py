@@ -4,7 +4,7 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, Optional, Set
+from typing import Any
 from uuid import uuid4
 
 from neuroglia.hosting.abstractions import HostedService
@@ -18,8 +18,8 @@ class SSEClientSubscription:
 
     client_id: str
     event_queue: asyncio.Queue = field(default_factory=asyncio.Queue)
-    worker_ids: Optional[Set[str]] = None
-    event_types: Optional[Set[str]] = None
+    worker_ids: set[str] | None = None
+    event_types: set[str] | None = None
 
     def matches_event(self, event_type: str, data: dict) -> bool:
         """Check if event matches client's filter criteria.
@@ -56,13 +56,13 @@ class SSEEventRelay:
     """
 
     def __init__(self):
-        self._clients: Dict[str, SSEClientSubscription] = {}
+        self._clients: dict[str, SSEClientSubscription] = {}
         self._lock = asyncio.Lock()
 
     async def register_client(
         self,
-        worker_ids: Optional[Set[str]] = None,
-        event_types: Optional[Set[str]] = None,
+        worker_ids: set[str] | None = None,
+        event_types: set[str] | None = None,
     ) -> tuple[str, asyncio.Queue]:
         """Register a new SSE client with optional filters.
 

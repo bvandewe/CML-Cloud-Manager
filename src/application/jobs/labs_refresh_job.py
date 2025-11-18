@@ -7,7 +7,6 @@ It runs every 30 minutes and updates the lab_records collection with current sta
 import asyncio
 import logging
 from datetime import datetime
-from typing import Optional
 
 from opentelemetry import trace
 
@@ -26,7 +25,7 @@ logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
 
 
-def _parse_cml_timestamp(timestamp_str: Optional[str]) -> Optional[datetime]:
+def _parse_cml_timestamp(timestamp_str: str | None) -> datetime | None:
     """Parse CML timestamp string to datetime object.
 
     Args:
@@ -63,8 +62,8 @@ class LabsRefreshJob(RecurrentBackgroundJob):
 
     def __init__(
         self,
-        worker_repository: Optional[CMLWorkerRepository] = None,
-        lab_record_repository: Optional[LabRecordRepository] = None,
+        worker_repository: CMLWorkerRepository | None = None,
+        lab_record_repository: LabRecordRepository | None = None,
     ):
         """Initialize the labs refresh job.
 

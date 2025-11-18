@@ -2,7 +2,6 @@
 
 import secrets
 from datetime import datetime
-from typing import Optional
 from urllib.parse import urlencode
 
 import jwt
@@ -167,7 +166,7 @@ class AuthController(ControllerBase):
             )
 
     @post("/refresh")
-    async def refresh(self, session_id: Optional[str] = Cookie(None)):
+    async def refresh(self, session_id: str | None = Cookie(None)):
         """Refresh session tokens using Keycloak refresh token.
 
         Returns new access/id tokens and updates the session store.
@@ -208,7 +207,7 @@ class AuthController(ControllerBase):
         }
 
     @get("/logout")
-    async def logout(self, session_id: Optional[str] = Cookie(None)):
+    async def logout(self, session_id: str | None = Cookie(None)):
         """Logout user - clear session and redirect to Keycloak logout.
 
         Args:
@@ -254,7 +253,7 @@ class AuthController(ControllerBase):
         return redirect
 
     @get("/user")
-    async def get_current_user(self, session_id: Optional[str] = Cookie(None)):
+    async def get_current_user(self, session_id: str | None = Cookie(None)):
         """Get current authenticated user information.
 
         Args:

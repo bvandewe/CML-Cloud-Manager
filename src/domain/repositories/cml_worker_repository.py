@@ -1,7 +1,6 @@
 """Abstract repository for CML Workers."""
 
 from abc import ABC, abstractmethod
-from typing import Optional
 
 from domain.entities.cml_worker import CMLWorker
 from domain.enums import CMLWorkerStatus
@@ -75,7 +74,7 @@ class CMLWorkerRepository(ABC):
 
     @abstractmethod
     async def delete_async(
-        self, worker_id: str, worker: Optional[CMLWorker] = None
+        self, worker_id: str, worker: CMLWorker | None = None
     ) -> bool:
         """Delete a CML worker by ID.
 

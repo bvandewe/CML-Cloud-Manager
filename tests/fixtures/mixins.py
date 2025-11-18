@@ -5,7 +5,8 @@ async operations, and test patterns.
 """
 
 import asyncio
-from typing import Any, Awaitable, Callable, TypeVar
+from collections.abc import Awaitable, Callable
+from typing import Any, TypeVar
 from unittest.mock import AsyncMock
 
 from domain.entities import Task

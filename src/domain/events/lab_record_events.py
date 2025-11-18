@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
 
 from neuroglia.data.abstractions import DomainEvent
 
@@ -13,17 +12,17 @@ class LabRecordCreatedDomainEvent(DomainEvent):
 
     worker_id: str
     lab_id: str
-    title: Optional[str]
-    description: Optional[str]
-    notes: Optional[str]
+    title: str | None
+    description: str | None
+    notes: str | None
     state: str
-    owner_username: Optional[str]
-    owner_fullname: Optional[str]
+    owner_username: str | None
+    owner_fullname: str | None
     node_count: int
     link_count: int
-    groups: Optional[list[str]]
-    cml_created_at: Optional[datetime]
-    cml_modified_at: Optional[datetime]
+    groups: list[str] | None
+    cml_created_at: datetime | None
+    cml_modified_at: datetime | None
     first_seen_at: datetime
 
     def __init__(
@@ -31,17 +30,17 @@ class LabRecordCreatedDomainEvent(DomainEvent):
         aggregate_id: str,
         worker_id: str,
         lab_id: str,
-        title: Optional[str],
-        description: Optional[str],
-        notes: Optional[str],
+        title: str | None,
+        description: str | None,
+        notes: str | None,
         state: str,
-        owner_username: Optional[str],
-        owner_fullname: Optional[str],
+        owner_username: str | None,
+        owner_fullname: str | None,
         node_count: int,
         link_count: int,
-        groups: Optional[list[str]],
-        cml_created_at: Optional[datetime],
-        cml_modified_at: Optional[datetime],
+        groups: list[str] | None,
+        cml_created_at: datetime | None,
+        cml_modified_at: datetime | None,
         first_seen_at: datetime,
     ) -> None:
         super().__init__(aggregate_id)
@@ -67,32 +66,32 @@ class LabRecordUpdatedDomainEvent(DomainEvent):
     """Event raised when a lab record is updated with fresh CML data."""
 
     lab_id: str
-    title: Optional[str]
-    description: Optional[str]
-    notes: Optional[str]
+    title: str | None
+    description: str | None
+    notes: str | None
     state: str
-    owner_username: Optional[str]
-    owner_fullname: Optional[str]
+    owner_username: str | None
+    owner_fullname: str | None
     node_count: int
     link_count: int
-    groups: Optional[list[str]]
-    cml_modified_at: Optional[datetime]
+    groups: list[str] | None
+    cml_modified_at: datetime | None
     synced_at: datetime
 
     def __init__(
         self,
         aggregate_id: str,
         lab_id: str,
-        title: Optional[str],
-        description: Optional[str],
-        notes: Optional[str],
+        title: str | None,
+        description: str | None,
+        notes: str | None,
         state: str,
-        owner_username: Optional[str],
-        owner_fullname: Optional[str],
+        owner_username: str | None,
+        owner_fullname: str | None,
         node_count: int,
         link_count: int,
-        groups: Optional[list[str]],
-        cml_modified_at: Optional[datetime],
+        groups: list[str] | None,
+        cml_modified_at: datetime | None,
         synced_at: datetime,
     ) -> None:
         super().__init__(aggregate_id)

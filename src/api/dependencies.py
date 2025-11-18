@@ -10,7 +10,6 @@ Enhancements:
 """
 
 import time
-from typing import Optional
 
 import jwt
 from fastapi import Cookie, Depends, HTTPException, Request, Security, status
@@ -45,8 +44,8 @@ def get_auth_service(request: Request) -> DualAuthService:
 
 async def get_current_user(
     request: Request,
-    session_id: Optional[str] = Cookie(None),
-    credentials: Optional[HTTPAuthorizationCredentials] = Security(security_optional),
+    session_id: str | None = Cookie(None),
+    credentials: HTTPAuthorizationCredentials | None = Security(security_optional),
 ) -> dict:
     """Get current user from either session cookie OR JWT Bearer token.
 

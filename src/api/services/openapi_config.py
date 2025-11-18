@@ -1,7 +1,8 @@
 """OpenAPI/Swagger configuration service for API documentation."""
 
 import logging
-from typing import Any, Iterable, cast
+from collections.abc import Iterable
+from typing import Any, cast
 
 from fastapi import FastAPI
 from fastapi.dependencies.models import Dependant, SecurityRequirement

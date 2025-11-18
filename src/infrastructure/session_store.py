@@ -4,7 +4,7 @@ import json
 import secrets
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from typing import Dict, Optional, cast
+from typing import cast
 
 try:
     import redis  # type: ignore[import]
@@ -19,7 +19,7 @@ class SessionStore(ABC):
     """Abstract base class for session storage."""
 
     @abstractmethod
-    def create_session(self, tokens: Dict, user_info: Dict) -> str:
+    def create_session(self, tokens: dict, user_info: dict) -> str:
         """Create a new session and return session ID.
 
         Args:
@@ -32,7 +32,7 @@ class SessionStore(ABC):
         pass
 
     @abstractmethod
-    def get_session(self, session_id: str) -> Optional[Dict]:
+    def get_session(self, session_id: str) -> dict | None:
         """Retrieve session data by session ID.
 
         Args:
@@ -53,7 +53,7 @@ class SessionStore(ABC):
         pass
 
     @abstractmethod
-    def refresh_session(self, session_id: str, new_tokens: Dict) -> None:
+    def refresh_session(self, session_id: str, new_tokens: dict) -> None:
         """Update session with new tokens after refresh.
 
         Args:
@@ -76,10 +76,10 @@ class InMemorySessionStore(SessionStore):
         Args:
             session_timeout_hours: How long sessions remain valid (default: 1 hour)
         """
-        self._sessions: Dict[str, Dict] = {}
+        self._sessions: dict[str, dict] = {}
         self._session_timeout = timedelta(hours=session_timeout_hours)
 
-    def create_session(self, tokens: Dict, user_info: Dict) -> str:
+    def create_session(self, tokens: dict, user_info: dict) -> str:
         """Create a new session and return session ID."""
         session_id = secrets.token_urlsafe(32)
         now = datetime.utcnow()
@@ -93,7 +93,7 @@ class InMemorySessionStore(SessionStore):
 
         return session_id
 
-    def get_session(self, session_id: str) -> Optional[Dict]:
+    def get_session(self, session_id: str) -> dict | None:
         """Retrieve session data by session ID."""
         session = self._sessions.get(session_id)
 
@@ -112,7 +112,7 @@ class InMemorySessionStore(SessionStore):
         """Delete a session."""
         self._sessions.pop(session_id, None)
 
-    def refresh_session(self, session_id: str, new_tokens: Dict) -> None:
+    def refresh_session(self, session_id: str, new_tokens: dict) -> None:
         """Update session with new tokens after refresh."""
         session = self._sessions.get(session_id)
 
@@ -183,7 +183,7 @@ class RedisSessionStore(SessionStore):
         """Create Redis key from session ID."""
         return f"{self._key_prefix}{session_id}"
 
-    def create_session(self, tokens: Dict, user_info: Dict) -> str:
+    def create_session(self, tokens: dict, user_info: dict) -> str:
         """Create a new session and return session ID."""
         session_id = secrets.token_urlsafe(32)
         now = datetime.utcnow()
@@ -203,7 +203,7 @@ class RedisSessionStore(SessionStore):
 
         return session_id
 
-    def get_session(self, session_id: str) -> Optional[Dict]:
+    def get_session(self, session_id: str) -> dict | None:
         """Retrieve session data by session ID."""
         key = self._make_key(session_id)
         data = self._client.get(key)
@@ -224,7 +224,7 @@ class RedisSessionStore(SessionStore):
         key = self._make_key(session_id)
         self._client.delete(key)
 
-    def refresh_session(self, session_id: str, new_tokens: Dict) -> None:
+    def refresh_session(self, session_id: str, new_tokens: dict) -> None:
         """Update session with new tokens after refresh."""
         # Get existing session
         session = self.get_session(session_id)

@@ -1,6 +1,5 @@
 import datetime
 import logging
-from typing import Optional
 
 from neuroglia.utils import CamelModel
 
@@ -25,14 +24,14 @@ class TaskCreatedDto(CamelModel):
     priority: TaskPriority
     """The priority of the Task."""
 
-    assignee_id: Optional[str] = None
+    assignee_id: str | None = None
     """The id of the user assigned to the Task."""
 
-    department: Optional[str] = None
+    department: str | None = None
     """The department responsible for the Task."""
 
     created_at: datetime.datetime
     """The date and time when the Task was created."""
 
-    created_by: Optional[str] = None
+    created_by: str | None = None
     """The id of the user who created the Task."""

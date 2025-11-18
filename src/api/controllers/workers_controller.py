@@ -1,5 +1,5 @@
 import logging
-from typing import Annotated, Any, List
+from typing import Annotated, Any
 
 from classy_fastapi.decorators import delete, get, post
 from fastapi import Depends, HTTPException, Path
@@ -67,7 +67,7 @@ class WorkersController(ControllerBase):
 
     @get(
         "/region/{aws_region}/workers",
-        response_model=List[dict],
+        response_model=list[dict],
         response_description="List of CML Workers",
         status_code=200,
         responses=ControllerBase.error_responses,

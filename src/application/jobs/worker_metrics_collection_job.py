@@ -6,7 +6,6 @@ It's invoked by APScheduler and processes all active workers concurrently.
 
 import asyncio
 import logging
-from typing import Optional
 
 from opentelemetry import trace
 
@@ -43,7 +42,7 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
 
     def __init__(
         self,
-        aws_ec2_client: Optional[AwsEc2Client] = None,
+        aws_ec2_client: AwsEc2Client | None = None,
     ):
         """Initialize the metrics collection job.
 

@@ -1,5 +1,5 @@
 import logging
-from typing import Any, List
+from typing import Any
 
 from classy_fastapi.decorators import delete, get
 from fastapi import Depends, HTTPException
@@ -24,7 +24,7 @@ class SystemController(ControllerBase):
 
     @get(
         "/scheduler/jobs",
-        response_model=List[dict],
+        response_model=list[dict],
         response_description="List of APScheduler jobs",
         status_code=200,
         responses=ControllerBase.error_responses,

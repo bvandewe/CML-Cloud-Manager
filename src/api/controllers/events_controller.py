@@ -3,7 +3,7 @@
 import asyncio
 import json
 import logging
-from typing import AsyncIterator, Optional
+from collections.abc import AsyncIterator
 
 from classy_fastapi.decorators import get as get_route
 from fastapi import Depends, Query, Request
@@ -36,8 +36,8 @@ class EventsController(ControllerBase):
         self,
         request: Request,
         user_info: dict,
-        worker_ids: Optional[set[str]] = None,
-        event_types: Optional[set[str]] = None,
+        worker_ids: set[str] | None = None,
+        event_types: set[str] | None = None,
     ) -> AsyncIterator[str]:
         """Generate SSE events from SSEEventRelay with optional filtering.
 
@@ -120,11 +120,11 @@ class EventsController(ControllerBase):
         self,
         request: Request,
         user_info: dict = Depends(get_current_user),
-        worker_ids: Optional[str] = Query(
+        worker_ids: str | None = Query(
             None,
             description="Comma-separated list of worker IDs to filter events (e.g., 'worker1,worker2')",
         ),
-        event_types: Optional[str] = Query(
+        event_types: str | None = Query(
             None,
             description="Comma-separated list of event types to filter (e.g., 'worker.metrics.updated,worker.status.changed')",
         ),

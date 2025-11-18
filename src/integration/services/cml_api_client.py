@@ -8,7 +8,6 @@ API Documentation: https://developer.cisco.com/docs/modeling-labs/
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 import httpx
 
@@ -24,7 +23,7 @@ class CMLSystemInformation:
     version: str  # CML version (e.g., "2.9.0")
     ready: bool  # Whether CML is ready (has compute available)
     allow_ssh_pubkey_auth: bool  # SSH pubkey auth enabled
-    oui: Optional[str]  # OUI prefix for MAC addresses
+    oui: str | None  # OUI prefix for MAC addresses
 
     @classmethod
     def from_api_response(cls, data: dict) -> "CMLSystemInformation":
@@ -124,13 +123,13 @@ class CMLLicenseInfo:
 
     # Registration info
     registration_status: str  # COMPLETED, FAILED, etc.
-    smart_account: Optional[str]
-    virtual_account: Optional[str]
-    registration_expires: Optional[str]
+    smart_account: str | None
+    virtual_account: str | None
+    registration_expires: str | None
 
     # Authorization info
     authorization_status: str  # IN_COMPLIANCE, OUT_OF_COMPLIANCE, etc.
-    authorization_expires: Optional[str]
+    authorization_expires: str | None
 
     # Product license
     active_license: str  # CML_Enterprise, CML_Personal, etc.
@@ -281,7 +280,7 @@ class CMLApiClient:
         self.password = password
         self.verify_ssl = verify_ssl
         self.timeout = timeout
-        self._token: Optional[str] = None
+        self._token: str | None = None
 
     async def _authenticate(self) -> str:
         """Authenticate and get JWT token.
@@ -349,7 +348,7 @@ class CMLApiClient:
             self._token = await self._authenticate()
         return self._token
 
-    async def get_system_stats(self) -> Optional[CMLSystemStats]:
+    async def get_system_stats(self) -> CMLSystemStats | None:
         """Query CML system statistics.
 
         Returns:
@@ -417,7 +416,7 @@ class CMLApiClient:
             log.error(f"Unexpected error querying CML API at {self.base_url}: {e}")
             raise IntegrationException(f"Unexpected CML API error: {e}") from e
 
-    async def get_system_health(self) -> Optional[CMLSystemHealth]:
+    async def get_system_health(self) -> CMLSystemHealth | None:
         """Query CML system health status.
 
         This endpoint requires authentication.
@@ -487,7 +486,7 @@ class CMLApiClient:
             log.error(f"Unexpected error querying CML API at {self.base_url}: {e}")
             raise IntegrationException(f"Unexpected CML API error: {e}") from e
 
-    async def get_system_information(self) -> Optional[CMLSystemInformation]:
+    async def get_system_information(self) -> CMLSystemInformation | None:
         """Query CML system information (version, ready state).
 
         This endpoint does NOT require authentication.
@@ -547,7 +546,7 @@ class CMLApiClient:
         except IntegrationException:
             return False
 
-    async def get_labs(self, show_all: bool = True) -> Optional[list[str]]:
+    async def get_labs(self, show_all: bool = True) -> list[str] | None:
         """Query CML for list of lab IDs.
 
         This endpoint requires authentication.
@@ -625,7 +624,7 @@ class CMLApiClient:
             log.error(f"Unexpected error querying CML API at {self.base_url}: {e}")
             raise IntegrationException(f"Unexpected CML API error: {e}") from e
 
-    async def get_lab_details(self, lab_id: str) -> Optional[CMLLabDetails]:
+    async def get_lab_details(self, lab_id: str) -> CMLLabDetails | None:
         """Query CML for details of a specific lab.
 
         This endpoint requires authentication.
@@ -696,7 +695,7 @@ class CMLApiClient:
             log.error(f"Unexpected error querying CML API at {self.base_url}: {e}")
             raise IntegrationException(f"Unexpected CML API error: {e}") from e
 
-    async def get_licensing(self) -> Optional[CMLLicenseInfo]:
+    async def get_licensing(self) -> CMLLicenseInfo | None:
         """Query CML licensing information.
 
         This endpoint requires authentication and returns Smart Licensing status,

@@ -1,7 +1,6 @@
 """Lab Record Aggregate for tracking CML lab state and history."""
 
 from datetime import datetime, timezone
-from typing import Optional
 
 from multipledispatch import dispatch
 from neuroglia.data.abstractions import AggregateRoot, AggregateState
@@ -19,9 +18,9 @@ class LabOperation:
     def __init__(
         self,
         timestamp: datetime,
-        previous_state: Optional[str],
+        previous_state: str | None,
         new_state: str,
-        changed_fields: Optional[dict] = None,
+        changed_fields: dict | None = None,
     ):
         self.timestamp = timestamp
         self.previous_state = previous_state
@@ -63,23 +62,21 @@ class LabRecordState(AggregateState[str]):
         self.lab_id: str = ""
 
         # Current lab state
-        self.title: Optional[str] = None
-        self.description: Optional[str] = None
-        self.notes: Optional[str] = None
-        self.state: Optional[str] = None  # STARTED, STOPPED, DEFINED_ON_CORE, etc.
-        self.owner_username: Optional[str] = None
-        self.owner_fullname: Optional[str] = None
+        self.title: str | None = None
+        self.description: str | None = None
+        self.notes: str | None = None
+        self.state: str | None = None  # STARTED, STOPPED, DEFINED_ON_CORE, etc.
+        self.owner_username: str | None = None
+        self.owner_fullname: str | None = None
         self.node_count: int = 0
         self.link_count: int = 0
         self.groups: list[str] = []
 
         # Timestamps
-        self.cml_created_at: Optional[datetime] = None  # When lab was created in CML
-        self.modified_at: Optional[datetime] = None  # When lab was last modified in CML
-        self.last_synced_at: Optional[datetime] = None  # When we last fetched from CML
-        self.first_seen_at: Optional[datetime] = (
-            None  # When we first discovered this lab
-        )
+        self.cml_created_at: datetime | None = None  # When lab was created in CML
+        self.modified_at: datetime | None = None  # When lab was last modified in CML
+        self.last_synced_at: datetime | None = None  # When we last fetched from CML
+        self.first_seen_at: datetime | None = None  # When we first discovered this lab
 
         # Operation history (stored as dicts for MongoDB serialization)
         self.operation_history: list[dict] = []  # Max 50 entries
@@ -158,17 +155,17 @@ class LabRecord(AggregateRoot[LabRecordState, str]):
     def create(
         lab_id: str,
         worker_id: str,
-        title: Optional[str],
-        description: Optional[str],
-        notes: Optional[str],
+        title: str | None,
+        description: str | None,
+        notes: str | None,
         state: str,
-        owner_username: Optional[str],
-        owner_fullname: Optional[str],
+        owner_username: str | None,
+        owner_fullname: str | None,
         node_count: int,
         link_count: int,
-        groups: Optional[list[str]],
-        cml_created_at: Optional[datetime],
-        cml_modified_at: Optional[datetime],
+        groups: list[str] | None,
+        cml_created_at: datetime | None,
+        cml_modified_at: datetime | None,
     ) -> "LabRecord":
         """Create a new lab record."""
         import uuid
@@ -200,16 +197,16 @@ class LabRecord(AggregateRoot[LabRecordState, str]):
 
     def update_from_cml(
         self,
-        title: Optional[str],
-        description: Optional[str],
-        notes: Optional[str],
+        title: str | None,
+        description: str | None,
+        notes: str | None,
         state: str,
-        owner_username: Optional[str],
-        owner_fullname: Optional[str],
+        owner_username: str | None,
+        owner_fullname: str | None,
         node_count: int,
         link_count: int,
-        groups: Optional[list[str]],
-        cml_modified_at: Optional[datetime],
+        groups: list[str] | None,
+        cml_modified_at: datetime | None,
     ) -> None:
         """Update lab record with fresh data from CML."""
         synced_at = datetime.now(timezone.utc)

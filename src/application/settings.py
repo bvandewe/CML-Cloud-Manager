@@ -2,7 +2,7 @@
 
 import logging
 import sys
-from typing import Any, Optional
+from typing import Any
 
 from neuroglia.hosting.abstractions import ApplicationSettings
 
@@ -76,7 +76,7 @@ class Settings(ApplicationSettings):
     keycloak_url: str = (
         "http://localhost:8031"  # External URL (browser/Swagger accessible)
     )
-    keycloak_url_internal: Optional[str] = (
+    keycloak_url_internal: str | None = (
         None  # Internal Docker network URL (auto-populated if not set)
     )
     keycloak_realm: str = "cml-cloud-manager"
@@ -107,14 +107,14 @@ class Settings(ApplicationSettings):
     refresh_auto_leeway_seconds: int = 60  # Auto-refresh if exp is within this window
 
     # Persistence Configuration
-    consumer_group: Optional[str] = "cml-cloud-manager-consumer-group"
+    consumer_group: str | None = "cml-cloud-manager-consumer-group"
     connection_strings: dict[str, str] = {
         "mongo": "mongodb://root:pass@mongodb:27017/?authSource=admin"  # pragma: allowlist secret
     }
 
     # Cloud Events Configuration
-    cloud_event_sink: Optional[str] = None
-    cloud_event_source: Optional[str] = None
+    cloud_event_sink: str | None = None
+    cloud_event_source: str | None = None
     cloud_event_type_prefix: str = "io.system.cml-cloud-manager"
     cloud_event_retry_attempts: int = 5
     cloud_event_retry_delay: float = 1.0
@@ -157,6 +157,14 @@ class Settings(ApplicationSettings):
     worker_notification_webhooks: list[str] = (
         []
     )  # List of webhook URLs for notifications
+
+    # Worker Refresh Rate Limiting
+    worker_refresh_min_interval: int = (
+        10  # Seconds - minimum time between manual refresh requests
+    )
+    worker_refresh_check_upcoming_job_threshold: int = (
+        10  # Seconds - skip manual refresh if background job is within this threshold
+    )
 
     # Background Job Store Configuration (APScheduler persistence)
     background_job_store: dict[str, Any] = {

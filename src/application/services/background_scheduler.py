@@ -11,10 +11,9 @@ import contextvars
 import datetime
 import inspect
 import logging
-import typing
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from neuroglia.core import ModuleLoader, TypeFinder
 from neuroglia.reactive import AsyncRx
@@ -64,9 +63,9 @@ class BackgroundTaskException(Exception):
 
 
 def backgroundjob(
-    task_type: Optional[str] = None,
-    interval: Optional[int] = None,
-    scheduled_at: Optional[datetime.datetime] = None,
+    task_type: str | None = None,
+    interval: int | None = None,
+    scheduled_at: datetime.datetime | None = None,
 ):
     """Marks a class as a background task that will be scheduled by the BackgroundTaskScheduler.
 
@@ -94,10 +93,10 @@ def backgroundjob(
 class BackgroundJob(ABC):
     """Defines the fundamentals of a background job."""
 
-    __background_task_type__: Optional[str] = None
-    __task_id__: Optional[str] = None
-    __task_name__: Optional[str] = None
-    __task_type__: Optional[str] = None
+    __background_task_type__: str | None = None
+    __task_id__: str | None = None
+    __task_name__: str | None = None
+    __task_type__: str | None = None
 
     @abstractmethod
     def configure(self, *args, **kwargs):
@@ -107,7 +106,7 @@ class BackgroundJob(ABC):
 class ScheduledBackgroundJob(BackgroundJob, ABC):
     """Defines the fundamentals of a scheduled background job."""
 
-    __scheduled_at__: Optional[datetime.datetime] = None
+    __scheduled_at__: datetime.datetime | None = None
 
     @abstractmethod
     async def run_at(self, *args, **kwargs):
@@ -117,7 +116,7 @@ class ScheduledBackgroundJob(BackgroundJob, ABC):
 class RecurrentBackgroundJob(BackgroundJob, ABC):
     """Defines the fundamentals of a recurrent background job."""
 
-    __interval__: Optional[int] = None
+    __interval__: int | None = None
 
     @abstractmethod
     async def run_every(self, *args, **kwargs):
@@ -145,7 +144,7 @@ class RecurrentTaskDescriptor(TaskDescriptor):
     """Represents a serialized description of a recurrent task."""
 
     interval: int
-    started_at: Optional[datetime.datetime] = None
+    started_at: datetime.datetime | None = None
 
 
 class BackgroundTasksBus:
@@ -168,23 +167,23 @@ class BackgroundTasksBus:
 class BackgroundTaskSchedulerOptions:
     """Represents the configuration options for the background task scheduler."""
 
-    def __init__(self, modules: Optional[list[str]] = None):
+    def __init__(self, modules: list[str] | None = None):
         """Initialize with an empty type mapping.
 
         Args:
             modules: List of module paths to scan for @backgroundjob decorators (e.g., ['application.jobs'])
         """
-        self.type_maps: dict[str, typing.Type] = {}
+        self.type_maps: dict[str, type] = {}
         self.modules: list[str] = modules or [
             "application.services"
         ]  # Default for backward compatibility
 
-    def register_task_type(self, name: str, task_type: typing.Type):
+    def register_task_type(self, name: str, task_type: type):
         """Register a task type with the scheduler."""
         self.type_maps[name] = task_type
         log.debug(f"Registered background task type '{name}': {task_type}")
 
-    def get_task_type(self, name: str) -> Optional[typing.Type]:
+    def get_task_type(self, name: str) -> type | None:
         """Get a task type by name."""
         return self.type_maps.get(name)
 
@@ -400,7 +399,7 @@ class BackgroundTaskScheduler(HostedService):
         self,
         options: BackgroundTaskSchedulerOptions,
         background_task_bus: BackgroundTasksBus,
-        scheduler: Optional[AsyncIOScheduler] = None,
+        scheduler: AsyncIOScheduler | None = None,
         service_provider=None,
     ):
         """Initialize the background task scheduler.
@@ -504,7 +503,7 @@ class BackgroundTaskScheduler(HostedService):
             )
 
     def deserialize_task(
-        self, task_type: typing.Type, task_descriptor: TaskDescriptor
+        self, task_type: type, task_descriptor: TaskDescriptor
     ) -> BackgroundJob:
         """Deserialize a task descriptor into its Python type.
 
@@ -664,7 +663,7 @@ class BackgroundTaskScheduler(HostedService):
             log.debug(f"Error getting job '{task_id}': {ex}")
             return None
 
-    def get_task_info(self, task_id: str) -> Optional[dict]:
+    def get_task_info(self, task_id: str) -> dict | None:
         """Get information about a specific task."""
         try:
             job = self._scheduler.get_job(task_id)

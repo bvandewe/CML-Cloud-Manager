@@ -7,10 +7,11 @@ Shared by RefreshWorkerMetricsCommand (on-demand) and WorkerMetricsCollectionJob
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import TYPE_CHECKING
 
 from opentelemetry import trace
 
+from application.services.background_scheduler import BackgroundTaskScheduler
 from domain.entities.cml_worker import CMLWorker
 from domain.enums import CMLWorkerStatus
 from integration.enums import (
@@ -18,6 +19,9 @@ from integration.enums import (
     Ec2InstanceResourcesUtilizationRelativeStartTime,
 )
 from integration.services.aws_ec2_api_client import AwsEc2Client
+
+if TYPE_CHECKING:
+    from neuroglia.hosting.web import WebApplicationBuilder
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -30,10 +34,10 @@ class MetricsResult:
     worker_id: str
     status_updated: bool
     ec2_state: str
-    cpu_utilization: Optional[float] = None
-    memory_utilization: Optional[float] = None
+    cpu_utilization: float | None = None
+    memory_utilization: float | None = None
     metrics_collected: bool = False
-    error: Optional[str] = None
+    error: str | None = None
 
     def to_dict(self) -> dict:
         """Convert to dictionary for API responses."""
@@ -60,13 +64,37 @@ class WorkerMetricsService:
     Used by both on-demand commands and scheduled background jobs.
     """
 
-    def __init__(self, aws_ec2_client: AwsEc2Client):
+    def __init__(
+        self,
+        aws_ec2_client: AwsEc2Client,
+        background_task_scheduler: BackgroundTaskScheduler | None = None,
+    ):
         """Initialize the metrics service.
 
         Args:
             aws_ec2_client: AWS EC2 client for querying instance data
+            background_task_scheduler: Optional scheduler to query actual next run times
         """
         self._aws_client = aws_ec2_client
+        self._scheduler = background_task_scheduler
+
+    @staticmethod
+    def configure(builder: "WebApplicationBuilder") -> None:
+        """Configure the metrics service in the application builder.
+
+        Args:
+            builder: Application builder instance
+        """
+
+        def create_service(service_provider):
+            """Factory to create WorkerMetricsService with dependencies."""
+            aws_client = service_provider.get_required_service(AwsEc2Client)
+            scheduler = service_provider.get_required_service(BackgroundTaskScheduler)
+            return WorkerMetricsService(aws_client, scheduler)
+
+        # Register as singleton with factory function (no singleton= parameter)
+        builder.services.add_singleton(WorkerMetricsService, create_service)
+        logger.info("✅ WorkerMetricsService configured as singleton")
 
     async def collect_worker_metrics(
         self,
@@ -189,12 +217,39 @@ class WorkerMetricsService:
                                     pass
 
                             # Calculate next refresh time for countdown timer
+                            # Get the actual next run time from APScheduler (if available)
                             from application.settings import app_settings
 
                             poll_interval = app_settings.worker_metrics_poll_interval
-                            next_refresh_at = datetime.now(timezone.utc) + timedelta(
-                                seconds=poll_interval
-                            )
+
+                            # Try to get actual next run time from scheduler
+                            next_refresh_at = None
+                            if self._scheduler:
+                                try:
+                                    job = self._scheduler.get_job(
+                                        "WorkerMetricsCollectionJob"
+                                    )
+                                    if job and job.next_run_time:
+                                        # Use APScheduler's scheduled next run time (already in UTC)
+                                        next_refresh_at = job.next_run_time.replace(
+                                            tzinfo=timezone.utc
+                                        )
+                                        logger.debug(
+                                            f"Using APScheduler next_run_time: {next_refresh_at.isoformat()}"
+                                        )
+                                except Exception as e:
+                                    logger.debug(
+                                        f"Could not get next run time from scheduler: {e}"
+                                    )
+
+                            # Fallback: calculate from current time + interval
+                            if next_refresh_at is None:
+                                next_refresh_at = datetime.now(
+                                    timezone.utc
+                                ) + timedelta(seconds=poll_interval)
+                                logger.debug(
+                                    f"Using fallback next_refresh_at: {next_refresh_at.isoformat()}"
+                                )
 
                             # Update worker telemetry with timing info
                             # Always update timing even if no metrics data, so UI countdown works
@@ -270,4 +325,7 @@ class WorkerMetricsService:
             "terminated": CMLWorkerStatus.TERMINATED,
         }
 
+        return state_mapping.get(ec2_state, CMLWorkerStatus.UNKNOWN)
+        return state_mapping.get(ec2_state, CMLWorkerStatus.UNKNOWN)
+        return state_mapping.get(ec2_state, CMLWorkerStatus.UNKNOWN)
         return state_mapping.get(ec2_state, CMLWorkerStatus.UNKNOWN)

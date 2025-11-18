@@ -6,6 +6,18 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ## [Unreleased]
 
+### Fixed
+
+- **WorkerMetricsService DI Registration**: Fixed factory function registration to properly inject service instances
+  - Changed from `singleton=create_service` to positional `create_service` argument
+  - Resolves AttributeError where handlers received factory function instead of service instance
+  - Aligns with Neuroglia DI convention for lazy-initialized singletons
+
+- **Countdown Timer Display**: Fixed stale timing data causing `--:--` display in worker details modal
+  - Added validation to check if `next_refresh_at` is in the past before displaying
+  - Automatically calculates fresh timing (`current_time + poll_interval`) when backend data is stale
+  - Ensures countdown always shows valid future timestamp
+
 ### Added
 
 #### Worker Metrics Architecture Refactoring

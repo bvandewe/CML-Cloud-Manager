@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
 
 from neuroglia.data.abstractions import DomainEvent
 from neuroglia.eventing.cloud_events.decorators import cloudevent
@@ -20,11 +19,11 @@ class TaskCreatedDomainEvent(DomainEvent):
     description: str
     status: TaskStatus
     priority: TaskPriority
-    assignee_id: Optional[str]
-    department: Optional[str]
+    assignee_id: str | None
+    department: str | None
     created_at: datetime
     updated_at: datetime
-    created_by: Optional[str]
+    created_by: str | None
 
     def __init__(
         self,
@@ -33,11 +32,11 @@ class TaskCreatedDomainEvent(DomainEvent):
         description: str,
         status: TaskStatus,
         priority: TaskPriority,
-        assignee_id: Optional[str],
-        department: Optional[str],
+        assignee_id: str | None,
+        department: str | None,
         created_at: datetime,
         updated_at: datetime,
-        created_by: Optional[str],
+        created_by: str | None,
     ) -> None:
         super().__init__(aggregate_id)
         self.aggregate_id = aggregate_id
@@ -163,7 +162,7 @@ class TaskDeletedDomainEvent(DomainEvent):
         self,
         aggregate_id: str,
         title: str,
-        deleted_by: Optional[str] = None,
+        deleted_by: str | None = None,
     ):
         super().__init__(aggregate_id)
         self.title = title
@@ -171,7 +170,7 @@ class TaskDeletedDomainEvent(DomainEvent):
 
     aggregate_id: str
     title: str
-    deleted_by: Optional[str]
+    deleted_by: str | None
 
 
 @cloudevent("task.updated.v1")

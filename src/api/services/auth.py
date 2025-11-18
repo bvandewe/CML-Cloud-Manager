@@ -9,7 +9,8 @@ Enhancements:
 import json
 import logging
 import time
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Optional
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Any
 
 import httpx
 import jwt
@@ -86,7 +87,7 @@ class DualAuthService:
             return None
         return None
 
-    def _get_public_key_for_token(self, token: str) -> Optional[Any]:
+    def _get_public_key_for_token(self, token: str) -> Any | None:
         """Resolve RSA public key from JWKS using the token's 'kid' header.
 
         Returns PEM-compatible key object usable by PyJWT or None if not found.

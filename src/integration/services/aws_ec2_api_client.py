@@ -1,20 +1,26 @@
 import datetime
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 import boto3  # type: ignore
 from botocore.exceptions import ClientError, ParamValidationError  # type: ignore
 
-from integration.enums import (AwsRegion,
-                               Ec2InstanceResourcesUtilizationRelativeStartTime)
-from integration.exceptions import (EC2AuthenticationException,
-                                    EC2InstanceCreationException,
-                                    EC2InstanceNotFoundException,
-                                    EC2InstanceOperationException,
-                                    EC2InvalidParameterException,
-                                    EC2QuotaExceededException, EC2StatusCheckException,
-                                    EC2TagOperationException, IntegrationException)
+from integration.enums import (
+    AwsRegion,
+    Ec2InstanceResourcesUtilizationRelativeStartTime,
+)
+from integration.exceptions import (
+    EC2AuthenticationException,
+    EC2InstanceCreationException,
+    EC2InstanceNotFoundException,
+    EC2InstanceOperationException,
+    EC2InvalidParameterException,
+    EC2QuotaExceededException,
+    EC2StatusCheckException,
+    EC2TagOperationException,
+    IntegrationException,
+)
 from integration.models import CMLWorkerInstanceDto
 from integration.services.relative_time import relative_time
 
@@ -49,9 +55,9 @@ class Ec2InstanceDescriptor:
 
     launch_time_relative: str
 
-    public_ip: Optional[str] = None
+    public_ip: str | None = None
 
-    private_ip: Optional[str] = None
+    private_ip: str | None = None
 
 
 @dataclass
@@ -62,9 +68,9 @@ class Ec2InstanceResourcesUtilization:
 
     relative_start_time: Ec2InstanceResourcesUtilizationRelativeStartTime
 
-    avg_cpu_utilization: Optional[float]  # None if no data available
+    avg_cpu_utilization: float | None  # None if no data available
 
-    avg_memory_utilization: Optional[float]  # None if CloudWatch Agent not installed
+    avg_memory_utilization: float | None  # None if CloudWatch Agent not installed
 
     start_time: datetime.datetime
 
@@ -76,9 +82,9 @@ class AmiDetails:
     """AMI metadata from AWS."""
 
     ami_id: str
-    ami_name: Optional[str] = None
-    ami_description: Optional[str] = None
-    ami_creation_date: Optional[str] = None
+    ami_name: str | None = None
+    ami_description: str | None = None
+    ami_creation_date: str | None = None
 
 
 class AwsEc2Client:
@@ -169,7 +175,7 @@ class AwsEc2Client:
         self,
         aws_region: AwsRegion,
         ami_name: str,
-    ) -> List[str]:
+    ) -> list[str]:
         """Query AWS to find AMI IDs that match the given AMI name.
 
         Args:
@@ -788,12 +794,12 @@ class AwsEc2Client:
     def list_instances(
         self,
         region_name: AwsRegion,
-        instance_ids: Optional[List[str]] = None,
-        instance_types: Optional[List[str]] = None,
-        instance_states: Optional[List[str]] = None,
-        image_ids: Optional[List[str]] = None,
-        tag_filters: Optional[Dict[str, str]] = None,
-    ) -> List[Ec2InstanceDescriptor] | None:
+        instance_ids: list[str] | None = None,
+        instance_types: list[str] | None = None,
+        instance_states: list[str] | None = None,
+        image_ids: list[str] | None = None,
+        tag_filters: dict[str, str] | None = None,
+    ) -> list[Ec2InstanceDescriptor] | None:
         """List EC2 instances in the AWS Region with optional filters.
 
         Args:
@@ -834,7 +840,7 @@ class AwsEc2Client:
                     filters.append({"Name": f"tag:{tag_key}", "Values": [tag_value]})
 
             # Prepare describe_instances parameters
-            describe_params: Dict[str, Any] = {}
+            describe_params: dict[str, Any] = {}
             if instance_ids:
                 describe_params["InstanceIds"] = instance_ids
             if filters:

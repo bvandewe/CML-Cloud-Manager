@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
 
 from neuroglia.data.abstractions import DomainEvent
 from neuroglia.eventing.cloud_events.decorators import cloudevent
@@ -18,32 +17,32 @@ class CMLWorkerCreatedDomainEvent(DomainEvent):
     aggregate_id: str
     name: str
     aws_region: str
-    aws_instance_id: Optional[str]
+    aws_instance_id: str | None
     instance_type: str
-    ami_id: Optional[str]
-    ami_name: Optional[str]
-    ami_description: Optional[str]
-    ami_creation_date: Optional[str]
+    ami_id: str | None
+    ami_name: str | None
+    ami_description: str | None
+    ami_creation_date: str | None
     status: CMLWorkerStatus
-    cml_version: Optional[str]
+    cml_version: str | None
     created_at: datetime
-    created_by: Optional[str]
+    created_by: str | None
 
     def __init__(
         self,
         aggregate_id: str,
         name: str,
         aws_region: str,
-        aws_instance_id: Optional[str],
+        aws_instance_id: str | None,
         instance_type: str,
-        ami_id: Optional[str],
-        ami_name: Optional[str],
-        ami_description: Optional[str],
-        ami_creation_date: Optional[str],
+        ami_id: str | None,
+        ami_name: str | None,
+        ami_description: str | None,
+        ami_creation_date: str | None,
         status: CMLWorkerStatus,
-        cml_version: Optional[str],
+        cml_version: str | None,
         created_at: datetime,
-        created_by: Optional[str],
+        created_by: str | None,
     ) -> None:
         super().__init__(aggregate_id)
         self.aggregate_id = aggregate_id
@@ -93,7 +92,7 @@ class CMLServiceStatusUpdatedDomainEvent(DomainEvent):
     aggregate_id: str
     old_service_status: CMLServiceStatus
     new_service_status: CMLServiceStatus
-    https_endpoint: Optional[str]
+    https_endpoint: str | None
     updated_at: datetime
 
     def __init__(
@@ -101,7 +100,7 @@ class CMLServiceStatusUpdatedDomainEvent(DomainEvent):
         aggregate_id: str,
         old_service_status: CMLServiceStatus,
         new_service_status: CMLServiceStatus,
-        https_endpoint: Optional[str],
+        https_endpoint: str | None,
         updated_at: datetime,
     ) -> None:
         super().__init__(aggregate_id)
@@ -119,16 +118,16 @@ class CMLWorkerInstanceAssignedDomainEvent(DomainEvent):
 
     aggregate_id: str
     aws_instance_id: str
-    public_ip: Optional[str]
-    private_ip: Optional[str]
+    public_ip: str | None
+    private_ip: str | None
     assigned_at: datetime
 
     def __init__(
         self,
         aggregate_id: str,
         aws_instance_id: str,
-        public_ip: Optional[str],
-        private_ip: Optional[str],
+        public_ip: str | None,
+        private_ip: str | None,
         assigned_at: datetime,
     ) -> None:
         super().__init__(aggregate_id)
@@ -146,14 +145,14 @@ class CMLWorkerLicenseUpdatedDomainEvent(DomainEvent):
 
     aggregate_id: str
     license_status: LicenseStatus
-    license_token: Optional[str]
+    license_token: str | None
     updated_at: datetime
 
     def __init__(
         self,
         aggregate_id: str,
         license_status: LicenseStatus,
-        license_token: Optional[str],
+        license_token: str | None,
         updated_at: datetime,
     ) -> None:
         super().__init__(aggregate_id)
@@ -171,22 +170,22 @@ class CMLWorkerTelemetryUpdatedDomainEvent(DomainEvent):
     aggregate_id: str
     last_activity_at: datetime
     active_labs_count: int
-    cpu_utilization: Optional[float]
-    memory_utilization: Optional[float]
+    cpu_utilization: float | None
+    memory_utilization: float | None
     updated_at: datetime
-    poll_interval: Optional[int]  # Metrics collection interval in seconds
-    next_refresh_at: Optional[datetime]  # Next scheduled metrics collection time
+    poll_interval: int | None  # Metrics collection interval in seconds
+    next_refresh_at: datetime | None  # Next scheduled metrics collection time
 
     def __init__(
         self,
         aggregate_id: str,
         last_activity_at: datetime,
         active_labs_count: int,
-        cpu_utilization: Optional[float],
-        memory_utilization: Optional[float],
+        cpu_utilization: float | None,
+        memory_utilization: float | None,
         updated_at: datetime,
-        poll_interval: Optional[int] = None,
-        next_refresh_at: Optional[datetime] = None,
+        poll_interval: int | None = None,
+        next_refresh_at: datetime | None = None,
     ) -> None:
         super().__init__(aggregate_id)
         self.aggregate_id = aggregate_id
@@ -205,15 +204,15 @@ class CMLWorkerEndpointUpdatedDomainEvent(DomainEvent):
     """Event raised when worker HTTPS endpoint is updated."""
 
     aggregate_id: str
-    https_endpoint: Optional[str]
-    public_ip: Optional[str]
+    https_endpoint: str | None
+    public_ip: str | None
     updated_at: datetime
 
     def __init__(
         self,
         aggregate_id: str,
-        https_endpoint: Optional[str],
-        public_ip: Optional[str],
+        https_endpoint: str | None,
+        public_ip: str | None,
         updated_at: datetime,
     ) -> None:
         super().__init__(aggregate_id)
@@ -239,13 +238,13 @@ class CMLWorkerImportedDomainEvent(DomainEvent):
     aws_instance_id: str
     instance_type: str
     ami_id: str
-    ami_name: Optional[str]
-    ami_description: Optional[str]
-    ami_creation_date: Optional[str]
+    ami_name: str | None
+    ami_description: str | None
+    ami_creation_date: str | None
     instance_state: str
-    public_ip: Optional[str]
-    private_ip: Optional[str]
-    created_by: Optional[str]
+    public_ip: str | None
+    private_ip: str | None
+    created_by: str | None
     created_at: datetime
 
     def __init__(
@@ -256,13 +255,13 @@ class CMLWorkerImportedDomainEvent(DomainEvent):
         aws_instance_id: str,
         instance_type: str,
         ami_id: str,
-        ami_name: Optional[str],
-        ami_description: Optional[str],
-        ami_creation_date: Optional[str],
+        ami_name: str | None,
+        ami_description: str | None,
+        ami_creation_date: str | None,
         instance_state: str,
-        public_ip: Optional[str],
-        private_ip: Optional[str],
-        created_by: Optional[str],
+        public_ip: str | None,
+        private_ip: str | None,
+        created_by: str | None,
         created_at: datetime,
     ) -> None:
         super().__init__(aggregate_id)
@@ -290,14 +289,14 @@ class CMLWorkerTerminatedDomainEvent(DomainEvent):
     aggregate_id: str
     name: str
     terminated_at: datetime
-    terminated_by: Optional[str]
+    terminated_by: str | None
 
     def __init__(
         self,
         aggregate_id: str,
         name: str,
         terminated_at: datetime,
-        terminated_by: Optional[str],
+        terminated_by: str | None,
     ) -> None:
         super().__init__(aggregate_id)
         self.aggregate_id = aggregate_id

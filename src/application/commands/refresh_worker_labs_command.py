@@ -8,7 +8,6 @@ in addition to the scheduled 30-minute global refresh job.
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Optional
 
 from neuroglia.core import OperationResult
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_bus import CloudEventBus
@@ -34,7 +33,7 @@ log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
 
 
-def _parse_cml_timestamp(timestamp_str: Optional[str]) -> Optional[datetime]:
+def _parse_cml_timestamp(timestamp_str: str | None) -> datetime | None:
     """Parse CML timestamp string to datetime object.
 
     Args:

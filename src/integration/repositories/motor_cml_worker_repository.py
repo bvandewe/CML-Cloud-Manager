@@ -38,7 +38,7 @@ class MongoCMLWorkerRepository(TracedRepositoryMixin, MotorRepository[CMLWorker,
         database_name: str,
         collection_name: str,
         serializer: JsonSerializer,
-        entity_type: Optional[type[CMLWorker]] = None,
+        entity_type: type[CMLWorker] | None = None,
         mediator: Optional["Mediator"] = None,
     ):
         """
@@ -216,7 +216,7 @@ class MongoCMLWorkerRepository(TracedRepositoryMixin, MotorRepository[CMLWorker,
         return result.modified_count
 
     async def delete_async(
-        self, worker_id: str, worker: Optional[CMLWorker] = None
+        self, worker_id: str, worker: CMLWorker | None = None
     ) -> bool:
         """Delete a CML worker by ID.
 

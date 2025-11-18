@@ -40,7 +40,7 @@ class MongoTaskRepository(TracedRepositoryMixin, MotorRepository[Task, str], Tas
         database_name: str,
         collection_name: str,
         serializer: JsonSerializer,
-        entity_type: Optional[type[Task]] = None,
+        entity_type: type[Task] | None = None,
         mediator: Optional["Mediator"] = None,
     ):
         """

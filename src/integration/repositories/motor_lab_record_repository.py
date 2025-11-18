@@ -23,7 +23,7 @@ class MongoLabRecordRepository(TracedRepositoryMixin, MotorRepository[LabRecord,
         database_name: str,
         collection_name: str,
         serializer: JsonSerializer,
-        entity_type: Optional[type[LabRecord]] = None,
+        entity_type: type[LabRecord] | None = None,
         mediator: Optional["Mediator"] = None,
     ):
         """Initialize the LabRecord repository.

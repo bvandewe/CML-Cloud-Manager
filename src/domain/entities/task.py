@@ -5,7 +5,7 @@
 ."""
 
 from datetime import datetime, timezone
-from typing import Optional, cast
+from typing import cast
 from uuid import uuid4
 
 from multipledispatch import dispatch
@@ -32,11 +32,11 @@ class TaskState(AggregateState[str]):
     description: str
     status: TaskStatus
     priority: TaskPriority
-    assignee_id: Optional[str]
-    department: Optional[str]
+    assignee_id: str | None
+    department: str | None
     created_at: datetime
     updated_at: datetime
-    created_by: Optional[str]
+    created_by: str | None
 
     def __init__(self) -> None:
         super().__init__()
@@ -120,12 +120,12 @@ class Task(AggregateRoot[TaskState, str]):
         description: str,
         status: TaskStatus = TaskStatus.PENDING,
         priority: TaskPriority = TaskPriority.MEDIUM,
-        assignee_id: Optional[str] = None,
-        department: Optional[str] = None,
-        created_at: Optional[datetime] = None,
-        updated_at: Optional[datetime] = None,
-        created_by: Optional[str] = None,
-        task_id: Optional[str] = None,
+        assignee_id: str | None = None,
+        department: str | None = None,
+        created_at: datetime | None = None,
+        updated_at: datetime | None = None,
+        created_by: str | None = None,
+        task_id: str | None = None,
     ) -> None:
         super().__init__()
         aggregate_id = task_id or str(uuid4())
@@ -209,7 +209,7 @@ class Task(AggregateRoot[TaskState, str]):
         )
         return True
 
-    def update_assignee(self, new_assignee_id: Optional[str]) -> bool:
+    def update_assignee(self, new_assignee_id: str | None) -> bool:
         if self.state.assignee_id == new_assignee_id:
             return False
         self.state.on(
@@ -222,7 +222,7 @@ class Task(AggregateRoot[TaskState, str]):
         )
         return True
 
-    def update_department(self, new_department: Optional[str]) -> bool:
+    def update_department(self, new_department: str | None) -> bool:
         if self.state.department == new_department:
             return False
         self.state.on(
@@ -235,7 +235,7 @@ class Task(AggregateRoot[TaskState, str]):
         )
         return True
 
-    def mark_as_deleted(self, deleted_by: Optional[str] = None) -> None:
+    def mark_as_deleted(self, deleted_by: str | None = None) -> None:
         """Mark the task as deleted by registering a deletion event.
 
         Args:

@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
 
 from neuroglia.data.abstractions import DomainEvent
 from neuroglia.eventing.cloud_events.decorators import cloudevent
@@ -68,12 +67,12 @@ class CMLMetricsUpdatedDomainEvent(DomainEvent):
     """Event raised when CML application metrics are collected from CML API."""
 
     aggregate_id: str
-    cml_version: Optional[str]
+    cml_version: str | None
     system_info: dict
-    system_health: Optional[dict]
-    license_info: Optional[dict]
+    system_health: dict | None
+    license_info: dict | None
     ready: bool
-    uptime_seconds: Optional[int]
+    uptime_seconds: int | None
     labs_count: int
     synced_at: datetime
     updated_at: datetime
@@ -81,12 +80,12 @@ class CMLMetricsUpdatedDomainEvent(DomainEvent):
     def __init__(
         self,
         aggregate_id: str,
-        cml_version: Optional[str],
+        cml_version: str | None,
         system_info: dict,
-        system_health: Optional[dict],
-        license_info: Optional[dict],
+        system_health: dict | None,
+        license_info: dict | None,
         ready: bool,
-        uptime_seconds: Optional[int],
+        uptime_seconds: int | None,
         labs_count: int,
         synced_at: datetime,
         updated_at: datetime,
@@ -110,25 +109,25 @@ class EC2InstanceDetailsUpdatedDomainEvent(DomainEvent):
     """Event raised when EC2 instance details are collected from AWS EC2 API."""
 
     aggregate_id: str
-    public_ip: Optional[str]
-    private_ip: Optional[str]
-    instance_type: Optional[str]
-    ami_id: Optional[str]
-    ami_name: Optional[str]
-    ami_description: Optional[str]
-    ami_creation_date: Optional[str]
+    public_ip: str | None
+    private_ip: str | None
+    instance_type: str | None
+    ami_id: str | None
+    ami_name: str | None
+    ami_description: str | None
+    ami_creation_date: str | None
     updated_at: datetime
 
     def __init__(
         self,
         aggregate_id: str,
-        public_ip: Optional[str],
-        private_ip: Optional[str],
-        instance_type: Optional[str],
-        ami_id: Optional[str],
-        ami_name: Optional[str],
-        ami_description: Optional[str],
-        ami_creation_date: Optional[str],
+        public_ip: str | None,
+        private_ip: str | None,
+        instance_type: str | None,
+        ami_id: str | None,
+        ami_name: str | None,
+        ami_description: str | None,
+        ami_creation_date: str | None,
         updated_at: datetime,
     ) -> None:
         super().__init__(aggregate_id)
