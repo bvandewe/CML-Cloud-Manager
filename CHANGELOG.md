@@ -17,8 +17,15 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
     - `AUTO_IMPORT_WORKERS_REGION` (default: us-east-1)
     - `AUTO_IMPORT_WORKERS_AMI_NAME` (AMI name pattern to search)
     - `AUTO_IMPORT_WORKERS_INTERVAL` (seconds, default: 3600)
-  - Registered at boot alongside existing worker monitoring jobs
+  - **Now properly scheduled at boot**: Auto-scheduling mechanism added to `BackgroundTaskScheduler.start_async()`
   - Non-intrusive: skips already-imported instances
+  - Visible in System view's Scheduler tab alongside WorkerMetricsCollectionJob and LabsRefreshJob
+
+- **Auto-Schedule Recurrent Jobs**: BackgroundTaskScheduler now automatically schedules all recurrent jobs at startup
+  - Added `_schedule_recurrent_jobs_async()` method to auto-discover and schedule `@backgroundjob(task_type="recurrent")` jobs
+  - Jobs are scheduled only if not already running (prevents duplicates on restart)
+  - Uses dependency injection to instantiate jobs with required services
+  - Logs clearly show which recurrent jobs are scheduled at startup
 
 - **Lab Operations Auto-Refresh**: Lab control commands (start/stop/wipe) now automatically schedule on-demand worker data refresh
   - Ensures worker metrics and lab states are updated after lab operations

@@ -459,12 +459,77 @@ class BackgroundTaskScheduler(HostedService):
                 self._background_task_bus.input_stream, handle_task_request
             )
 
+            # Auto-schedule all recurrent background jobs
+            await self._schedule_recurrent_jobs_async()
+
             self._started = True
             log.info("Background task scheduler started successfully")
 
         except Exception as ex:
             log.error(f"Failed to start background task scheduler: {ex}")
             raise BackgroundTaskException(f"Failed to start scheduler: {ex}")
+
+    async def _schedule_recurrent_jobs_async(self):
+        """Auto-schedule all registered recurrent background jobs at startup.
+
+        This method iterates through all registered task types and enqueues
+        any jobs marked with @backgroundjob(task_type="recurrent") that don't
+        already have a scheduled instance.
+        """
+        log.info("Auto-scheduling recurrent background jobs...")
+        scheduled_count = 0
+
+        for task_name, task_class in self._options.type_maps.items():
+            # Check if this is a recurrent job
+            if (
+                hasattr(task_class, "__background_task_type__")
+                and task_class.__background_task_type__ == "recurrent"
+            ):
+                # Check if job is already scheduled (skip check if job store unavailable)
+                job_already_scheduled = False
+                try:
+                    existing_jobs = self._scheduler.get_jobs()
+                    job_already_scheduled = any(
+                        job.id.startswith(task_name) for job in existing_jobs
+                    )
+                except Exception as ex:
+                    # Job store may not be available (e.g., Redis not running locally)
+                    # In this case, just proceed with scheduling
+                    log.debug(f"Could not check existing jobs for '{task_name}': {ex}")
+
+                if job_already_scheduled:
+                    log.info(f"Recurrent job '{task_name}' already scheduled, skipping")
+                    continue
+
+                try:
+                    # Create a scope to access scoped services
+                    scope = self._service_provider.create_scope()
+
+                    try:
+                        # Instantiate the job with dependency injection
+                        job_instance = scope.get_required_service(task_class)
+
+                        # Enqueue the job
+                        await self.enqueue_task_async(job_instance)
+                        scheduled_count += 1
+                        log.info(
+                            f"✅ Auto-scheduled recurrent job: {task_name} "
+                            f"(interval: {getattr(task_class, '__interval__', 'unknown')}s)"
+                        )
+
+                    finally:
+                        scope.dispose()
+
+                except Exception as ex:
+                    log.error(
+                        f"Failed to auto-schedule recurrent job '{task_name}': {ex}",
+                        exc_info=True,
+                    )
+
+        if scheduled_count > 0:
+            log.info(f"✅ Auto-scheduled {scheduled_count} recurrent background job(s)")
+        else:
+            log.info("No recurrent jobs to auto-schedule")
 
     async def stop_async(self):
         """Stop the background task scheduler."""
