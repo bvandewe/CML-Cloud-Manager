@@ -188,21 +188,30 @@ class WorkerMetricsService:
                                 except (ValueError, TypeError):
                                     pass
 
-                            # Update worker telemetry
+                            # Calculate next refresh time for countdown timer
+                            from application.settings import app_settings
+
+                            poll_interval = app_settings.worker_metrics_poll_interval
+                            next_refresh_at = datetime.now(timezone.utc) + timedelta(
+                                seconds=poll_interval
+                            )
+
+                            # Update worker telemetry with timing info
+                            # Always update timing even if no metrics data, so UI countdown works
                             if cpu_util is not None or memory_util is not None:
-                                # Calculate next refresh time for countdown timer
-                                from application.settings import app_settings
-
-                                poll_interval = (
-                                    app_settings.worker_metrics_poll_interval
-                                )
-                                next_refresh_at = datetime.now(
-                                    timezone.utc
-                                ) + timedelta(seconds=poll_interval)
-
                                 worker.update_telemetry(
                                     cpu_utilization=cpu_util,
                                     memory_utilization=memory_util,
+                                    active_labs_count=worker.state.cml_labs_count or 0,
+                                    last_activity_at=datetime.now(timezone.utc),
+                                    poll_interval=poll_interval,
+                                    next_refresh_at=next_refresh_at,
+                                )
+                            else:
+                                # No metrics data yet, but still update timing for countdown
+                                worker.update_telemetry(
+                                    cpu_utilization=None,
+                                    memory_utilization=None,
                                     active_labs_count=worker.state.cml_labs_count or 0,
                                     last_activity_at=datetime.now(timezone.utc),
                                     poll_interval=poll_interval,

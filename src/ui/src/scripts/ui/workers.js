@@ -1174,7 +1174,22 @@ async function showWorkerDetails(workerId, region) {
             updateLastRefreshedDisplay();
             updateMetricsCountdownDisplay();
         } else {
-            console.log('[showWorkerDetails] No timing info in worker data - will use defaults or wait for SSE update');
+            console.log('[showWorkerDetails] No timing info in worker data - triggering manual refresh');
+            // Trigger a metrics refresh to populate timing data if worker is running
+            if (worker.status === 'running') {
+                console.log('[showWorkerDetails] Worker is running - refreshing metrics to get timing data');
+                // Use setTimeout to avoid blocking the modal display
+                setTimeout(async () => {
+                    try {
+                        await workersApi.refreshWorkerMetrics(region, workerId);
+                        console.log('[showWorkerDetails] Manual metrics refresh triggered successfully');
+                    } catch (error) {
+                        console.error('[showWorkerDetails] Failed to trigger metrics refresh:', error);
+                    }
+                }, 500);
+            } else {
+                console.log('[showWorkerDetails] Worker not running - cannot refresh metrics');
+            }
         }
 
         overviewContent.innerHTML = `
