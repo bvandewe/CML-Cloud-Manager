@@ -7,6 +7,7 @@ both scheduled (one-time) and recurrent background jobs.
 """
 
 import asyncio
+import contextvars
 import datetime
 import inspect
 import logging
@@ -51,13 +52,29 @@ else:
 
 log = logging.getLogger(__name__)
 
+# Context variable for service provider in background jobs
+# This is thread-safe and async-safe, unlike global variables
+_service_provider_context: contextvars.ContextVar = contextvars.ContextVar(
+    "service_provider", default=None
+)
+
 
 class BackgroundTaskException(Exception):
     """Exception raised by background task operations."""
 
 
-def backgroundjob(task_type: Optional[str] = None):
-    """Marks a class as a background task that will be scheduled by the BackgroundTaskScheduler."""
+def backgroundjob(
+    task_type: Optional[str] = None,
+    interval: Optional[int] = None,
+    scheduled_at: Optional[datetime.datetime] = None,
+):
+    """Marks a class as a background task that will be scheduled by the BackgroundTaskScheduler.
+
+    Args:
+        task_type: Type of task - "scheduled" for one-time or "recurrent" for recurring
+        interval: Interval in seconds for recurrent tasks (only used if task_type="recurrent")
+        scheduled_at: Datetime for scheduled tasks (only used if task_type="scheduled")
+    """
 
     def decorator(cls):
         """Adds metadata to the class with the specified task type"""
@@ -65,6 +82,10 @@ def backgroundjob(task_type: Optional[str] = None):
         cls.__background_task_type__ = (
             task_type if task_type in ("scheduled", "recurrent") else None
         )
+        if interval is not None:
+            cls.__interval__ = interval
+        if scheduled_at is not None:
+            cls.__scheduled_at__ = scheduled_at
         return cls
 
     return decorator
@@ -147,9 +168,16 @@ class BackgroundTasksBus:
 class BackgroundTaskSchedulerOptions:
     """Represents the configuration options for the background task scheduler."""
 
-    def __init__(self):
-        """Initialize with an empty type mapping."""
+    def __init__(self, modules: Optional[list[str]] = None):
+        """Initialize with an empty type mapping.
+
+        Args:
+            modules: List of module paths to scan for @backgroundjob decorators (e.g., ['application.jobs'])
+        """
         self.type_maps: dict[str, typing.Type] = {}
+        self.modules: list[str] = modules or [
+            "application.services"
+        ]  # Default for backward compatibility
 
     def register_task_type(self, name: str, task_type: typing.Type):
         """Register a task type with the scheduler."""
@@ -186,24 +214,47 @@ async def scheduled_job_wrapper(
         # Each worker will execute this independently
 
         # Create a temporary options instance to access registered task types
-        # This avoids needing the service provider
-        options = BackgroundTaskSchedulerOptions()
+        # Try to get modules from service provider, fallback to common paths
+        service_provider = _service_provider_context.get()
+        if service_provider:
+            try:
+                scheduler_options = service_provider.get_service(
+                    BackgroundTaskSchedulerOptions
+                )
+                modules = (
+                    scheduler_options.modules
+                    if scheduler_options
+                    else ["application.services", "application.jobs"]
+                )
+            except:
+                modules = ["application.services", "application.jobs"]
+        else:
+            modules = ["application.services", "application.jobs"]
+
+        options = BackgroundTaskSchedulerOptions(modules=modules)
 
         # Re-scan for registered tasks (they're registered via @backgroundjob decorator)
         import inspect
 
         from neuroglia.core import ModuleLoader, TypeFinder
 
-        module = ModuleLoader.load("application.services")
-        background_tasks = TypeFinder.get_types(
-            module,
-            lambda cls: inspect.isclass(cls)
-            and hasattr(cls, "__background_task_class_name__"),
-        )
+        for module_name in modules:
+            try:
+                module = ModuleLoader.load(module_name)
+                background_tasks = TypeFinder.get_types(
+                    module,
+                    lambda cls: inspect.isclass(cls)
+                    and hasattr(cls, "__background_task_class_name__"),
+                )
 
-        for background_task in background_tasks:
-            task_name = background_task.__background_task_class_name__
-            options.register_task_type(task_name, background_task)
+                for background_task in background_tasks:
+                    task_name = background_task.__background_task_class_name__
+                    options.register_task_type(task_name, background_task)
+            except Exception as e:
+                log.debug(
+                    f"Could not scan module '{module_name}' in scheduled_job_wrapper: {e}"
+                )
+                continue
 
         task_type = options.get_task_type(task_type_name)
         if not task_type:
@@ -222,9 +273,10 @@ async def scheduled_job_wrapper(
         task.__scheduled_at__ = scheduled_at
 
         # Let the task configure its own dependencies
-        # Tasks should reconstruct dependencies from module-level imports, not service provider
+        # Get service provider from context variable (thread-safe, async-safe)
+        service_provider = _service_provider_context.get()
         if hasattr(task, "configure"):
-            task.configure()  # No service provider - task handles its own dependencies
+            task.configure(service_provider=service_provider)
 
         log.debug(
             f"Executing scheduled job: {task.__task_name__} (ID: {task.__task_id__})"
@@ -258,24 +310,47 @@ async def recurrent_job_wrapper(
         # Each worker will execute this independently
 
         # Create a temporary options instance to access registered task types
-        # This avoids needing the service provider
-        options = BackgroundTaskSchedulerOptions()
+        # Try to get modules from service provider, fallback to common paths
+        service_provider = _service_provider_context.get()
+        if service_provider:
+            try:
+                scheduler_options = service_provider.get_service(
+                    BackgroundTaskSchedulerOptions
+                )
+                modules = (
+                    scheduler_options.modules
+                    if scheduler_options
+                    else ["application.services", "application.jobs"]
+                )
+            except:
+                modules = ["application.services", "application.jobs"]
+        else:
+            modules = ["application.services", "application.jobs"]
+
+        options = BackgroundTaskSchedulerOptions(modules=modules)
 
         # Re-scan for registered tasks (they're registered via @backgroundjob decorator)
         import inspect
 
         from neuroglia.core import ModuleLoader, TypeFinder
 
-        module = ModuleLoader.load("application.services")
-        background_tasks = TypeFinder.get_types(
-            module,
-            lambda cls: inspect.isclass(cls)
-            and hasattr(cls, "__background_task_class_name__"),
-        )
+        for module_name in modules:
+            try:
+                module = ModuleLoader.load(module_name)
+                background_tasks = TypeFinder.get_types(
+                    module,
+                    lambda cls: inspect.isclass(cls)
+                    and hasattr(cls, "__background_task_class_name__"),
+                )
 
-        for background_task in background_tasks:
-            task_name = background_task.__background_task_class_name__
-            options.register_task_type(task_name, background_task)
+                for background_task in background_tasks:
+                    task_name = background_task.__background_task_class_name__
+                    options.register_task_type(task_name, background_task)
+            except Exception as e:
+                log.debug(
+                    f"Could not scan module '{module_name}' in recurrent_job_wrapper: {e}"
+                )
+                continue
 
         task_type = options.get_task_type(task_type_name)
         if not task_type:
@@ -294,9 +369,10 @@ async def recurrent_job_wrapper(
         task.__interval__ = interval
 
         # Let the task configure its own dependencies
-        # Tasks should reconstruct dependencies from module-level imports, not service provider
+        # Get service provider from context variable (thread-safe, async-safe)
+        service_provider = _service_provider_context.get()
         if hasattr(task, "configure"):
-            task.configure()  # No service provider - task handles its own dependencies
+            task.configure(service_provider=service_provider)
 
         log.debug(
             f"Executing recurrent job: {task.__task_name__} (ID: {task.__task_id__})"
@@ -361,6 +437,9 @@ class BackgroundTaskScheduler(HostedService):
 
         log.info("Starting background task scheduler")
         try:
+            # Set service provider in context variable (thread-safe, async-safe)
+            _service_provider_context.set(self._service_provider)
+
             self._scheduler.start()
 
             # Subscribe to the task bus for incoming job requests
@@ -614,7 +693,7 @@ class BackgroundTaskScheduler(HostedService):
                 )
 
             # Create scheduler options and discover tasks
-            options = BackgroundTaskSchedulerOptions()
+            options = BackgroundTaskSchedulerOptions(modules=modules)
 
             # Scan modules for background tasks
             for module_name in modules:
