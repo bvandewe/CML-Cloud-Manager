@@ -2734,29 +2734,19 @@ function setupRefreshButton() {
 
                 try {
                     console.log('[CLICK HANDLER] Showing info toast');
-                    showToast('Requesting worker metrics refresh...', 'info');
+                    showToast('Requesting worker data refresh...', 'info');
 
                     console.log('[CLICK HANDLER] Calling workersApi.refreshWorker');
                     const refreshResult = await workersApi.refreshWorker(region, id);
                     console.log('[CLICK HANDLER] Refresh response:', refreshResult);
 
                     // Response indicates if refresh was scheduled or skipped
-                    // Actual metrics will arrive via SSE worker.metrics.updated event
-                    // SSE also provides worker.refresh.requested or worker.refresh.skipped events
-
-                    // Also refresh labs data from CML API
-                    try {
-                        console.log('[CLICK HANDLER] Calling workersApi.refreshWorkerLabs');
-                        const labsRefresh = await workersApi.refreshWorkerLabs(region, id);
-                        console.log('[CLICK HANDLER] Labs refresh response:', labsRefresh);
-                        if (labsRefresh && labsRefresh.labs_synced !== undefined) {
-                            console.log(`[CLICK HANDLER] Labs synced: ${labsRefresh.labs_synced}, created: ${labsRefresh.labs_created}, updated: ${labsRefresh.labs_updated}`);
-                        }
-                    } catch (labsError) {
-                        // Don't fail the whole refresh if labs refresh fails
-                        console.warn('[CLICK HANDLER] Labs refresh failed (non-fatal):', labsError);
-                        showToast('Metrics refresh requested, but labs refresh failed: ' + (labsError.message || 'Unknown error'), 'warning');
-                    }
+                    // The background job will automatically refresh both metrics AND labs
+                    // Actual updates will arrive via SSE events:
+                    // - worker.refresh.requested or worker.refresh.skipped (immediate)
+                    // - worker.metrics.updated (when metrics collected)
+                    // - worker.labs.updated (when labs synced)
+                    // - worker.snapshot (complete worker state)
 
                     // Re-enable button (SSE will handle updates automatically)
                     newBtn.disabled = false;

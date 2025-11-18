@@ -60,6 +60,13 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ### Fixed
 
+- **Worker Refresh Performance**: Optimized worker refresh button to return immediately
+  - Removed redundant synchronous labs refresh API call from UI
+  - Worker refresh now only calls `/refresh` endpoint which schedules background job
+  - Background job (`OnDemandWorkerDataRefreshJob`) handles both metrics AND labs refresh automatically
+  - UI returns instantly with lightweight acknowledgment, SSE events provide updates
+  - Eliminates slow synchronous operation that was blocking UI responsiveness
+
 - **Worker Metrics Display**: Fixed metrics display inconsistencies between views and SSE updates
   - **User cards view**: Added missing disk utilization progress bar (was only showing CPU/Memory)
   - **SSE real-time updates**: Both admin table and user cards now update when `worker.snapshot` SSE events arrive
