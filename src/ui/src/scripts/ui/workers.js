@@ -466,21 +466,8 @@ function setupSSEHandlers() {
             saveWorkerMetricsInfo(data.worker_id, info);
         }
 
-        // Update the worker in the local cache with new metrics
-        const workerIndex = workersData.findIndex(w => w.id === data.worker_id);
-        if (workerIndex !== -1) {
-            // Update metrics in local cache
-            workersData[workerIndex].cpu_utilization = data.cpu_utilization;
-            workersData[workerIndex].memory_utilization = data.memory_utilization;
-            console.log('[SSE] Updated local worker cache with metrics:', {
-                worker_id: data.worker_id,
-                cpu: data.cpu_utilization,
-                memory: data.memory_utilization,
-            });
-
-            // Refresh the table display with updated data
-            renderWorkersTable(workersData);
-        }
+        // Note: Actual metric values (CPU/Memory/Disk) will be updated via the worker.snapshot event
+        // that is automatically broadcasted after this event. We only handle timing info here.
 
         // If worker details modal is open for this worker, update displays
         if (currentWorkerDetails && currentWorkerDetails.id === data.worker_id) {
@@ -953,22 +940,44 @@ function renderWorkersCards() {
                     </div>
 
                     ${
-                        worker.cpu_utilization != null && worker.memory_utilization != null
+                        worker.cpu_utilization != null || worker.memory_utilization != null || worker.storage_utilization != null
                             ? `<div class="mb-3">
+                            ${
+                                worker.cpu_utilization != null
+                                    ? `
                             <small class="text-muted">CPU Usage</small>
                             <div class="progress mb-2" style="height: 20px;">
                                 <div class="progress-bar ${getCpuProgressClass(worker.cpu_utilization)}"
                                      style="width: ${worker.cpu_utilization}%">
                                     ${worker.cpu_utilization.toFixed(1)}%
                                 </div>
-                            </div>
+                            </div>`
+                                    : ''
+                            }
+                            ${
+                                worker.memory_utilization != null
+                                    ? `
                             <small class="text-muted">Memory Usage</small>
-                            <div class="progress" style="height: 20px;">
+                            <div class="progress mb-2" style="height: 20px;">
                                 <div class="progress-bar ${getMemoryProgressClass(worker.memory_utilization)}"
                                      style="width: ${worker.memory_utilization}%">
                                     ${worker.memory_utilization.toFixed(1)}%
                                 </div>
-                            </div>
+                            </div>`
+                                    : ''
+                            }
+                            ${
+                                worker.storage_utilization != null
+                                    ? `
+                            <small class="text-muted">Disk Usage</small>
+                            <div class="progress" style="height: 20px;">
+                                <div class="progress-bar ${getDiskProgressClass(worker.storage_utilization)}"
+                                     style="width: ${worker.storage_utilization}%">
+                                    ${worker.storage_utilization.toFixed(1)}%
+                                </div>
+                            </div>`
+                                    : ''
+                            }
                         </div>`
                             : ''
                     }

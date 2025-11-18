@@ -60,6 +60,13 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ### Fixed
 
+- **Worker Metrics Display**: Fixed metrics display inconsistencies between views and SSE updates
+  - **User cards view**: Added missing disk utilization progress bar (was only showing CPU/Memory)
+  - **SSE real-time updates**: Both admin table and user cards now update when `worker.snapshot` SSE events arrive
+  - **Metrics synchronization**: All three metrics (CPU, Memory, Disk) now stay in sync across landing page and modal
+  - Worker cards now show individual progress bars for each metric that's available (no longer requires all three)
+  - Simplified SSE handler: `worker.metrics.updated` event now only handles timing info, metrics updated via `worker.snapshot`
+
 - **Worker Refresh Duplicates**: Fixed duplicate workers appearing after clicking refresh button
   - Added `workersData.length = 0` to clear array before populating with API response
   - Prevents accumulation of duplicate workers in both admin table and user card views
