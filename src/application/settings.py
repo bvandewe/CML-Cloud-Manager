@@ -139,28 +139,6 @@ class Settings(ApplicationSettings):
     cml_worker_vpc_id: str = "vpc-0123456789abcdef0"
     cml_worker_subnet_id: str = "subnet-0123456789abcdef0"
     cml_worker_key_name: str = "cml_worker_key_pair"
-
-    def __init__(self, **kwargs):
-        """Initialize settings and handle environment variable parsing."""
-        super().__init__(**kwargs)
-        # Parse CML_WORKER_SECURITY_GROUP_IDS from environment if it's a comma-separated string
-        if isinstance(self.cml_worker_security_group_ids, str):
-            self.cml_worker_security_group_ids = [
-                sg.strip()
-                for sg in self.cml_worker_security_group_ids.split(",")
-                if sg.strip()
-            ]
-        # Validate that security group IDs are actual IDs (sg-xxx) not names
-        invalid_sgs = [
-            sg for sg in self.cml_worker_security_group_ids if not sg.startswith("sg-")
-        ]
-        if invalid_sgs and self.cml_worker_subnet_id:
-            logging.warning(
-                f"Security group configuration contains names instead of IDs: {invalid_sgs}. "
-                f"When using VPC (subnet_id), you must provide security group IDs (sg-xxx) not names. "
-                f"Instance creation will fail until this is corrected."
-            )
-
     cml_worker_username: str = "sys-admin"
     cml_worker_api_username: str = "admin"  # CML API username for system_stats
     cml_worker_api_password: str = "admin"  # CML API password (change in production)
@@ -183,13 +161,13 @@ class Settings(ApplicationSettings):
     # Background Job Store Configuration (APScheduler persistence)
     background_job_store: dict[str, Any] = {
         # Redis configuration (recommended for production)
-        # "redis_host": "redis",
-        # "redis_port": 6379,
-        # "redis_db": 1,  # Use separate DB from session storage (DB 0)
+        "redis_host": "redis",
+        "redis_port": 6379,
+        "redis_db": 1,  # Use separate DB from session storage (DB 0)
         # Alternatively, use MongoDB (if Redis not available)
-        "mongo_uri": "mongodb://root:password123@mongodb:27017/?authSource=admin",  # pragma: allowlist secret
-        "mongo_db": "cml_cloud_manager",
-        "mongo_collection": "background_jobs",
+        # "mongo_uri": "mongodb://root:password123@mongodb:27017/?authSource=admin",  # pragma: allowlist secret
+        # "mongo_db": "cml_cloud_manager",
+        # "mongo_collection": "background_jobs",
     }
 
     class Config:
@@ -198,7 +176,7 @@ class Settings(ApplicationSettings):
         extra = "ignore"  # Ignore extra environment variables
 
     def __init__(self, **kwargs: Any) -> None:
-        """Initialize settings and auto-populate keycloak_url_internal if not provided."""
+        """Initialize settings."""
         super().__init__(**kwargs)
         # If keycloak_url_internal is not provided, use keycloak_url as fallback
         # This handles both Docker (with override) and Kubernetes (single URL) scenarios
@@ -211,26 +189,68 @@ app_settings = Settings()
 
 
 def configure_logging(log_level: str = "INFO") -> None:
-    """
-    Configure application-wide logging.
+    """Configure application-wide logging with support for console and file output.
+
+    This function configures the root logger and sets appropriate levels for
+    third-party libraries to reduce noise. It's designed to be portable and
+    work across different deployment environments (local, Docker, Kubernetes).
 
     Args:
         log_level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
     """
-    # Configure root logger
-    logging.basicConfig(
-        level=getattr(logging, log_level.upper(), logging.INFO),
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        handlers=[logging.StreamHandler(sys.stdout)],
-    )
+    import os
+
+    # Ensure log_level is uppercase for consistency
+    log_level = log_level.upper()
+
+    # Get root logger and clear any existing handlers to prevent duplicates
+    root_logger = logging.getLogger()
+    if root_logger.handlers:
+        root_logger.handlers.clear()
+
+    # Set the root logger level
+    root_logger.setLevel(log_level)
+
+    # Define log format
+    log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    formatter = logging.Formatter(log_format)
+
+    # Console handler (always enabled for cloud-native environments)
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(log_level)
+    console_handler.setFormatter(formatter)
+    root_logger.addHandler(console_handler)
+
+    # File handler (optional, for local development)
+    # Only enable if LOG_FILE environment variable is set or logs/ directory exists
+    log_file = os.getenv("LOG_FILE", "logs/debug.log")
+    if os.path.exists("logs") or os.getenv("LOG_FILE"):
+        try:
+            os.makedirs(os.path.dirname(log_file), exist_ok=True)
+            file_handler = logging.FileHandler(log_file)
+            file_handler.setLevel(log_level)
+            file_handler.setFormatter(formatter)
+            root_logger.addHandler(file_handler)
+        except (OSError, PermissionError):
+            # Silently fail if we can't create log file (e.g., read-only filesystem in containers)
+            pass
 
     # Set third-party loggers to WARNING to reduce noise
-    logging.getLogger("uvicorn").setLevel(logging.WARNING)
-    logging.getLogger("fastapi").setLevel(logging.WARNING)
+    third_party_loggers = [
+        "uvicorn",
+        "uvicorn.access",
+        "uvicorn.error",
+        "fastapi",
+        "httpx",
+        "httpcore",
+        "httpcore.http11",
+        "httpcore.connection",
+        "pymongo",
+        "pymongo.topology",
+        "pymongo.connection",
+        "pymongo.serverSelection",
+        "asyncio",
+    ]
 
-    # Suppress verbose pymongo logs that cause OpenTelemetry encoding errors
-    # pymongo.topology logs contain custom LogMessage objects that can't be serialized
-    logging.getLogger("pymongo").setLevel(logging.WARNING)
-    logging.getLogger("pymongo.topology").setLevel(logging.WARNING)
-    logging.getLogger("pymongo.connection").setLevel(logging.WARNING)
-    logging.getLogger("pymongo.serverSelection").setLevel(logging.WARNING)
+    for logger_name in third_party_loggers:
+        logging.getLogger(logger_name).setLevel(logging.WARNING)
