@@ -166,6 +166,16 @@ class Settings(ApplicationSettings):
         10  # Seconds - skip manual refresh if background job is within this threshold
     )
 
+    # Auto-Import Workers Configuration
+    auto_import_workers_enabled: bool = False  # Enable/disable auto-import job
+    auto_import_workers_interval: int = (
+        3600  # Seconds between auto-import runs (default: 1 hour)
+    )
+    auto_import_workers_region: str = "us-east-1"  # AWS region to scan for workers
+    auto_import_workers_ami_name: str = (
+        ""  # AMI name pattern to search for (e.g., "CML-2.7.0-*")
+    )
+
     # Background Job Store Configuration (APScheduler persistence)
     background_job_store: dict[str, Any] = {
         # Redis configuration (recommended for production)

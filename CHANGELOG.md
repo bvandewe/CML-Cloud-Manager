@@ -8,6 +8,18 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ### Added
 
+- **Auto-Import Workers Background Job**: New recurrent job for automatically discovering and importing CML Workers
+  - Runs at configurable intervals (default: 1 hour) via `AUTO_IMPORT_WORKERS_INTERVAL`
+  - Searches AWS EC2 instances by AMI name pattern in specified region
+  - Uses existing `BulkImportCMLWorkersCommand` for consistent import logic
+  - Configurable via environment variables:
+    - `AUTO_IMPORT_WORKERS_ENABLED` (default: false)
+    - `AUTO_IMPORT_WORKERS_REGION` (default: us-east-1)
+    - `AUTO_IMPORT_WORKERS_AMI_NAME` (AMI name pattern to search)
+    - `AUTO_IMPORT_WORKERS_INTERVAL` (seconds, default: 3600)
+  - Registered at boot alongside existing worker monitoring jobs
+  - Non-intrusive: skips already-imported instances
+
 - **Lab Operations Auto-Refresh**: Lab control commands (start/stop/wipe) now automatically schedule on-demand worker data refresh
   - Ensures worker metrics and lab states are updated after lab operations
   - Non-blocking: refresh scheduling failures don't affect lab operation success
