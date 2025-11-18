@@ -650,6 +650,9 @@ async function loadWorkers() {
         const workers = await workersApi.listWorkers(currentRegion);
         console.log(`[loadWorkers] Received ${workers.length} workers from API`);
 
+        // Clear existing workers data to prevent duplicates on refresh
+        workersData.length = 0;
+
         // Process each worker as if it were a snapshot event
         workers.forEach(worker => {
             const normalized = {

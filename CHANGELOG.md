@@ -48,6 +48,14 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
   - All `configure()` methods now return `None` (builder modified in-place)
   - Added docstrings with Args sections for clarity
   - Unified log messages with ✅ emoji for consistency
+
+### Fixed
+
+- **Worker Refresh Duplicates**: Fixed duplicate workers appearing after clicking refresh button
+  - Added `workersData.length = 0` to clear array before populating with API response
+  - Prevents accumulation of duplicate workers in both admin table and user card views
+  - Ensures UI accurately reflects backend state on refresh
+
   - Affects: `SSEEventRelayHostedService`, `WorkerMetricsService`, `BackgroundTaskScheduler`
   - See: `notes/SERVICE_REGISTRATION_PATTERNS_UNIFIED.md`
 
