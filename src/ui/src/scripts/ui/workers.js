@@ -125,6 +125,7 @@ function saveWorkerMetricsInfo(workerId, info) {
         allWorkers[workerId] = {
             poll_interval: info.poll_interval,
             next_refresh_at: info.next_refresh_at,
+            last_refreshed_at: info.last_refreshed_at || new Date().toISOString(),
             updated_at: new Date().toISOString(),
         };
 
@@ -135,6 +136,29 @@ function saveWorkerMetricsInfo(workerId, info) {
 }
 
 /**
+ * Update the "last refreshed" display in the modal header
+ */
+function updateLastRefreshedDisplay() {
+    const lastRefreshedElement = document.querySelector('#metrics-last-refreshed .last-refreshed-time');
+    if (!lastRefreshedElement || !currentWorkerDetails) {
+        return;
+    }
+
+    const metricsInfo = getWorkerMetricsInfo(currentWorkerDetails.id);
+    if (!metricsInfo || !metricsInfo.last_refreshed_at) {
+        lastRefreshedElement.textContent = '--';
+        return;
+    }
+
+    // Use the date utility to format with relative time
+    const formattedTime = formatDateWithRelative(metricsInfo.last_refreshed_at);
+    lastRefreshedElement.innerHTML = formattedTime;
+
+    // Reinitialize tooltips for the updated element
+    initializeDateTooltips();
+}
+
+/**
  * Start the metrics refresh countdown timer
  */
 function startMetricsCountdown() {
@@ -142,6 +166,9 @@ function startMetricsCountdown() {
     stopMetricsCountdown();
 
     if (!currentWorkerDetails) return;
+
+    // Update the last refreshed display
+    updateLastRefreshedDisplay();
 
     // Try to get metrics info from localStorage
     const metricsInfo = getWorkerMetricsInfo(currentWorkerDetails.id);
@@ -191,9 +218,13 @@ function resetMetricsCountdown(data) {
         const info = {
             poll_interval: data.poll_interval || 300,
             next_refresh_at: data.next_refresh_at || new Date(Date.now() + (data.poll_interval || 300) * 1000).toISOString(),
+            last_refreshed_at: new Date().toISOString(),
         };
         saveWorkerMetricsInfo(currentWorkerDetails.id, info);
     }
+
+    // Update the last refreshed display
+    updateLastRefreshedDisplay();
 
     // Restart the countdown with new info
     if (metricsCountdownInterval) {
@@ -349,6 +380,7 @@ function setupSSEHandlers() {
             const info = {
                 poll_interval: data.poll_interval || 300,
                 next_refresh_at: data.next_refresh_at || new Date(Date.now() + (data.poll_interval || 300) * 1000).toISOString(),
+                last_refreshed_at: new Date().toISOString(),
             };
             saveWorkerMetricsInfo(data.worker_id, info);
         }
@@ -934,7 +966,7 @@ function setupImportWorkerModal() {
             if (name && !importAll) data.name = name;
 
             const result = await workersApi.importWorker(region, data);
-            region, data;
+            (region, data);
 
             // Show appropriate success message
             if (importAll && result.total_imported !== undefined) {

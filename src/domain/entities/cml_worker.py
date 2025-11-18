@@ -670,6 +670,8 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
         active_labs_count: int,
         cpu_utilization: float | None = None,
         memory_utilization: float | None = None,
+        poll_interval: int | None = None,
+        next_refresh_at: datetime | None = None,
     ) -> None:
         """Update worker telemetry data (DEPRECATED - use source-specific methods).
 
@@ -683,6 +685,8 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
             active_labs_count: Number of active labs running
             cpu_utilization: CPU utilization percentage (0-100)
             memory_utilization: Memory utilization percentage (0-100)
+            poll_interval: Metrics collection interval in seconds (for countdown timer)
+            next_refresh_at: Next scheduled metrics collection time (for countdown timer)
         """
         self.state.on(
             self.register_event(  # type: ignore
@@ -693,6 +697,8 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
                     cpu_utilization=cpu_utilization,
                     memory_utilization=memory_utilization,
                     updated_at=datetime.now(timezone.utc),
+                    poll_interval=poll_interval,
+                    next_refresh_at=next_refresh_at,
                 )
             )
         )

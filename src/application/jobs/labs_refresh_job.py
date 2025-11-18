@@ -4,6 +4,7 @@ This module defines a RecurrentBackgroundJob for refreshing lab records from CML
 It runs every 30 minutes and updates the lab_records collection with current state.
 """
 
+import asyncio
 import logging
 from datetime import datetime
 from typing import Optional
@@ -14,6 +15,7 @@ from application.services.background_scheduler import (
     RecurrentBackgroundJob,
     backgroundjob,
 )
+from application.settings import app_settings
 from domain.entities.lab_record import LabRecord
 from domain.enums import CMLWorkerStatus
 from domain.repositories import CMLWorkerRepository
@@ -99,8 +101,6 @@ class LabsRefreshJob(RecurrentBackgroundJob):
             self._service_provider = service_provider
 
             # Ensure database indexes are created (idempotent operation)
-            import asyncio
-
             try:
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
@@ -114,31 +114,7 @@ class LabsRefreshJob(RecurrentBackgroundJob):
             except Exception as e:
                 logger.warning(f"Could not create indexes during configure: {e}")
 
-        # Inject worker repository
-        if not hasattr(self, "worker_repository") or not self.worker_repository:
-            from domain.repositories.cml_worker_repository import CMLWorkerRepository
-
-            if self._service_provider:
-                self.worker_repository = self._service_provider.get_required_service(
-                    CMLWorkerRepository
-                )
-            else:
-                raise RuntimeError("Worker repository not available")
-
-            logger.info("✅ Configured Worker Repository")
-
-        # Inject lab record repository
-        if not hasattr(self, "lab_record_repository") or not self.lab_record_repository:
-            from domain.repositories.lab_record_repository import LabRecordRepository
-
-            if self._service_provider:
-                self.lab_record_repository = (
-                    self._service_provider.get_required_service(LabRecordRepository)
-                )
-            else:
-                raise RuntimeError("Lab record repository not available")
-
-            logger.info("✅ Configured Lab Record Repository")
+        logger.info("✅ Configuration complete")
 
     async def _ensure_indexes_async(self, service_provider):
         """Ensure database indexes exist (helper for configure)."""
@@ -158,12 +134,29 @@ class LabsRefreshJob(RecurrentBackgroundJob):
 
         This method is called by the BackgroundTaskScheduler at regular intervals (30 minutes).
         """
+        # Ensure service provider is available
+        if not self._service_provider:
+            logger.error("❌ Service provider not configured - job cannot execute")
+            return
+
         with tracer.start_as_current_span("labs_refresh_job.run_every") as span:
+            # Create a scope to access scoped services
+            scope = self._service_provider.create_scope()
+
             try:
+                from domain.repositories import CMLWorkerRepository
+                from domain.repositories.lab_record_repository import (
+                    LabRecordRepository,
+                )
+
+                # Get repositories from scope
+                worker_repository = scope.get_required_service(CMLWorkerRepository)
+                lab_record_repository = scope.get_required_service(LabRecordRepository)
+
                 logger.info("🔄 Starting labs refresh cycle")
 
                 # Get all active workers
-                workers = await self.worker_repository.get_active_workers_async()
+                workers = await worker_repository.get_active_workers_async()
                 span.set_attribute("workers.count", len(workers))
 
                 total_labs_synced = 0
@@ -184,7 +177,7 @@ class LabsRefreshJob(RecurrentBackgroundJob):
 
                     try:
                         synced, created, updated = await self._refresh_worker_labs(
-                            worker
+                            worker, lab_record_repository
                         )
                         total_labs_synced += synced
                         total_labs_created += created
@@ -212,12 +205,18 @@ class LabsRefreshJob(RecurrentBackgroundJob):
                 span.record_exception(e)
                 span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
                 raise
+            finally:
+                # Dispose the scope to release scoped services
+                scope.dispose()
 
-    async def _refresh_worker_labs(self, worker) -> tuple[int, int, int]:
+    async def _refresh_worker_labs(
+        self, worker, lab_record_repository: LabRecordRepository
+    ) -> tuple[int, int, int]:
         """Refresh labs for a single worker.
 
         Args:
             worker: CML Worker entity
+            lab_record_repository: Lab record repository instance
 
         Returns:
             Tuple of (synced_count, created_count, updated_count)
@@ -228,7 +227,6 @@ class LabsRefreshJob(RecurrentBackgroundJob):
         logger.debug(f"Refreshing labs for worker {worker_id} at {https_endpoint}")
 
         # Get settings for CML credentials
-        from application.settings import app_settings
 
         # Create CML API client
         cml_client = CMLApiClient(
@@ -265,7 +263,7 @@ class LabsRefreshJob(RecurrentBackgroundJob):
                     continue
 
                 # Check if lab record exists
-                existing_record = await self.lab_record_repository.get_by_lab_id_async(
+                existing_record = await lab_record_repository.get_by_lab_id_async(
                     worker_id, lab_id
                 )
 
@@ -283,7 +281,7 @@ class LabsRefreshJob(RecurrentBackgroundJob):
                         groups=lab_details.groups,
                         cml_modified_at=_parse_cml_timestamp(lab_details.modified),
                     )
-                    await self.lab_record_repository.update_async(existing_record)
+                    await lab_record_repository.update_async(existing_record)
                     updated += 1
                 else:
                     # Create new record
@@ -302,7 +300,7 @@ class LabsRefreshJob(RecurrentBackgroundJob):
                         cml_created_at=_parse_cml_timestamp(lab_details.created),
                         cml_modified_at=_parse_cml_timestamp(lab_details.modified),
                     )
-                    await self.lab_record_repository.add_async(new_record)
+                    await lab_record_repository.add_async(new_record)
                     created += 1
 
                 synced += 1

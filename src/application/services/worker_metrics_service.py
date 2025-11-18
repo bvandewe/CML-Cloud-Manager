@@ -6,7 +6,7 @@ Shared by RefreshWorkerMetricsCommand (on-demand) and WorkerMetricsCollectionJob
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from opentelemetry import trace
@@ -190,11 +190,23 @@ class WorkerMetricsService:
 
                             # Update worker telemetry
                             if cpu_util is not None or memory_util is not None:
+                                # Calculate next refresh time for countdown timer
+                                from application.settings import app_settings
+
+                                poll_interval = (
+                                    app_settings.worker_metrics_poll_interval
+                                )
+                                next_refresh_at = datetime.now(
+                                    timezone.utc
+                                ) + timedelta(seconds=poll_interval)
+
                                 worker.update_telemetry(
                                     cpu_utilization=cpu_util,
                                     memory_utilization=memory_util,
                                     active_labs_count=worker.state.cml_labs_count or 0,
                                     last_activity_at=datetime.now(timezone.utc),
+                                    poll_interval=poll_interval,
+                                    next_refresh_at=next_refresh_at,
                                 )
                                 metrics_collected = True
 

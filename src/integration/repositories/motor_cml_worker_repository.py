@@ -181,18 +181,23 @@ class MongoCMLWorkerRepository(TracedRepositoryMixin, MotorRepository[CMLWorker,
         if not entities:
             return 0
 
+        import json
+
         from pymongo import UpdateOne
 
         operations = []
         for entity in entities:
-            # Serialize the entity state
-            serialized = self._serializer.serialize(entity.state)
+            # Serialize the entity state to bytes/bytearray
+            serialized_bytes = self._serializer.serialize(entity.state)
+
+            # Convert bytes to dict for MongoDB
+            serialized_dict = json.loads(serialized_bytes)
 
             # Create update operation using Motor's collection
             operations.append(
                 UpdateOne(
                     {"id": entity.id()},
-                    {"$set": serialized},
+                    {"$set": serialized_dict},
                 )
             )
 
@@ -225,4 +230,5 @@ class MongoCMLWorkerRepository(TracedRepositoryMixin, MotorRepository[CMLWorker,
         # The base MotorRepository.remove_async will handle event publishing
         # if a mediator is configured and the entity has pending events
         await self.remove_async(worker_id)
+        return True
         return True

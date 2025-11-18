@@ -11,6 +11,7 @@
 import * as systemApi from '../api/system.js';
 import { showToast } from './notifications.js';
 import { formatDateWithRelative, initializeDateTooltips } from '../utils/dates.js';
+import { isAdmin } from '../utils/roles.js';
 import * as bootstrap from 'bootstrap';
 
 /**
@@ -23,7 +24,6 @@ export function initializeSystemView() {
     loadSystemHealth();
     loadSchedulerStatus();
     loadWorkerMonitoring();
-    loadMetricsCollectors();
 
     // Set up tab event listeners to reload data when switching tabs
     const tabs = document.querySelectorAll('#systemTabs button[data-bs-toggle="tab"]');
@@ -36,8 +36,6 @@ export function initializeSystemView() {
                 loadSchedulerJobs();
             } else if (targetId === '#monitoring-panel') {
                 loadWorkerMonitoring();
-            } else if (targetId === '#collectors-panel') {
-                loadMetricsCollectors();
             }
         });
     });
@@ -53,8 +51,6 @@ export function initializeSystemView() {
                 loadSchedulerJobs();
             } else if (targetId === '#monitoring-panel') {
                 loadWorkerMonitoring();
-            } else if (targetId === '#collectors-panel') {
-                loadMetricsCollectors();
             }
         }
     }, 30000);
@@ -232,7 +228,7 @@ async function loadWorkerMonitoring() {
  * Delete a scheduled job (admin only)
  */
 async function deleteJob(jobId) {
-    if (!checkRole('admin')) {
+    if (!isAdmin()) {
         showToast('Permission denied. Admin access required.', 'error');
         return;
     }
@@ -259,15 +255,6 @@ async function deleteJob(jobId) {
         showToast(error.message || 'Failed to delete job', 'error');
     }
 }
-
-// Export public API
-window.systemApp = {
-    init,
-    refreshHealth,
-    refreshScheduler,
-    refreshMonitoring,
-    deleteJob,
-};
 
 /**
  * Render health components HTML
@@ -314,7 +301,7 @@ function renderHealthComponents(components) {
  * Render scheduler jobs table
  */
 function renderSchedulerJobs(jobs) {
-    const isAdmin = checkRole('admin');
+    const isAdminUser = isAdmin();
 
     let html = `
         <div class="table-responsive">
@@ -327,7 +314,7 @@ function renderSchedulerJobs(jobs) {
                         <th>Trigger</th>
                         <th>Next Run</th>
                         <th>Status</th>
-                        ${isAdmin ? '<th>Actions</th>' : ''}
+                        ${isAdminUser ? '<th>Actions</th>' : ''}
                     </tr>
                 </thead>
                 <tbody>
@@ -346,7 +333,7 @@ function renderSchedulerJobs(jobs) {
                 <td>${nextRun}</td>
                 <td>${statusBadge}</td>
                 ${
-                    isAdmin
+                    isAdminUser
                         ? `
                 <td>
                     <button class="btn btn-sm btn-outline-danger" onclick="window.systemApp.deleteJob('${job.id}')" title="Delete Job">
@@ -465,6 +452,14 @@ function formatDateTime(isoString) {
 }
 
 /**
+ * Refresh health data (called from UI)
+ */
+function refreshHealth() {
+    loadSystemHealth();
+    showToast('Refreshing system health...', 'info');
+}
+
+/**
  * Refresh scheduler data (called from UI)
  */
 function refreshScheduler() {
@@ -473,15 +468,18 @@ function refreshScheduler() {
 }
 
 /**
- * Refresh collectors data (called from UI)
+ * Refresh monitoring data (called from UI)
  */
-function refreshCollectors() {
-    loadMetricsCollectors();
-    showToast('Refreshing collectors status...', 'info');
+function refreshMonitoring() {
+    loadWorkerMonitoring();
+    showToast('Refreshing worker monitoring...', 'info');
 }
 
 // Export functions for global access
 window.systemApp = {
+    initializeSystemView,
+    refreshHealth,
     refreshScheduler,
-    refreshCollectors,
+    refreshMonitoring,
+    deleteJob,
 };

@@ -1,9 +1,28 @@
 # CML Cloud Manager - AI Agent Instructions
 
+## Quick Start for AI Agents
+
+**Critical First Steps:**
+
+1. Always set `PYTHONPATH=src` or use Makefile commands
+2. Run `make build-ui` before `make run` (UI assets required)
+3. Commands/queries are self-contained (request + handler in same file)
+4. Use Neuroglia DI patterns - never instantiate services directly
+
+**Common Operations:**
+
+```bash
+make test              # Run tests (use this to validate changes)
+make run               # Start locally (needs make build-ui first)
+make dev               # Full Docker stack with logs
+make lint && make format  # Code quality checks
+```
+
 ## Architecture Overview
 
 **Stack**: FastAPI + Neuroglia Framework (DDD/CQRS) + Bootstrap 5 SPA + Keycloak OAuth2/OIDC
 **Purpose**: Manage AWS EC2-based Cisco Modeling Lab (CML) workers with monitoring, metrics collection, and lab orchestration
+**Key Pattern**: Event-sourced aggregates with @dispatch handlers, CQRS via Mediator, dual authentication (cookie + JWT)
 
 ### Multi-SubApp Pattern
 
@@ -26,6 +45,26 @@ ui/              # UI controllers, Parcel-built frontend (src/*, package.json)
 ```
 
 **Key Pattern**: Commands/Queries are **self-contained** - each file contains both the request class and its handler (e.g., `create_task_command.py` has `CreateTaskCommand` + `CreateTaskCommandHandler`). No separate `handlers/` directory.
+
+**Finding CQRS handlers**: Don't look for a `handlers/` directory - handlers are co-located with requests in `application/commands/*.py` and `application/queries/*.py`.
+
+**Example self-contained command:**
+
+```python
+# application/commands/create_task_command.py
+@dataclass
+class CreateTaskCommand(Command[OperationResult[TaskCreatedDto]]):
+    title: str
+    description: str
+
+class CreateTaskCommandHandler(CommandHandler[CreateTaskCommand, OperationResult[TaskCreatedDto]]):
+    def __init__(self, mediator, mapper, task_repository: TaskRepository):
+        self._repository = task_repository
+
+    async def handle_async(self, command, cancellation_token):
+        # Business logic here
+        return OperationResult.success(result)
+```
 
 ## Critical Domain Concepts
 
@@ -69,6 +108,20 @@ Background monitoring coordinated by `WorkerMonitoringScheduler` (see `notes/WOR
 - Instantiates monitoring scheduler with dependencies
 - Auto-starts monitoring for active workers
 - Schedules global labs refresh job (30-minute interval)
+
+**Background Jobs** (see `application/jobs/*.py`):
+
+- `WorkerMetricsCollectionJob`: Per-worker metrics polling (EC2 + CML + CloudWatch)
+- `LabsRefreshJob`: Global lab data refresh every 30 minutes
+
+Use `@backgroundjob` decorator with task_type="recurrent" for recurring tasks:
+
+```python
+@backgroundjob(task_type="recurrent", interval=300)
+class MyBackgroundJob(BackgroundJobBase):
+    async def execute_async(self, context):
+        # Job logic here
+```
 
 ## Authentication Architecture
 
@@ -232,6 +285,14 @@ Events automatically published via CloudEvent middleware when aggregate saved.
 - Tag-based instance discovery
 - Singleton service with boto3 client pooling
 
+**CML API Client**: `integration/services/cml_api_client.py::CMLApiClient`
+
+- CML REST API integration for worker instances
+- System information (`/api/v0/system_information`) - no auth required
+- System stats (`/api/v0/system_stats`) - requires auth
+- Lab management endpoints (list, create, start, stop, wipe, delete)
+- Node definitions and image definitions queries
+
 **Required AWS Environment Variables** (see `notes/AWS_IAM_PERMISSIONS_REQUIRED.md`):
 
 ```bash
@@ -264,6 +325,13 @@ CML_WORKER_SUBNET_ID
 **Dev mode**: `cd ui && npm run dev` (hot reload on port 1234)
 
 **Server-Side Events (SSE)**: UI subscribes to `/api/events/stream` for real-time worker status/metrics updates (see `application/services/sse_event_relay.py`)
+
+**Real-time event broadcasting**:
+
+- SSE clients register with `SSEEventRelay` service
+- Optional filtering by worker_ids and event_types
+- Events published to all matching subscribed clients
+- Common event types: worker_status, worker_metrics, lab_status
 
 ## Common Pitfalls
 

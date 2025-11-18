@@ -242,8 +242,8 @@ class RefreshWorkerMetricsCommandHandler(
             aggregated_result = {
                 "worker_id": command.worker_id,
                 "refresh_timestamp": (
-                    tracer.get_current_span().start_time
-                    if tracer.get_current_span()
+                    trace.get_current_span().start_time
+                    if trace.get_current_span()
                     else None
                 ),
                 "operations": results,

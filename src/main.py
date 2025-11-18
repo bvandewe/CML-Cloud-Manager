@@ -26,6 +26,7 @@ from api.services.openapi_config import (
     configure_api_openapi,
     configure_mounted_apps_openapi_prefix,
 )
+from application.services import WorkerMetricsService
 from application.services.background_scheduler import BackgroundTaskScheduler
 from application.services.sse_event_relay import SSEEventRelayHostedService
 from application.settings import app_settings, configure_logging
@@ -128,6 +129,9 @@ def create_app() -> FastAPI:
 
     # Configure AWS EC2 Client
     AwsEc2Client.configure(builder)
+
+    # Configure WorkerMetricsService as singleton (depends on AwsEc2Client)
+    builder.services.add_singleton(WorkerMetricsService, WorkerMetricsService)
 
     # Configure BackgroundTaskScheduler for worker monitoring jobs
     BackgroundTaskScheduler.configure(

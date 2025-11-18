@@ -7,6 +7,8 @@ from datetime import datetime
 from typing import Any, Dict, Optional, Set
 from uuid import uuid4
 
+from neuroglia.hosting.abstractions import HostedService
+
 logger = logging.getLogger(__name__)
 
 
@@ -148,7 +150,7 @@ class SSEEventRelay:
         return len(self._clients)
 
 
-class SSEEventRelayHostedService:
+class SSEEventRelayHostedService(HostedService):
     """Hosted service wrapper for the SSEEventRelay.
 
     Provides start/stop hooks so the application lifecycle can manage
@@ -191,8 +193,6 @@ class SSEEventRelayHostedService:
         )
         # Attempt to also register as generic HostedService if available
         try:
-            from neuroglia.hosting.abstractions import HostedService  # type: ignore
-
             builder.services.add_singleton(
                 HostedService,
                 implementation_factory=lambda provider: provider.get_service(

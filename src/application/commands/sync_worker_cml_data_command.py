@@ -342,7 +342,7 @@ class SyncWorkerCMLDataCommandHandler(
                 "service_status": worker.state.service_status.value,
                 "cml_version": worker.state.cml_version,
                 "cml_ready": worker.state.cml_ready,
-                "labs_count": worker.state.labs_count,
+                "labs_count": worker.state.cml_labs_count,
             }
 
             log.info(
