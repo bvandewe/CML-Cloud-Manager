@@ -99,6 +99,13 @@ class GetCMLWorkerByIdQueryHandler(
                     if worker.state.cml_last_synced_at
                     else None
                 ),
+                # Metrics Timing
+                "poll_interval": worker.state.poll_interval,
+                "next_refresh_at": (
+                    worker.state.next_refresh_at.isoformat()
+                    if worker.state.next_refresh_at
+                    else None
+                ),
                 # Backward compatibility (deprecated)
                 "last_activity_at": (
                     worker.state.cloudwatch_last_collected_at.isoformat()

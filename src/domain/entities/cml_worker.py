@@ -80,6 +80,10 @@ class CMLWorkerState(AggregateState[str]):
     cml_labs_count: int  # Number of labs from CML API
     cml_last_synced_at: datetime | None  # Last successful CML API sync
 
+    # Metrics Timing (for UI countdown timer)
+    poll_interval: int | None  # Metrics collection interval in seconds
+    next_refresh_at: datetime | None  # Next scheduled metrics collection time
+
     # Lifecycle timestamps
     created_at: datetime
     updated_at: datetime
@@ -258,14 +262,13 @@ class CMLWorkerState(AggregateState[str]):
         self.updated_at = event.updated_at
 
     @dispatch(CMLWorkerTelemetryUpdatedDomainEvent)
-    def on(self, event: CMLWorkerTelemetryUpdatedDomainEvent) -> None:  # type: ignore[override]
-        """Apply the telemetry updated event to the state (DEPRECATED - for backward compatibility)."""
-        # Keep for backward compatibility with existing events in event store
-        self.cloudwatch_cpu_utilization = event.cpu_utilization
-        self.cloudwatch_memory_utilization = event.memory_utilization
-        self.cloudwatch_last_collected_at = event.last_activity_at
-        self.cml_labs_count = event.active_labs_count
+    def on(self, event: CMLWorkerTelemetryUpdatedDomainEvent) -> None:
+        """Handle telemetry updated event."""
         self.updated_at = event.updated_at
+        if event.poll_interval is not None:
+            self.poll_interval = event.poll_interval
+        if event.next_refresh_at is not None:
+            self.next_refresh_at = event.next_refresh_at
 
     @dispatch(CMLWorkerEndpointUpdatedDomainEvent)
     def on(self, event: CMLWorkerEndpointUpdatedDomainEvent) -> None:  # type: ignore[override]

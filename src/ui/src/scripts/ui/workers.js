@@ -1104,6 +1104,22 @@ async function showWorkerDetails(workerId, region) {
     try {
         const worker = await workersApi.getWorkerDetails(region, workerId);
 
+        // Initialize timing info from worker data if available
+        if (worker.poll_interval && worker.next_refresh_at) {
+            console.log('[showWorkerDetails] Initializing timing info from worker data:', {
+                poll_interval: worker.poll_interval,
+                next_refresh_at: worker.next_refresh_at,
+            });
+            saveWorkerMetricsInfo(workerId, {
+                poll_interval: worker.poll_interval,
+                next_refresh_at: worker.next_refresh_at,
+                last_refreshed_at: worker.cloudwatch_last_collected_at || new Date().toISOString(),
+            });
+            // Update displays
+            updateLastRefreshedDisplay();
+            updateMetricsCountdownDisplay();
+        }
+
         overviewContent.innerHTML = `
             <div class="row">
                 <div class="col-md-6">
