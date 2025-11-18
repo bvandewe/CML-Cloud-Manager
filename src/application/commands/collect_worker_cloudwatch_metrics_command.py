@@ -17,12 +17,13 @@ from neuroglia.mediation import Command, CommandHandler, Mediator
 from neuroglia.observability.tracing import add_span_attributes
 from opentelemetry import trace
 
-from application.services.worker_metrics_service import (
-    MetricsResult,
-    WorkerMetricsService,
-)
 from domain.enums import CMLWorkerStatus
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
+from integration.enums import (
+    AwsRegion,
+    Ec2InstanceResourcesUtilizationRelativeStartTime,
+)
+from integration.services.aws_ec2_api_client import AwsEc2Client
 
 from .command_handler_base import CommandHandlerBase
 
@@ -58,7 +59,7 @@ class CollectWorkerCloudWatchMetricsCommandHandler(
         cloud_event_bus: CloudEventBus,
         cloud_event_publishing_options: CloudEventPublishingOptions,
         cml_worker_repository: CMLWorkerRepository,
-        worker_metrics_service: WorkerMetricsService,
+        aws_ec2_client: AwsEc2Client,
     ):
         super().__init__(
             mediator,
@@ -67,7 +68,7 @@ class CollectWorkerCloudWatchMetricsCommandHandler(
             cloud_event_publishing_options,
         )
         self.cml_worker_repository = cml_worker_repository
-        self.worker_metrics_service = worker_metrics_service
+        self.aws_ec2_client = aws_ec2_client
 
     async def handle_async(
         self, request: CollectWorkerCloudWatchMetricsCommand
@@ -129,22 +130,50 @@ class CollectWorkerCloudWatchMetricsCommandHandler(
                     }
                 )
 
-            # 3. Collect metrics using WorkerMetricsService
-            with tracer.start_as_current_span("collect_metrics") as span:
-                metrics_result: MetricsResult = (
-                    await self.worker_metrics_service.collect_worker_metrics(
-                        worker=worker,
-                        collect_cloudwatch=True,
-                    )
-                )
+            # 3. Collect CloudWatch metrics directly
+            with tracer.start_as_current_span("collect_cloudwatch_metrics") as span:
+                aws_region = AwsRegion(worker.state.aws_region)
+                cpu_util = None
+                memory_util = None
 
-                span.set_attribute("metrics.collected", metrics_result.status_updated)
-                if metrics_result.cpu_utilization is not None:
-                    span.set_attribute("metrics.cpu", metrics_result.cpu_utilization)
-                if metrics_result.memory_utilization is not None:
-                    span.set_attribute(
-                        "metrics.memory", metrics_result.memory_utilization
+                try:
+                    metrics = self.aws_ec2_client.get_instance_resources_utilization(
+                        aws_region=aws_region,
+                        instance_id=worker.state.aws_instance_id,
+                        relative_start_time=Ec2InstanceResourcesUtilizationRelativeStartTime.FIVE_MIN_AGO,
                     )
+
+                    if metrics:
+                        # Parse CPU utilization
+                        if (
+                            metrics.avg_cpu_utilization
+                            and metrics.avg_cpu_utilization
+                            != "unknown - enable CloudWatch..."
+                        ):
+                            try:
+                                cpu_util = float(metrics.avg_cpu_utilization)
+                            except (ValueError, TypeError):
+                                pass
+
+                        # Parse memory utilization
+                        if (
+                            metrics.avg_memory_utilization
+                            and metrics.avg_memory_utilization
+                            != "unknown - enable CloudWatch..."
+                        ):
+                            try:
+                                memory_util = float(metrics.avg_memory_utilization)
+                            except (ValueError, TypeError):
+                                pass
+
+                        span.set_attribute("metrics.cpu", cpu_util or 0)
+                        span.set_attribute("metrics.memory", memory_util or 0)
+
+                except Exception as e:
+                    log.warning(
+                        f"Failed to collect CloudWatch metrics for worker {command.worker_id}: {e}"
+                    )
+                    # Continue with None values
 
             # 4. Save updated worker
             with tracer.start_as_current_span("save_worker"):
@@ -153,15 +182,15 @@ class CollectWorkerCloudWatchMetricsCommandHandler(
             # 5. Build result summary
             result = {
                 "worker_id": command.worker_id,
-                "metrics_collected": True,
-                "cpu_utilization": metrics_result.cpu_utilization,
-                "memory_utilization": metrics_result.memory_utilization,
+                "metrics_collected": cpu_util is not None or memory_util is not None,
+                "cpu_utilization": cpu_util,
+                "memory_utilization": memory_util,
                 "cloudwatch_detailed_monitoring": worker.state.cloudwatch_detailed_monitoring_enabled,
             }
 
             log.info(
                 f"Collected CloudWatch metrics for worker {command.worker_id}: "
-                f"CPU={metrics_result.cpu_utilization}%, Memory={metrics_result.memory_utilization}%"
+                f"CPU={cpu_util}%, Memory={memory_util}%"
             )
 
             return self.ok(result)

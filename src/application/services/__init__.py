@@ -7,7 +7,7 @@ from .background_scheduler import (
     ScheduledBackgroundJob,
     backgroundjob,
 )
-from .worker_metrics_service import MetricsResult, WorkerMetricsService
+from .sse_event_relay import SSEEventRelay
 
 __all__ = [
     "BackgroundJob",
@@ -17,6 +17,5 @@ __all__ = [
     "RecurrentBackgroundJob",
     "ScheduledBackgroundJob",
     "backgroundjob",
-    "WorkerMetricsService",
-    "MetricsResult",
+    "SSEEventRelay",
 ]

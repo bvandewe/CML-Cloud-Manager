@@ -49,6 +49,15 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
   - Added docstrings with Args sections for clarity
   - Unified log messages with ✅ emoji for consistency
 
+### Removed
+
+- **WorkerMetricsService**: Removed unnecessary service abstraction layer
+  - Service was only used by `CollectWorkerCloudWatchMetricsCommand`
+  - Command handler now contains CloudWatch metrics collection logic directly
+  - Follows CQRS principles: handlers contain business logic, not delegating to services
+  - Simplifies architecture by removing intermediate abstraction
+  - Deleted: `application/services/worker_metrics_service.py`, `tests/application/test_worker_metrics_service.py`
+
 ### Fixed
 
 - **Worker Refresh Duplicates**: Fixed duplicate workers appearing after clicking refresh button

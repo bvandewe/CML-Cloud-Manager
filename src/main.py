@@ -26,7 +26,6 @@ from api.services.openapi_config import (
     configure_api_openapi,
     configure_mounted_apps_openapi_prefix,
 )
-from application.services import WorkerMetricsService
 from application.services.background_scheduler import BackgroundTaskScheduler
 from application.services.sse_event_relay import SSEEventRelayHostedService
 from application.settings import app_settings, configure_logging
@@ -136,9 +135,6 @@ def create_app() -> FastAPI:
         builder,
         modules=["application.jobs"],  # Scan for @backgroundjob decorated classes
     )
-
-    # Configure WorkerMetricsService as singleton (depends on AwsEc2Client and BackgroundTaskScheduler)
-    WorkerMetricsService.configure(builder)
 
     # Note: WorkerMetricsOrchestrator removed - using RefreshWorkerMetricsCommand directly via Mediator for simplicity
 
