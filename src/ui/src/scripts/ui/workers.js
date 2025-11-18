@@ -382,6 +382,7 @@ function setupSSEHandlers() {
                 next_refresh_at: data.next_refresh_at || new Date(Date.now() + (data.poll_interval || 300) * 1000).toISOString(),
                 last_refreshed_at: new Date().toISOString(),
             };
+            console.log('[SSE] Saving timing info for worker', data.worker_id, ':', info);
             saveWorkerMetricsInfo(data.worker_id, info);
         }
 
@@ -392,10 +393,9 @@ function setupSSEHandlers() {
             loadWorkers();
         }
 
-        // If worker details modal is open for this worker, reload it
+        // If worker details modal is open for this worker, update displays
         if (currentWorkerDetails && currentWorkerDetails.id === data.worker_id) {
-            console.log('[SSE] Reloading open worker details modal');
-            showWorkerDetails(data.worker_id, currentWorkerDetails.region);
+            console.log('[SSE] Updating timing displays for open modal');
             // Reset the countdown timer when metrics are updated
             resetMetricsCountdown(data);
         }
@@ -435,6 +435,23 @@ function setupSSEHandlers() {
     sseClient.on('worker.terminated', data => {
         console.log('[SSE] Worker terminated:', data);
         loadWorkers();
+
+        // Clean up localStorage for deleted worker
+        if (data.worker_id) {
+            try {
+                const stored = localStorage.getItem(WORKER_METRICS_STORAGE_KEY);
+                if (stored) {
+                    const allWorkers = JSON.parse(stored);
+                    if (allWorkers[data.worker_id]) {
+                        delete allWorkers[data.worker_id];
+                        localStorage.setItem(WORKER_METRICS_STORAGE_KEY, JSON.stringify(allWorkers));
+                        console.log('[SSE] Cleaned up metrics storage for terminated worker:', data.worker_id);
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to clean up worker metrics storage:', e);
+            }
+        }
 
         // Close modal if this worker is open
         if (currentWorkerDetails && currentWorkerDetails.id === data.worker_id) {
@@ -483,6 +500,36 @@ function setupSSEStatusIndicator() {
 }
 
 /**
+ * Clean up metrics storage for workers that no longer exist
+ */
+function cleanupStaleWorkerMetrics() {
+    try {
+        const stored = localStorage.getItem(WORKER_METRICS_STORAGE_KEY);
+        if (!stored) return;
+
+        const allMetrics = JSON.parse(stored);
+        const storedWorkerIds = Object.keys(allMetrics);
+        const currentWorkerIds = workersData.map(w => w.id);
+
+        let cleaned = false;
+        storedWorkerIds.forEach(workerId => {
+            if (!currentWorkerIds.includes(workerId)) {
+                delete allMetrics[workerId];
+                cleaned = true;
+                console.log('[cleanupStaleWorkerMetrics] Removed stale metrics for worker:', workerId);
+            }
+        });
+
+        if (cleaned) {
+            localStorage.setItem(WORKER_METRICS_STORAGE_KEY, JSON.stringify(allMetrics));
+            console.log('[cleanupStaleWorkerMetrics] Cleanup complete. Remaining workers:', Object.keys(allMetrics).length);
+        }
+    } catch (e) {
+        console.error('Failed to cleanup stale worker metrics:', e);
+    }
+}
+
+/**
  * Load workers from API
  */
 async function loadWorkers() {
@@ -513,6 +560,9 @@ async function loadWorkers() {
         } else {
             renderWorkersCards();
         }
+
+        // Clean up stale metrics storage after loading workers
+        cleanupStaleWorkerMetrics();
     } catch (error) {
         console.error('Failed to load workers:', error);
         workersData = [];
@@ -1104,12 +1154,17 @@ async function showWorkerDetails(workerId, region) {
     try {
         const worker = await workersApi.getWorkerDetails(region, workerId);
 
+        // Debug: Log worker data to see what we're getting
+        console.log('[showWorkerDetails] Worker data received:', {
+            id: worker.id,
+            poll_interval: worker.poll_interval,
+            next_refresh_at: worker.next_refresh_at,
+            cloudwatch_last_collected_at: worker.cloudwatch_last_collected_at,
+        });
+
         // Initialize timing info from worker data if available
         if (worker.poll_interval && worker.next_refresh_at) {
-            console.log('[showWorkerDetails] Initializing timing info from worker data:', {
-                poll_interval: worker.poll_interval,
-                next_refresh_at: worker.next_refresh_at,
-            });
+            console.log('[showWorkerDetails] Initializing timing info from worker data');
             saveWorkerMetricsInfo(workerId, {
                 poll_interval: worker.poll_interval,
                 next_refresh_at: worker.next_refresh_at,
@@ -1118,6 +1173,8 @@ async function showWorkerDetails(workerId, region) {
             // Update displays
             updateLastRefreshedDisplay();
             updateMetricsCountdownDisplay();
+        } else {
+            console.log('[showWorkerDetails] No timing info in worker data - will use defaults or wait for SSE update');
         }
 
         overviewContent.innerHTML = `
