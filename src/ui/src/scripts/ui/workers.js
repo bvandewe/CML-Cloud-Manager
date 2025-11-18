@@ -1448,7 +1448,7 @@ async function loadCloudWatchMetrics(workerId, region) {
                 </div>
             </div>
             <div class="text-muted small">
-                <i class="bi bi-info-circle"></i> Data from CML native telemetry (last refresh: ${formatRelativeTime(worker.updated_at)})
+                <i class="bi bi-info-circle"></i> Data from CML native telemetry (last refresh: ${formatDateWithRelative(worker.updated_at)})
             </div>
         `;
     } catch (error) {
