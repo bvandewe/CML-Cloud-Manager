@@ -10,7 +10,9 @@
 
 import * as systemApi from '../api/system.js';
 import { showToast } from './notifications.js';
+import { showConfirm } from '../components/modals.js';
 import { formatDateWithRelative, initializeDateTooltips } from '../utils/dates.js';
+import { escapeHtml } from '../components/escape.js';
 import { isAdmin } from '../utils/roles.js';
 import * as bootstrap from 'bootstrap';
 
@@ -23,7 +25,6 @@ export function initializeSystemView() {
     // Load initial data
     loadSystemHealth();
     loadSchedulerStatus();
-    loadWorkerMonitoring();
 
     // Set up tab event listeners to reload data when switching tabs
     const tabs = document.querySelectorAll('#systemTabs button[data-bs-toggle="tab"]');
@@ -34,8 +35,6 @@ export function initializeSystemView() {
                 loadSystemHealth();
             } else if (targetId === '#scheduler-panel') {
                 loadSchedulerJobs();
-            } else if (targetId === '#monitoring-panel') {
-                loadWorkerMonitoring();
             }
         });
     });
@@ -49,8 +48,6 @@ export function initializeSystemView() {
                 loadSystemHealth();
             } else if (targetId === '#scheduler-panel') {
                 loadSchedulerJobs();
-            } else if (targetId === '#monitoring-panel') {
-                loadWorkerMonitoring();
             }
         }
     }, 30000);
@@ -182,49 +179,6 @@ async function loadSchedulerJobs() {
 }
 
 /**
- * Load worker monitoring status
- */
-async function loadWorkerMonitoring() {
-    try {
-        const status = await systemApi.getWorkerMonitoringStatus();
-
-        const container = document.getElementById('monitoring-details');
-        if (container) {
-            container.innerHTML = renderMonitoringDetails(status);
-        }
-    } catch (error) {
-        console.error('Failed to load worker monitoring:', error);
-        const container = document.getElementById('monitoring-details');
-
-        // Check if it's a permission error
-        const isPermissionError = error.message && error.message.includes('Permission denied');
-
-        if (container) {
-            if (isPermissionError) {
-                container.innerHTML = `
-                    <div class="alert alert-warning">
-                        <i class="bi bi-shield-lock me-2"></i>
-                        ${error.message}
-                    </div>
-                `;
-            } else {
-                container.innerHTML = `
-                    <div class="alert alert-danger">
-                        <i class="bi bi-exclamation-circle me-2"></i>
-                        Failed to load worker monitoring
-                    </div>
-                `;
-            }
-        }
-
-        // Only show toast for non-permission errors
-        if (!isPermissionError) {
-            showToast('Failed to load worker monitoring', 'error');
-        }
-    }
-}
-
-/**
  * Delete a scheduled job (admin only)
  */
 async function deleteJob(jobId) {
@@ -233,27 +187,37 @@ async function deleteJob(jobId) {
         return;
     }
 
-    if (!confirm(`Are you sure you want to delete job "${jobId}"?`)) {
-        return;
-    }
+    await new Promise(resolve => {
+        showConfirm(
+            'Delete Job',
+            `Are you sure you want to delete job "${jobId}"? This action cannot be undone.`,
+            async () => {
+                try {
+                    const response = await fetch(`/api/system/scheduler/jobs/${jobId}`, {
+                        method: 'DELETE',
+                        credentials: 'include',
+                    });
 
-    try {
-        const response = await fetch(`/api/system/scheduler/jobs/${jobId}`, {
-            method: 'DELETE',
-            credentials: 'include',
-        });
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.message || 'Failed to delete job');
+                    }
 
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.message || 'Failed to delete job');
-        }
-
-        showToast('Job deleted successfully', 'success');
-        await refreshScheduler();
-    } catch (error) {
-        console.error('Failed to delete job:', error);
-        showToast(error.message || 'Failed to delete job', 'error');
-    }
+                    showToast('Job deleted successfully', 'success');
+                    await refreshScheduler();
+                } catch (error) {
+                    console.error('Failed to delete job:', error);
+                    showToast(error.message || 'Failed to delete job', 'error');
+                }
+                resolve();
+            },
+            {
+                actionLabel: 'Delete Job',
+                actionClass: 'btn-danger',
+                iconClass: 'bi bi-exclamation-triangle text-danger me-2',
+            }
+        );
+    });
 }
 
 /**
@@ -267,8 +231,13 @@ function renderHealthComponents(components) {
     let html = '<div class="row">';
 
     for (const [name, info] of Object.entries(components)) {
+        // Hide worker monitoring component (requested removal)
+        if (name === 'worker_monitoring') {
+            continue;
+        }
         const statusClass = info.status === 'healthy' ? 'success' : info.status === 'warning' ? 'warning' : 'danger';
         const icon = info.status === 'healthy' ? 'check-circle' : info.status === 'warning' ? 'exclamation-triangle' : 'x-circle';
+        const latency = info.latency_ms != null ? `${Math.round(info.latency_ms)} ms` : '—';
 
         html += `
             <div class="col-md-6 mb-3">
@@ -283,8 +252,13 @@ function renderHealthComponents(components) {
                             </div>
                             <i class="bi bi-${getComponentIcon(name)} text-${statusClass}" style="font-size: 1.5rem;"></i>
                         </div>
-                        ${info.error ? `<div class="text-danger small mt-2">${info.error}</div>` : ''}
-                        ${info.type ? `<div class="text-muted small mt-1">Type: ${info.type}</div>` : ''}
+                        ${info.error ? `<div class="text-danger small mt-2">${escapeHtml(info.error)}</div>` : ''}
+                        ${info.type ? `<div class="text-muted small mt-1">Type: ${escapeHtml(info.type)}</div>` : ''}
+                        <div class="text-muted small">Latency: ${latency}</div>
+                        ${info.endpoint ? `<div class="text-muted small">Endpoint: ${escapeHtml(info.endpoint)}</div>` : ''}
+                        ${info.realm ? `<div class="text-muted small">Realm: ${escapeHtml(info.realm)}</div>` : ''}
+                        ${info.issuer ? `<div class="text-muted small">Issuer: ${escapeHtml(info.issuer)}</div>` : ''}
+                        ${info.event_id ? `<div class="text-muted small">Last Event ID: <code>${escapeHtml(info.event_id)}</code></div>` : ''}
                         ${info.running != null ? `<div class="text-muted small">Running: ${info.running}</div>` : ''}
                         ${info.job_count != null ? `<div class="text-muted small">Jobs: ${info.job_count}</div>` : ''}
                     </div>
@@ -358,50 +332,6 @@ function renderSchedulerJobs(jobs) {
 /**
  * Render worker monitoring details
  */
-function renderMonitoringDetails(monitoring) {
-    const statusBadge = monitoring.scheduler_running ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-warning">Inactive</span>';
-
-    let html = `
-        <div class="row mb-4">
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-body">
-                        <h6 class="card-title">Monitoring Service Status</h6>
-                        <p class="mb-1"><strong>Status:</strong> ${statusBadge}</p>
-                        <p class="mb-1"><strong>Scheduler Running:</strong> ${monitoring.scheduler_running ? 'Yes' : 'No'}</p>
-                        <p class="mb-0"><strong>Active Jobs:</strong> ${monitoring.monitoring_job_count || 0}</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-
-    if (monitoring.monitoring_job_count === 0) {
-        html += `
-            <div class="alert alert-info">
-                <i class="bi bi-info-circle me-2"></i>
-                No workers are currently being monitored. Monitoring jobs are automatically created when you import or create CML Workers.
-            </div>
-            <div class="text-muted small mt-3">
-                <strong>Note:</strong> There is one monitoring job per CML Worker. Each job polls AWS EC2 and CloudWatch APIs every 5 minutes to track worker status and metrics.
-                To view individual monitoring jobs, check the <strong>Scheduler</strong> tab.
-            </div>
-        `;
-    } else {
-        html += `
-            <div class="alert alert-success">
-                <i class="bi bi-check-circle me-2"></i>
-                Currently monitoring <strong>${monitoring.monitoring_job_count}</strong> worker(s).
-                To view individual monitoring jobs and manage them, check the <strong>Scheduler</strong> tab.
-            </div>
-            <div class="text-muted small mt-3">
-                <strong>Note:</strong> Each CML Worker has a dedicated monitoring job that polls AWS EC2 and CloudWatch APIs every 5 minutes.
-            </div>
-        `;
-    }
-
-    return html;
-}
 
 /**
  * Render collectors list
@@ -439,6 +369,9 @@ function getComponentIcon(name) {
         background_scheduler: 'calendar3',
         worker_monitoring: 'speedometer2',
         redis: 'server',
+        cloudevent_sink: 'broadcast',
+        keycloak: 'shield-lock',
+        otel_collector: 'diagram3',
     };
     return iconMap[name] || 'gear';
 }
@@ -470,16 +403,11 @@ function refreshScheduler() {
 /**
  * Refresh monitoring data (called from UI)
  */
-function refreshMonitoring() {
-    loadWorkerMonitoring();
-    showToast('Refreshing worker monitoring...', 'info');
-}
 
 // Export functions for global access
 window.systemApp = {
     initializeSystemView,
     refreshHealth,
     refreshScheduler,
-    refreshMonitoring,
     deleteJob,
 };

@@ -40,24 +40,44 @@ export function showAlert(title, message, type = 'error') {
  * @param {string} message - Confirmation message
  * @param {Function} onConfirm - Callback function when confirmed
  */
-export function showConfirm(title, message, onConfirm) {
+export function showConfirm(title, message, onConfirm, options = {}) {
+    // options: { actionLabel, actionClass, iconClass, detailsHtml, dismissOnAction }
+    const { actionLabel = 'Confirm', actionClass = 'btn-danger', iconClass = 'bi bi-exclamation-triangle text-warning me-2', detailsHtml = '', dismissOnAction = true } = options;
+
     const modal = document.getElementById('confirmModal');
+    if (!modal) {
+        console.error('confirmModal element not found in DOM');
+        return;
+    }
     const titleElement = document.getElementById('confirm-modal-title');
     const messageElement = document.getElementById('confirm-modal-message');
     const confirmButton = document.getElementById('confirm-modal-action');
+    const iconWrapper = titleElement.previousElementSibling?.querySelector('i') || modal.querySelector('.modal-title i');
 
     titleElement.textContent = title;
-    messageElement.textContent = message;
+    messageElement.innerHTML = `${message}${detailsHtml ? `<div class="text-muted mt-2">${detailsHtml}</div>` : ''}`;
+    if (iconWrapper) {
+        iconWrapper.className = iconClass;
+    }
 
-    // Remove any existing event listeners
+    // Adjust button appearance
+    confirmButton.textContent = actionLabel;
+    confirmButton.className = `btn ${actionClass}`;
+
+    // Remove any existing event listeners by cloning
     const newConfirmButton = confirmButton.cloneNode(true);
     confirmButton.parentNode.replaceChild(newConfirmButton, confirmButton);
 
-    // Add new event listener
-    newConfirmButton.addEventListener('click', () => {
-        const bsModal = bootstrap.Modal.getInstance(modal);
-        bsModal.hide();
-        onConfirm();
+    newConfirmButton.addEventListener('click', async () => {
+        if (dismissOnAction) {
+            const bsModalInstance = bootstrap.Modal.getInstance(modal);
+            bsModalInstance && bsModalInstance.hide();
+        }
+        try {
+            await onConfirm();
+        } catch (err) {
+            console.error('Confirmation action error:', err);
+        }
     });
 
     const bsModal = new bootstrap.Modal(modal);
