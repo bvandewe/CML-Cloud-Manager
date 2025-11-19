@@ -2,7 +2,6 @@ name: Build and Publish Docker Image
 
 on:
     push:
-        branches: [main]
         tags: ['v*.*.*']
     pull_request:
         branches: [main]
@@ -23,6 +22,8 @@ jobs:
         name: Build & Push
         runs-on: ubuntu-latest
         timeout-minutes: 30
+        outputs:
+            version: ${{ steps.version.outputs.version }}
         concurrency:
             group: docker-publish-${{ github.ref }}
             cancel-in-progress: true
@@ -59,17 +60,20 @@ jobs:
               run: |
                   VERSION='${{ steps.version.outputs.version }}'
                   IMAGE='${{ env.IMAGE_NAME }}'
-                  TAG_LIST="--tag ${IMAGE}:$VERSION"
+                  TAGS="${IMAGE}:${VERSION}"
                   # For semver tags v1.2.3 also push major & major.minor
                   if [[ "$VERSION" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
                     V=${VERSION#v}
                     MAJOR=$(echo $V | cut -d. -f1)
                     MINOR=$(echo $V | cut -d. -f2)
-                    TAG_LIST="$TAG_LIST --tag ${IMAGE}:$MAJOR --tag ${IMAGE}:$MAJOR.$MINOR --tag ${IMAGE}:latest"
+                    TAGS="${TAGS}\n${IMAGE}:${MAJOR}\n${IMAGE}:${MAJOR}.${MINOR}\n${IMAGE}:latest"
                   elif [[ "$GITHUB_REF_TYPE" != "tag" ]]; then
-                    TAG_LIST="$TAG_LIST --tag ${IMAGE}:dev"
+                    TAGS="${TAGS}\n${IMAGE}:dev"
                   fi
-                  echo "tags=$TAG_LIST" >> $GITHUB_OUTPUT
+                  # Output as multi-line format for docker/build-push-action
+                  echo "tags<<EOF" >> $GITHUB_OUTPUT
+                  echo -e "$TAGS" >> $GITHUB_OUTPUT
+                  echo "EOF" >> $GITHUB_OUTPUT
 
             - name: Build Image (PR / branch)
               if: github.event_name != 'push' || github.ref != 'refs/heads/main'
