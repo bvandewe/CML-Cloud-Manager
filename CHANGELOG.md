@@ -6,8 +6,17 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ## [Unreleased]
 
+## [0.1.0] - 2025-11-19
+
 ### Fixed
 
+- **SSE Initial Snapshots**: Fixed scoped service resolution error in SSE event controller
+  - Create service scope before resolving CMLWorkerRepository
+  - Initial worker snapshots now sent correctly on SSE connection
+- **CI/CD Docker Build**: Fixed invalid tag format in GitHub Actions workflow
+  - Removed `--tag` prefix from tag values (docker/build-push-action adds it automatically)
+  - Use multi-line format for tags output
+  - Changed trigger to only build on version tags (not on push to main)
 - **CML Data Sync Resilience**: Fixed critical issue where newly imported workers remained with `cml_ready: false` and `service_status: unavailable`
   - Refactored `SyncWorkerCMLDataCommand` from fail-fast to resilient multi-step approach
   - Health check is no longer a gatekeeper - all CML APIs are tried independently
