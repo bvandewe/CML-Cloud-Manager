@@ -1,0 +1,137 @@
+"""Query for checking worker idle status and auto-pause eligibility."""
+
+import logging
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any
+
+from neuroglia.core import OperationResult
+from neuroglia.mediation import Query, QueryHandler
+from opentelemetry import trace
+from opentelemetry.trace import Status, StatusCode
+
+from application.settings import app_settings
+from domain.repositories import CMLWorkerRepository
+
+log = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
+
+
+@dataclass
+class GetWorkerIdleStatusQuery(Query[OperationResult[dict[str, Any]]]):
+    """Query to check if a worker is idle and eligible for auto-pause.
+
+    Attributes:
+        worker_id: Worker identifier
+    """
+
+    worker_id: str
+
+
+class GetWorkerIdleStatusQueryHandler(
+    QueryHandler[GetWorkerIdleStatusQuery, OperationResult[dict[str, Any]]]
+):
+    """Handler for GetWorkerIdleStatusQuery.
+
+    Evaluates idle conditions and determines if worker should be auto-paused.
+    """
+
+    def __init__(self, worker_repository: CMLWorkerRepository):
+        """Initialize the handler.
+
+        Args:
+            worker_repository: Repository for CML worker aggregates
+        """
+        self._repository = worker_repository
+
+    async def handle_async(
+        self, query: GetWorkerIdleStatusQuery, cancellation_token=None
+    ) -> OperationResult[dict[str, Any]]:
+        """Execute the query.
+
+        Args:
+            query: Query parameters
+            cancellation_token: Cancellation token
+
+        Returns:
+            OperationResult with idle status and eligibility information
+        """
+        with tracer.start_as_current_span(
+            "GetWorkerIdleStatusQueryHandler.handle_async"
+        ) as span:
+            span.set_attribute("worker_id", query.worker_id)
+
+            try:
+                # Retrieve worker
+                worker = await self._repository.get_async(
+                    query.worker_id, cancellation_token
+                )
+
+                if not worker:
+                    log.warning(f"Worker {query.worker_id} not found")
+                    span.set_status(Status(StatusCode.ERROR, "Worker not found"))
+                    return self.not_found(
+                        f"Worker {query.worker_id}",
+                        f"Worker {query.worker_id} not found",
+                    )
+
+                # Calculate idle duration
+                idle_duration = worker.calculate_idle_duration()
+                idle_minutes = (
+                    idle_duration.total_seconds() / 60 if idle_duration else 0
+                )
+
+                # Check if currently in snooze period
+                in_snooze = worker.in_snooze_period()
+
+                # Determine if worker is idle based on threshold
+                is_idle = idle_minutes >= app_settings.worker_idle_timeout_minutes
+
+                # Check if auto-pause is enabled (globally and for this worker)
+                auto_pause_enabled = (
+                    app_settings.worker_auto_pause_enabled
+                    and worker.state.is_idle_detection_enabled
+                )
+
+                # Determine if eligible for auto-pause
+                eligible_for_pause = (
+                    is_idle
+                    and auto_pause_enabled
+                    and not in_snooze
+                    and worker.state.status.value == "running"
+                )
+
+                # Build status response
+                status_data = {
+                    "worker_id": query.worker_id,
+                    "is_idle": is_idle,
+                    "idle_minutes": idle_minutes,
+                    "idle_threshold_minutes": app_settings.worker_idle_timeout_minutes,
+                    "last_activity_at": worker.state.last_activity_at,
+                    "in_snooze_period": in_snooze,
+                    "snooze_until": worker.state.last_resumed_at,
+                    "auto_pause_enabled": auto_pause_enabled,
+                    "eligible_for_pause": eligible_for_pause,
+                    "next_idle_check_at": worker.state.next_idle_check_at,
+                    "target_pause_at": worker.state.target_pause_at,
+                    "checked_at": datetime.utcnow(),
+                }
+
+                log.debug(
+                    f"Worker {query.worker_id} idle status: "
+                    f"idle={is_idle}, eligible_for_pause={eligible_for_pause}"
+                )
+
+                span.set_attribute("is_idle", is_idle)
+                span.set_attribute("eligible_for_pause", eligible_for_pause)
+                span.set_status(Status(StatusCode.OK))
+
+                return self.ok(status_data)
+
+            except Exception as e:
+                log.error(
+                    f"Error checking idle status for worker {query.worker_id}: {e}",
+                    exc_info=True,
+                )
+                span.set_status(Status(StatusCode.ERROR, str(e)))
+                return self.bad_request(f"Error checking idle status: {e}")
