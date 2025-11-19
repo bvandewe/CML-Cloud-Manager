@@ -6,6 +6,27 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ## [Unreleased]
 
+### Fixed
+
+- **Activity Detection Job Runtime Errors**: Fixed multiple runtime errors in ActivityDetectionJob
+  - Changed `worker.id` attribute references to `worker.id()` method calls
+  - Fixed `OperationResult` attribute names (`is_successful` → `is_success`, `content` → `data`, `errors` → `error_message`)
+  - Corrected repository method call (`get_async()` → `get_by_id_async()`)
+  - Removed invalid `cancellation_token` parameter from `get_by_id_async()` calls
+- **CML API SSL Verification**: Disabled SSL verification for CML API client connections
+  - Added `verify_ssl=False` for telemetry query client instantiation
+  - Prevents CERTIFICATE_VERIFY_FAILED errors with self-signed certificates
+
+### Changed
+
+- **CML API Client Factory Pattern**: Refactored CML API client instantiation to use dependency injection
+  - Implemented `CMLApiClientFactory` with singleton registration
+  - Factory creates transient client instances per worker (thread-safe, no shared token state)
+  - Centralizes configuration (verify_ssl=False, timeout, default credentials)
+  - Updated all handlers and jobs to inject factory instead of manual instantiation
+  - Improves testability and follows same pattern as AwsEc2Client
+  - Files affected: sync_worker_cml_data_command, control_lab_command, refresh_worker_labs_command, get_worker_telemetry_events_query, labs_refresh_job
+
 ## [0.1.0] - 2025-11-19
 
 ### Fixed

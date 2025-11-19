@@ -19,7 +19,7 @@ from domain.entities.lab_record import LabRecord
 from domain.enums import CMLWorkerStatus
 from domain.repositories import CMLWorkerRepository
 from domain.repositories.lab_record_repository import LabRecordRepository
-from integration.services.cml_api_client import CMLApiClient
+from integration.services.cml_api_client import CMLApiClientFactory
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -219,15 +219,13 @@ class LabsRefreshJob(RecurrentBackgroundJob):
 
         log.debug(f"Refreshing labs for worker {worker_id} at {https_endpoint}")
 
-        # Get settings for CML credentials
-
-        # Create CML API client
-        cml_client = CMLApiClient(
-            base_url=https_endpoint,
-            username=app_settings.cml_worker_api_username,
-            password=app_settings.cml_worker_api_password,
-            verify_ssl=False,  # TODO: Make this configurable
-        )
+        # Create CML API client using factory from service provider
+        scope = self._service_provider.create_scope()
+        try:
+            cml_client_factory = scope.get_required_service(CMLApiClientFactory)
+            cml_client = cml_client_factory.create(base_url=https_endpoint)
+        finally:
+            scope.dispose()
 
         # Fetch lab IDs from CML
         try:

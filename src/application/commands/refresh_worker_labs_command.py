@@ -25,7 +25,7 @@ from domain.entities.lab_record import LabRecord
 from domain.enums import CMLWorkerStatus
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
 from domain.repositories.lab_record_repository import LabRecordRepository
-from integration.services.cml_api_client import CMLApiClient
+from integration.services.cml_api_client import CMLApiClientFactory
 
 from .command_handler_base import CommandHandlerBase
 
@@ -81,6 +81,7 @@ class RefreshWorkerLabsCommandHandler(
         cloud_event_publishing_options: CloudEventPublishingOptions,
         worker_repository: CMLWorkerRepository,
         lab_record_repository: LabRecordRepository,
+        cml_api_client_factory: CMLApiClientFactory,
         settings: Settings,
         sse_relay: SSEEventRelay,
     ):
@@ -92,6 +93,7 @@ class RefreshWorkerLabsCommandHandler(
         )
         self._worker_repository = worker_repository
         self._lab_record_repository = lab_record_repository
+        self._cml_client_factory = cml_api_client_factory
         self._settings = settings
         self._sse_relay = sse_relay
 
@@ -200,13 +202,8 @@ class RefreshWorkerLabsCommandHandler(
 
         log.debug(f"Refreshing labs for worker {worker_id} at {https_endpoint}")
 
-        # Create CML API client for this worker
-        cml_client = CMLApiClient(
-            base_url=https_endpoint,
-            username=self._settings.cml_worker_api_username,
-            password=self._settings.cml_worker_api_password,
-            verify_ssl=False,  # TODO: Make this configurable
-        )
+        # Create CML API client for this worker using factory
+        cml_client = self._cml_client_factory.create(base_url=https_endpoint)
 
         # Fetch lab IDs from CML
         try:

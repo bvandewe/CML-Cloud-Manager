@@ -21,7 +21,7 @@ from application.settings import Settings
 from domain.enums import CMLServiceStatus, CMLWorkerStatus
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
 from integration.exceptions import IntegrationException
-from integration.services.cml_api_client import CMLApiClient
+from integration.services.cml_api_client import CMLApiClientFactory
 
 from .command_handler_base import CommandHandlerBase
 
@@ -59,6 +59,7 @@ class SyncWorkerCMLDataCommandHandler(
         cloud_event_bus: CloudEventBus,
         cloud_event_publishing_options: CloudEventPublishingOptions,
         cml_worker_repository: CMLWorkerRepository,
+        cml_api_client_factory: CMLApiClientFactory,
         settings: Settings,
     ):
         super().__init__(
@@ -68,6 +69,7 @@ class SyncWorkerCMLDataCommandHandler(
             cloud_event_publishing_options,
         )
         self.cml_worker_repository = cml_worker_repository
+        self.cml_client_factory = cml_api_client_factory
         self.settings = settings
 
     async def handle_async(
@@ -151,12 +153,9 @@ class SyncWorkerCMLDataCommandHandler(
                     f"at {worker.state.https_endpoint}"
                 )
 
-                # Create CML API client for this worker
-                cml_client = CMLApiClient(
+                # Create CML API client for this worker using factory
+                cml_client = self.cml_client_factory.create(
                     base_url=worker.state.https_endpoint,
-                    username=self.settings.cml_worker_api_username,
-                    password=self.settings.cml_worker_api_password,
-                    verify_ssl=False,
                     timeout=15.0,
                 )
 

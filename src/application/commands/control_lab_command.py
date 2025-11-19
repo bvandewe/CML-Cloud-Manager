@@ -21,7 +21,7 @@ from application.jobs.on_demand_worker_data_refresh_job import (
 from application.services.background_scheduler import BackgroundTaskScheduler
 from application.settings import Settings
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
-from integration.services.cml_api_client import CMLApiClient
+from integration.services.cml_api_client import CMLApiClientFactory
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -63,6 +63,7 @@ class ControlLabCommandHandler(
         cloud_event_bus: CloudEventBus,
         cloud_event_publishing_options: CloudEventPublishingOptions,
         cml_worker_repository: CMLWorkerRepository,
+        cml_api_client_factory: CMLApiClientFactory,
         background_task_scheduler: BackgroundTaskScheduler,
         settings: Settings,
     ):
@@ -73,6 +74,7 @@ class ControlLabCommandHandler(
             cloud_event_publishing_options,
         )
         self.cml_worker_repository = cml_worker_repository
+        self.cml_client_factory = cml_api_client_factory
         self.background_task_scheduler = background_task_scheduler
         self.settings = settings
 
@@ -110,12 +112,9 @@ class ControlLabCommandHandler(
                     log.error(error_msg)
                     return self.bad_request(error_msg)
 
-                # Create CML API client
-                cml_client = CMLApiClient(
-                    base_url=worker.state.https_endpoint,
-                    username=self.settings.cml_worker_api_username,
-                    password=self.settings.cml_worker_api_password,
-                    verify_ssl=False,
+                # Create CML API client using factory
+                cml_client = self.cml_client_factory.create(
+                    base_url=worker.state.https_endpoint
                 )
 
                 # Perform the requested action

@@ -8,10 +8,14 @@ API Documentation: https://developer.cisco.com/docs/modeling-labs/
 
 import logging
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import httpx
 
 from integration.exceptions import IntegrationException
+
+if TYPE_CHECKING:
+    from neuroglia.hosting.web import WebApplicationBuilder
 
 log = logging.getLogger(__name__)
 
@@ -990,3 +994,87 @@ class CMLApiClient:
         except Exception as e:
             log.error(f"Error getting telemetry events: {e}")
             raise IntegrationException(f"Error getting telemetry events: {e}") from e
+
+
+class CMLApiClientFactory:
+    """Factory for creating CML API client instances.
+
+    Provides consistent configuration for CML API clients across the application.
+    Each worker requires its own client instance with specific endpoint and credentials.
+    """
+
+    def __init__(
+        self,
+        default_username: str,
+        default_password: str,
+        verify_ssl: bool = False,
+        timeout: float = 30.0,
+    ):
+        """Initialize the factory with default configuration.
+
+        Args:
+            default_username: Default CML username (typically "admin")
+            default_password: Default CML password
+            verify_ssl: Whether to verify SSL certificates (default False for self-signed certs)
+            timeout: Default request timeout in seconds
+        """
+        self.default_username = default_username
+        self.default_password = default_password
+        self.verify_ssl = verify_ssl
+        self.timeout = timeout
+
+    def create(
+        self,
+        base_url: str,
+        username: str | None = None,
+        password: str | None = None,
+        verify_ssl: bool | None = None,
+        timeout: float | None = None,
+    ) -> CMLApiClient:
+        """Create a CML API client instance for a specific worker.
+
+        Args:
+            base_url: Base URL of the CML instance (required, worker-specific)
+            username: CML username (uses default if not provided)
+            password: CML password (uses default if not provided)
+            verify_ssl: Override SSL verification setting
+            timeout: Override timeout setting
+
+        Returns:
+            Configured CMLApiClient instance
+        """
+        return CMLApiClient(
+            base_url=base_url,
+            username=username or self.default_username,
+            password=password or self.default_password,
+            verify_ssl=verify_ssl if verify_ssl is not None else self.verify_ssl,
+            timeout=timeout if timeout is not None else self.timeout,
+        )
+
+    @staticmethod
+    def configure(builder: "WebApplicationBuilder") -> None:
+        """Configure CML API client factory in the application builder.
+
+        This method:
+        1. Reads default credentials from application settings
+        2. Creates a CMLApiClientFactory instance
+        3. Registers the factory as a singleton in the DI container
+
+        Args:
+            builder: WebApplicationBuilder instance for service registration
+        """
+        from application.settings import app_settings
+
+        log.info("🔧 Configuring CML API Client Factory...")
+
+        # Create factory with default configuration from settings
+        factory = CMLApiClientFactory(
+            default_username=app_settings.cml_worker_api_username,
+            default_password=app_settings.cml_worker_api_password,
+            verify_ssl=False,  # CML instances typically use self-signed certificates
+            timeout=30.0,
+        )
+
+        # Register as singleton in DI container
+        builder.services.add_singleton(CMLApiClientFactory, singleton=factory)
+        log.info("✅ CML API Client Factory registered in DI container")

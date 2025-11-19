@@ -46,6 +46,7 @@ from integration.repositories.motor_lab_record_repository import (
 )
 from integration.repositories.motor_task_repository import MongoTaskRepository
 from integration.services.aws_ec2_api_client import AwsEc2Client
+from integration.services.cml_api_client import CMLApiClientFactory
 
 """Pre-config logging file truncation for LOCAL_DEV before handlers attach."""
 try:
@@ -191,6 +192,9 @@ def create_app() -> FastAPI:
 
     # Configure AWS EC2 Client
     AwsEc2Client.configure(builder)
+
+    # Configure CML API Client Factory
+    CMLApiClientFactory.configure(builder)
 
     # Configure BackgroundTaskScheduler for worker monitoring jobs
     BackgroundTaskScheduler.configure(

@@ -18,7 +18,7 @@ from application.utils.telemetry_filter import (
 )
 from domain.repositories import CMLWorkerRepository
 from integration.exceptions import IntegrationException
-from integration.services.cml_api_client import CMLApiClient
+from integration.services.cml_api_client import CMLApiClientFactory
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -45,13 +45,19 @@ class GetWorkerTelemetryEventsQueryHandler(
     Fetches raw telemetry events from CML API and filters for relevant user activity.
     """
 
-    def __init__(self, worker_repository: CMLWorkerRepository):
+    def __init__(
+        self,
+        worker_repository: CMLWorkerRepository,
+        cml_api_client_factory: CMLApiClientFactory,
+    ):
         """Initialize the handler.
 
         Args:
             worker_repository: Repository for CML worker aggregates
+            cml_api_client_factory: Factory for creating CML API clients
         """
         self._repository = worker_repository
+        self._cml_client_factory = cml_api_client_factory
 
     async def handle_async(
         self, query: GetWorkerTelemetryEventsQuery, cancellation_token=None
@@ -89,12 +95,9 @@ class GetWorkerTelemetryEventsQueryHandler(
                     )
                     return self.bad_request("Worker has no HTTPS endpoint")
 
-                # Initialize CML API client
-                cml_client = CMLApiClient(
-                    base_url=worker.state.https_endpoint,
-                    username=app_settings.cml_worker_username,
-                    password=app_settings.cml_worker_api_password,
-                    verify_ssl=False,
+                # Create CML API client for this worker using factory
+                cml_client = self._cml_client_factory.create(
+                    base_url=worker.state.https_endpoint
                 )
 
                 # Fetch raw telemetry events from CML
