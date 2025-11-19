@@ -69,7 +69,7 @@ class PauseWorkerCommandHandler(
 
             try:
                 # Retrieve worker
-                worker = await self._repository.get_async(command.worker_id)
+                worker = await self._repository.get_by_id_async(command.worker_id)
 
                 if not worker:
                     log.warning(f"Worker {command.worker_id} not found")

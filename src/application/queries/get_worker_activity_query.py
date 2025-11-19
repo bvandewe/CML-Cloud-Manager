@@ -60,7 +60,7 @@ class GetWorkerActivityQueryHandler(
 
             try:
                 # Retrieve worker
-                worker = await self._repository.get_async(query.worker_id)
+                worker = await self._repository.get_by_id_async(query.worker_id)
 
                 if not worker:
                     log.warning(f"Worker {query.worker_id} not found")
