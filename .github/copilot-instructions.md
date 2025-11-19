@@ -58,12 +58,20 @@ class CreateTaskCommand(Command[OperationResult[TaskCreatedDto]]):
     description: str
 
 class CreateTaskCommandHandler(CommandHandler[CreateTaskCommand, OperationResult[TaskCreatedDto]]):
-    def __init__(self, mediator, mapper, task_repository: TaskRepository):
+    def __init__(self, task_repository: TaskRepository):
         self._repository = task_repository
 
-    async def handle_async(self, command, cancellation_token):
-        # Business logic here
-        return OperationResult.success(result)
+    async def handle_async(self, request: CreateTaskCommand, cancellation_token=None) -> OperationResult[TaskCreatedDto]:
+        # Validate using helper methods
+        if not request.title:
+            return self.bad_request("Title is required")
+
+        # Business logic
+        task = Task.create(title=request.title, description=request.description)
+        await self._repository.add_async(task, cancellation_token)
+
+        # Return success using helper method
+        return self.created(TaskCreatedDto(id=task.id(), title=task.state.title))
 ```
 
 ## Critical Domain Concepts
@@ -198,6 +206,159 @@ make install-hooks    # Install pre-commit hooks
 
 ## Neuroglia Framework Specifics
 
+### CRITICAL: Mediator & RequestHandler API Patterns
+
+**This is a recurring source of errors - READ CAREFULLY:**
+
+#### Mediator.execute_async() Signature
+
+**ALWAYS** call with **ONLY ONE ARGUMENT** (the request):
+
+```python
+# ✅ CORRECT - One argument only
+result = await self.mediator.execute_async(GetWorkerQuery(worker_id="123"))
+result = await self.mediator.execute_async(CreateTaskCommand(title="Task"))
+
+# ❌ WRONG - DO NOT pass cancellation_token to mediator
+result = await self.mediator.execute_async(query, cancellation_token)  # TypeError!
+```
+
+**Why this matters**: `Mediator.execute_async(request)` takes only 1 parameter. The `cancellation_token` is passed to **repository methods**, not mediator calls.
+
+#### RequestHandler Helper Methods (Commands, Queries, Events)
+
+All handlers inherit from `RequestHandler` which provides **HTTP status code helper methods**. These are available in `CommandHandler`, `QueryHandler`, and `EventHandler`:
+
+**Available Methods** (return `OperationResult[T]`):
+
+- `self.ok(data)` - 200 OK with data
+- `self.created(data)` - 201 Created
+- `self.accepted(data)` - 202 Accepted
+- `self.no_content()` - 204 No Content
+- `self.bad_request(message)` - 400 Bad Request
+- `self.unauthorized(message)` - 401 Unauthorized
+- `self.forbidden(message)` - 403 Forbidden
+- `self.not_found(title, detail)` - 404 Not Found
+- `self.conflict(message)` - 409 Conflict
+- `self.unprocessable_entity(message)` - 422 Unprocessable Entity
+- `self.internal_server_error(message)` - 500 Internal Server Error
+- `self.service_unavailable(message)` - 503 Service Unavailable
+
+**Pattern - Command/Query Handlers:**
+
+```python
+from neuroglia.mediation import Command, CommandHandler
+
+@dataclass
+class CreateTaskCommand(Command[OperationResult[dict]]):
+    title: str
+    description: str
+
+class CreateTaskCommandHandler(CommandHandler[CreateTaskCommand, OperationResult[dict]]):
+    def __init__(self, task_repository: TaskRepository):
+        self._repository = task_repository
+
+    async def handle_async(self, request: CreateTaskCommand, cancellation_token=None) -> OperationResult[dict]:
+        # ✅ Use helper methods, NOT OperationResult.success/fail
+
+        # Validate input
+        if not request.title:
+            return self.bad_request("Title is required")
+
+        # Check existence
+        existing = await self._repository.get_by_title_async(request.title)
+        if existing:
+            return self.conflict("Task with this title already exists")
+
+        # Create entity
+        task = Task.create(title=request.title, description=request.description)
+
+        # Save (repository methods DO accept cancellation_token)
+        await self._repository.add_async(task, cancellation_token)
+
+        # Return success
+        return self.ok({"id": task.id(), "title": task.state.title})
+```
+
+**Pattern - Checking Results:**
+
+```python
+# When calling commands/queries via mediator, check results:
+result = await self.mediator.execute_async(GetWorkerQuery(worker_id="123"))
+
+# ✅ CORRECT - Use .is_success (no "ful")
+if result.is_success:
+    data = result.data  # Access data via .data
+    print(f"Success: {data}")
+else:
+    error = result.error_message  # Access error via .error_message
+    print(f"Failed: {error}")
+
+# ❌ WRONG - These don't exist
+if result.is_successful:  # AttributeError!
+    content = result.content  # AttributeError!
+    errors = result.errors  # AttributeError!
+```
+
+**OperationResult API Reference:**
+
+- `.is_success: bool` - Check if operation succeeded
+- `.data: T` - Access result data (on success)
+- `.error_message: str` - Access error message (on failure)
+- `.status_code: int` - HTTP status code
+- `.detail: str` - Additional error details
+- `.type: str` - Error type
+- `.instance: str` - Error instance identifier
+
+#### Common Mistakes to Avoid
+
+1. **❌ DO NOT import or use `OperationResult` for construction:**
+
+   ```python
+   from neuroglia.core import OperationResult  # This is ProblemDetails, not a result wrapper!
+   return OperationResult.success(data)  # AttributeError: no 'success' method
+   return OperationResult.fail(message)  # AttributeError: no 'fail' method
+   ```
+
+2. **❌ DO NOT pass cancellation_token to mediator:**
+
+   ```python
+   result = await self.mediator.execute_async(command, cancellation_token)  # TypeError!
+   ```
+
+3. **❌ DO NOT use wrong attribute names:**
+
+   ```python
+   if result.is_successful:  # Should be is_success
+   data = result.content  # Should be data
+   errors = result.errors  # Should be error_message
+   ```
+
+4. **✅ DO use helper methods consistently:**
+
+   ```python
+   return self.ok({"key": "value"})
+   return self.not_found("Resource", "Resource not found")
+   return self.bad_request("Invalid input")
+   ```
+
+#### Repository vs Mediator Parameter Patterns
+
+**Repository methods** accept `cancellation_token`:
+
+```python
+worker = await self._repository.get_by_id_async(worker_id, cancellation_token)
+await self._repository.update_async(worker, cancellation_token)
+await self._repository.add_async(worker, cancellation_token)
+```
+
+**Mediator calls** do NOT accept `cancellation_token`:
+
+```python
+result = await self.mediator.execute_async(GetWorkerQuery(worker_id="123"))
+result = await self.mediator.execute_async(UpdateWorkerCommand(worker_id="123", name="Updated"))
+```
+
 ### Dependency Injection
 
 Services registered in `src/main.py::create_app()`:
@@ -244,14 +405,25 @@ class UIController(ControllerBase):
 **Commands** (write operations): `application/commands/*.py`
 
 ```python
+from neuroglia.mediation import Command, CommandHandler
+
+@dataclass
 class CreateTaskCommand(Command[OperationResult[TaskCreatedDto]]):
     title: str
     description: str
 
 class CreateTaskCommandHandler(CommandHandler[CreateTaskCommand, OperationResult[TaskCreatedDto]]):
-    async def handle_async(self, command, cancellation_token):
+    async def handle_async(self, request: CreateTaskCommand, cancellation_token=None) -> OperationResult[TaskCreatedDto]:
+        # Validate
+        if not request.title:
+            return self.bad_request("Title is required")
+
         # Business logic
-        return OperationResult.success(result)
+        task = Task.create(title=request.title, description=request.description)
+        await self._repository.add_async(task, cancellation_token)
+
+        # Return using helper method
+        return self.created(TaskCreatedDto(id=task.id(), title=task.state.title))
 ```
 
 **Queries** (read operations): `application/queries/*.py` - same pattern
@@ -259,7 +431,9 @@ class CreateTaskCommandHandler(CommandHandler[CreateTaskCommand, OperationResult
 **Usage in controllers**:
 
 ```python
+# ✅ CORRECT - Single argument only
 result = await self.mediator.execute_async(CreateTaskCommand(title="...", description="..."))
+return self.process(result)  # Controllers use process() to convert to HTTP response
 ```
 
 ### Event Sourcing with @dispatch
