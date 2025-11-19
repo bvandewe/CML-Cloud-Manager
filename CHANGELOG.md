@@ -33,6 +33,15 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
   - Uses existing `OnDemandWorkerDataRefreshJob` infrastructure
   - Improves data consistency and real-time UI updates
 
+#### Recent UI & Realtime Enhancements
+
+- **Live Transition Timers**: Dynamic elapsed timers for worker start/stop lifecycle (pending/stopping) in table, cards, and details modal using `start_initiated_at` / `stop_initiated_at` timestamps propagated via SSE.
+- **Worker Creation Visibility**: Newly created or auto-imported workers appear instantly using enriched `worker.created` SSE (name, region, instance_type, created_at) followed by snapshot events for full detail.
+- **Tags Management Panel**: Replaced AWS Monitoring section with tag listing & admin-only add/remove controls (controller uses POST). Non-admin users see read-only tags.
+- **Import Modal Refactor**: Fixed mode switching (Instance ID vs AMI Name) and added bulk import (`import_all`) via AMI name pattern with contextual field visibility & validation.
+- **Worker Cards Layout Fix**: Rebuilt card markup to correct broken layout where body fields rendered outside card; cleaner structure with bottom-aligned action button.
+- **Transition Metadata Broadcasting**: Status update SSE now includes `transition_initiated_at`; snapshot SSE includes `start_initiated_at` & `stop_initiated_at` for accurate timers.
+
 ### Changed
 
 - **System View Scheduler Tab**: Improved job display clarity
@@ -55,6 +64,10 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
   - All `configure()` methods now return `None` (builder modified in-place)
   - Added docstrings with Args sections for clarity
   - Unified log messages with ✅ emoji for consistency
+
+- **Tags Update Request Method**: UI switched from PUT to POST for tag updates to align with backend controller.
+- **Simplified Worker Card Renderer**: Reduced complexity & improved maintainability; prevents overflow rendering issues.
+- **Status SSE Consumption**: Frontend now uses `new_status` instead of legacy `status` field on `worker.status.updated` events.
 
 ### Removed
 
@@ -85,6 +98,10 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
   - Added `workersData.length = 0` to clear array before populating with API response
   - Prevents accumulation of duplicate workers in both admin table and user card views
   - Ensures UI accurately reflects backend state on refresh
+- **Import Modal Field Visibility**: Corrected element IDs & listeners so switching import method updates visible input groups (instance vs AMI pattern, bulk checkbox).
+- **Worker Card Content Overflow**: Fixed card body fields appearing below/outside card.
+- **Missing Transition Timers**: Added timestamps to domain events & SSE, enabling real-time elapsed display during long start/stop transitions.
+- **Delayed Worker Appearance**: Ensured new workers surface without full reload via enriched `worker.created` SSE + snapshot integration.
 
   - Affects: `SSEEventRelayHostedService`, `WorkerMetricsService`, `BackgroundTaskScheduler`
   - See: `notes/SERVICE_REGISTRATION_PATTERNS_UNIFIED.md`

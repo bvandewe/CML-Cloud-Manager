@@ -119,21 +119,6 @@ export async function registerLicense(region, workerId, licenseToken) {
 }
 
 /**
- * Request worker metrics refresh (asynchronous, event-driven)
- * This schedules a background job and emits SSE events for the refresh progress.
- * SSE events: worker.refresh.requested or worker.refresh.skipped, followed by worker.metrics.updated
- * @param {string} region - AWS region
- * @param {string} workerId - Worker UUID
- * @returns {Promise<Object>} Scheduling decision {scheduled: boolean, reason?: string, eta_seconds?: number}
- */
-export async function refreshWorker(region, workerId) {
-    const response = await apiRequest(`/api/workers/region/${region}/workers/${workerId}/refresh`, {
-        method: 'POST',
-    });
-    return await response.json();
-}
-
-/**
  * Update worker tags
  * @param {string} region - AWS region
  * @param {string} workerId - Worker UUID
@@ -141,8 +126,9 @@ export async function refreshWorker(region, workerId) {
  * @returns {Promise<Object>}
  */
 export async function updateWorkerTags(region, workerId, tags) {
+    // Controller currently exposes POST for tags update
     const response = await apiRequest(`/api/workers/region/${region}/workers/${workerId}/tags`, {
-        method: 'PUT',
+        method: 'POST',
         body: JSON.stringify({ tags }),
     });
     return await response.json();
@@ -163,6 +149,14 @@ export async function getWorkerResources(region, workerId, startTime = '5m') {
 }
 
 /**
+ * Lightweight fetch of a single worker (wrapper for clarity in UI layer)
+ */
+export async function getWorker(region, workerId) {
+    const response = await apiRequest(`/api/workers/region/${region}/workers/${workerId}`, { method: 'GET' });
+    return await response.json();
+}
+
+/**
  * Enable detailed CloudWatch monitoring on worker instance
  * @param {string} region - AWS region
  * @param {string} workerId - Worker UUID
@@ -170,6 +164,20 @@ export async function getWorkerResources(region, workerId, startTime = '5m') {
  */
 export async function enableDetailedMonitoring(region, workerId) {
     const response = await apiRequest(`/api/workers/region/${region}/workers/${workerId}/monitoring`, {
+        method: 'POST',
+    });
+    return await response.json();
+}
+
+/**
+ * Request an on-demand metrics/data refresh for a worker.
+ * Schedules background job; SSE events will deliver updated metrics.
+ * @param {string} region - AWS region
+ * @param {string} workerId - Worker UUID
+ * @returns {Promise<Object>} { scheduled, reason?, eta_seconds?, retry_after_seconds? }
+ */
+export async function requestWorkerRefresh(region, workerId) {
+    const response = await apiRequest(`/api/workers/region/${region}/workers/${workerId}/refresh`, {
         method: 'POST',
     });
     return await response.json();
