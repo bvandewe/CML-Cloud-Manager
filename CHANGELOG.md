@@ -8,6 +8,9 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ### Fixed
 
+- **System View Scheduler Buttons**: Fixed admin action buttons not rendering in scheduler tab
+  - Refactored template literal conditional to use explicit if/else for HTML generation
+  - Buttons (Play/Delete) now correctly appear for admin users
 - **Telemetry Timestamp Parsing**: Fixed timestamp format mismatch in telemetry event filtering
   - CML API returns timestamps without 'Z' suffix (e.g., "2025-11-19T21:11:59")
   - Updated parser to handle 4 ISO 8601 variants (with/without microseconds, with/without Z)

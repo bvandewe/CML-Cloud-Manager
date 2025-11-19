@@ -328,10 +328,10 @@ function renderSchedulerJobs(jobs) {
                 <td><small>${job.command || 'N/A'}</small></td>
                 <td><small>${job.trigger || 'N/A'}</small></td>
                 <td>${nextRun}</td>
-                <td>${statusBadge}</td>
-                ${
-                    isAdminUser
-                        ? `
+                <td>${statusBadge}</td>`;
+
+        if (isAdminUser) {
+            html += `
                 <td>
                     <div class="btn-group btn-group-sm" role="group">
                         <button class="btn btn-outline-primary" onclick="window.systemApp.triggerJob('${job.id}')" title="Run Now">
@@ -341,9 +341,10 @@ function renderSchedulerJobs(jobs) {
                             <i class="bi bi-trash"></i>
                         </button>
                     </div>
-                </td>`
-                        : ''
-                }
+                </td>`;
+        }
+
+        html += `
             </tr>
         `;
     });
