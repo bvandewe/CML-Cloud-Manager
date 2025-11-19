@@ -6,6 +6,18 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ## [Unreleased]
 
+### Fixed
+
+- **CML Data Sync Resilience**: Fixed critical issue where newly imported workers remained with `cml_ready: false` and `service_status: unavailable`
+  - Refactored `SyncWorkerCMLDataCommand` from fail-fast to resilient multi-step approach
+  - Health check is no longer a gatekeeper - all CML APIs are tried independently
+  - `system_information` endpoint (no auth required) is queried first for faster readiness detection
+  - Partial data collection: Updates worker metrics even if some APIs timeout
+  - Service status determined after collection based on what APIs responded successfully
+  - Prevents workers from being stuck in unavailable state due to transient network issues
+  - Labs sync now proceeds correctly once CML service becomes accessible
+  - See `notes/CML_DATA_SYNC_RESILIENCE_FIX.md` for detailed analysis and solution
+
 ### Added
 
 - **Auto-Import Workers Background Job**: New recurrent job for automatically discovering and importing CML Workers
