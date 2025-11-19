@@ -445,3 +445,77 @@ class WorkersController(ControllerBase):
         raise HTTPException(
             status_code=501, detail="License registration endpoint not yet implemented"
         )
+
+    @get(
+        "/{aws_region}/{worker_id}/activity",
+        response_model=dict[str, Any],
+        summary="Get Worker Activity Tracking Data",
+        description="Retrieve activity tracking information including recent telemetry events and lifecycle timestamps.",
+    )
+    async def get_worker_activity(
+        self,
+        aws_region: aws_region_annotation,
+        worker_id: worker_id_annotation,
+        current_user: Annotated[dict, Depends(get_current_user)],
+    ) -> dict[str, Any]:
+        """Get activity tracking data for a CML worker.
+
+        Returns recent telemetry events, last activity timestamp, pause/resume history,
+        and idle detection state.
+
+        (**Requires authentication!**)"""
+        logger.info(
+            f"Fetching activity data for worker {worker_id} in region {aws_region}"
+        )
+
+        from application.queries.get_worker_activity_query import GetWorkerActivityQuery
+
+        result = await self.mediator.execute_async(
+            GetWorkerActivityQuery(worker_id=worker_id)
+        )
+
+        if not result.is_successful:
+            logger.warning(
+                f"Failed to retrieve activity for worker {worker_id}: {result.errors}"
+            )
+            raise HTTPException(status_code=404, detail=str(result.errors))
+
+        return result.content
+
+    @get(
+        "/{aws_region}/{worker_id}/idle-status",
+        response_model=dict[str, Any],
+        summary="Check Worker Idle Status",
+        description="Check if worker is idle and eligible for auto-pause based on activity thresholds.",
+    )
+    async def get_worker_idle_status(
+        self,
+        aws_region: aws_region_annotation,
+        worker_id: worker_id_annotation,
+        current_user: Annotated[dict, Depends(get_current_user)],
+    ) -> dict[str, Any]:
+        """Check idle status for a CML worker.
+
+        Returns idle state, eligibility for auto-pause, snooze period status,
+        and timing information for next checks.
+
+        (**Requires authentication!**)"""
+        logger.info(
+            f"Checking idle status for worker {worker_id} in region {aws_region}"
+        )
+
+        from application.queries.get_worker_idle_status_query import (
+            GetWorkerIdleStatusQuery,
+        )
+
+        result = await self.mediator.execute_async(
+            GetWorkerIdleStatusQuery(worker_id=worker_id)
+        )
+
+        if not result.is_successful:
+            logger.warning(
+                f"Failed to check idle status for worker {worker_id}: {result.errors}"
+            )
+            raise HTTPException(status_code=404, detail=str(result.errors))
+
+        return result.content
