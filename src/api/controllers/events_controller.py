@@ -66,7 +66,9 @@ class EventsController(ControllerBase):
 
             # Initial full worker snapshots (SSE-first model) unless client filtered by event_types excluding snapshots
             try:
-                worker_repo = self.service_provider.get_required_service(CMLWorkerRepository)  # type: ignore[attr-defined]
+                # Create a service scope to resolve scoped services (CMLWorkerRepository)
+                scope = self.service_provider.create_scope()  # type: ignore[attr-defined]
+                worker_repo = scope.get_required_service(CMLWorkerRepository)
                 if worker_repo:
                     if worker_ids:
                         # Specific workers only
