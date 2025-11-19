@@ -20,6 +20,20 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ### Added
 
+- **Worker Idle Detection and Auto-Pause**: Comprehensive activity monitoring and cost-saving automation
+  - Tracks user activity via CML telemetry events (lab/node operations, user logins)
+  - Filters 93% noise (system stats, automated API calls) to detect genuine user activity
+  - Configurable idle timeout with automatic worker pause (AWS stop)
+  - Manual pause/resume tracking with lifecycle counters
+  - Activity history: stores last 10 relevant events per worker
+  - New commands: `DetectWorkerIdleCommand`, `PauseWorkerCommand`, `UpdateWorkerActivityCommand`
+  - New queries: `GetWorkerIdleStatusQuery`, `GetWorkerActivityQuery`, `GetWorkerTelemetryEventsQuery`
+  - Background job: `ActivityDetectionJob` (30-minute interval, separate from metrics collection)
+  - Domain events: `WorkerActivityUpdatedDomainEvent`, `WorkerPausedDomainEvent`, `WorkerResumedDomainEvent`
+  - Settings: `WORKER_IDLE_TIMEOUT_MINUTES`, `ACTIVITY_DETECTION_INTERVAL`, `ACTIVITY_DETECTION_ENABLED`
+  - UI endpoints: `/api/workers/{id}/idle-status`, `/api/workers/{id}/activity`, `/api/workers/{id}/telemetry`
+  - See `notes/WORKER_IDLE_DETECTION_IMPLEMENTATION.md` for architecture and filtering logic
+
 - **Auto-Import Workers Background Job**: New recurrent job for automatically discovering and importing CML Workers
   - Runs at configurable intervals (default: 1 hour) via `AUTO_IMPORT_WORKERS_INTERVAL`
   - Searches AWS EC2 instances by AMI name pattern in specified region
