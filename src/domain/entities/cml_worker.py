@@ -27,6 +27,11 @@ from domain.events.cml_worker import (
     CMLWorkerTelemetryUpdatedDomainEvent,
     CMLWorkerTerminatedDomainEvent,
 )
+from domain.events.worker_activity_events import (
+    WorkerActivityUpdatedDomainEvent,
+    WorkerPausedDomainEvent,
+    WorkerResumedDomainEvent,
+)
 from domain.events.worker_metrics_events import (
     CloudWatchMetricsUpdatedDomainEvent,
     CMLMetricsUpdatedDomainEvent,
@@ -91,6 +96,28 @@ class CMLWorkerState(AggregateState[str]):
     start_initiated_at: datetime | None
     stop_initiated_at: datetime | None
 
+    # Activity tracking
+    last_activity_at: datetime | None  # Last relevant user activity detected
+    last_activity_check_at: datetime | None  # Last time telemetry was checked
+    recent_activity_events: list[
+        dict
+    ]  # Last N relevant events (category, timestamp, data)
+
+    # Pause/Resume lifecycle tracking
+    auto_pause_count: int  # Count of automatic pauses by idle detection
+    manual_pause_count: int  # Count of manual stop operations
+    auto_resume_count: int  # Count of automatic resumes
+    manual_resume_count: int  # Count of manual start operations
+    last_paused_at: datetime | None  # Timestamp of last pause (auto or manual)
+    last_resumed_at: datetime | None  # Timestamp of last resume (auto or manual)
+    paused_by: str | None  # User/system that triggered last pause
+    pause_reason: str | None  # "idle_timeout" | "manual" | "external"
+
+    # Idle detection state
+    next_idle_check_at: datetime | None  # Next scheduled activity check
+    target_pause_at: datetime | None  # Calculated pause time if no activity detected
+    is_idle_detection_enabled: bool  # Whether idle detection is enabled for this worker
+
     # Audit
     created_by: str | None
     terminated_by: str | None
@@ -143,6 +170,26 @@ class CMLWorkerState(AggregateState[str]):
         self.terminated_at = None
         self.start_initiated_at = None
         self.stop_initiated_at = None
+
+        # Activity tracking initialization
+        self.last_activity_at = None
+        self.last_activity_check_at = None
+        self.recent_activity_events = []
+
+        # Pause/Resume lifecycle initialization
+        self.auto_pause_count = 0
+        self.manual_pause_count = 0
+        self.auto_resume_count = 0
+        self.manual_resume_count = 0
+        self.last_paused_at = None
+        self.last_resumed_at = None
+        self.paused_by = None
+        self.pause_reason = None
+
+        # Idle detection state initialization
+        self.next_idle_check_at = None
+        self.target_pause_at = None
+        self.is_idle_detection_enabled = True  # Enabled by default
 
         self.created_by = None
         self.terminated_by = None
@@ -307,6 +354,40 @@ class CMLWorkerState(AggregateState[str]):
         """Apply the CloudWatch monitoring updated event to the state."""
         self.cloudwatch_detailed_monitoring_enabled = event.enabled
         self.updated_at = event.updated_at
+
+    @dispatch(WorkerActivityUpdatedDomainEvent)
+    def on(self, event: WorkerActivityUpdatedDomainEvent) -> None:  # type: ignore[override]
+        """Apply activity tracking update to the state."""
+        self.last_activity_at = event.last_activity_at
+        self.last_activity_check_at = event.last_activity_check_at
+        self.recent_activity_events = event.recent_activity_events
+        self.next_idle_check_at = event.next_idle_check_at
+        self.target_pause_at = event.target_pause_at
+        self.updated_at = event.updated_at
+
+    @dispatch(WorkerPausedDomainEvent)
+    def on(self, event: WorkerPausedDomainEvent) -> None:  # type: ignore[override]
+        """Apply pause event to the state."""
+        self.pause_reason = event.pause_reason
+        self.paused_by = event.paused_by
+        self.last_paused_at = event.paused_at
+        self.auto_pause_count = event.auto_pause_count
+        self.manual_pause_count = event.manual_pause_count
+        self.target_pause_at = None  # Clear target since paused
+        self.updated_at = event.paused_at
+
+    @dispatch(WorkerResumedDomainEvent)
+    def on(self, event: WorkerResumedDomainEvent) -> None:  # type: ignore[override]
+        """Apply resume event to the state."""
+        self.last_resumed_at = event.resumed_at
+        self.auto_resume_count = event.auto_resume_count
+        self.manual_resume_count = event.manual_resume_count
+        self.target_pause_at = None  # Clear target since resumed
+        # Clear pause info on resume
+        if event.was_auto_paused:
+            self.pause_reason = None
+            self.paused_by = None
+        self.updated_at = event.resumed_at
 
 
 class CMLWorker(AggregateRoot[CMLWorkerState, str]):
@@ -915,3 +996,144 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
             and self.state.service_status == CMLServiceStatus.AVAILABLE
             and self.state.https_endpoint is not None
         )
+
+    def update_activity(
+        self,
+        recent_events: list[dict],
+        last_activity_at: datetime | None,
+        last_check_at: datetime,
+        next_check_at: datetime | None,
+        target_pause_at: datetime | None,
+        max_events: int = 10,
+    ) -> None:
+        """Update worker activity tracking.
+
+        Args:
+            recent_events: List of recent relevant telemetry events
+            last_activity_at: Timestamp of last detected activity
+            last_check_at: Timestamp when telemetry was checked
+            next_check_at: Next scheduled idle check time
+            target_pause_at: Calculated auto-pause time if no activity
+            max_events: Maximum number of events to store (default: 10)
+        """
+        # Keep only the most recent N events
+        events_to_store = recent_events[-max_events:] if recent_events else []
+
+        self.state.on(
+            self.register_event(  # type: ignore
+                WorkerActivityUpdatedDomainEvent(
+                    aggregate_id=self.id(),
+                    last_activity_at=last_activity_at,
+                    last_activity_check_at=last_check_at,
+                    recent_activity_events=events_to_store,
+                    next_idle_check_at=next_check_at,
+                    target_pause_at=target_pause_at,
+                    updated_at=datetime.now(timezone.utc),
+                )
+            )
+        )
+
+    def pause(
+        self,
+        reason: str,
+        paused_by: str | None = None,
+        idle_duration_minutes: float | None = None,
+    ) -> None:
+        """Record worker pause (stop).
+
+        Args:
+            reason: Pause reason ("idle_timeout", "manual", "external")
+            paused_by: User ID or "system" for auto-pause
+            idle_duration_minutes: Idle time before auto-pause (for idle_timeout reason)
+        """
+        # Increment appropriate counter
+        auto_count = self.state.auto_pause_count
+        manual_count = self.state.manual_pause_count
+
+        if reason == "idle_timeout":
+            auto_count += 1
+        else:
+            manual_count += 1
+
+        paused_at = datetime.now(timezone.utc)
+
+        self.state.on(
+            self.register_event(  # type: ignore
+                WorkerPausedDomainEvent(
+                    aggregate_id=self.id(),
+                    pause_reason=reason,
+                    paused_by=paused_by,
+                    paused_at=paused_at,
+                    auto_pause_count=auto_count,
+                    manual_pause_count=manual_count,
+                    idle_duration_minutes=idle_duration_minutes,
+                )
+            )
+        )
+
+    def resume(
+        self,
+        reason: str = "manual",
+        resumed_by: str | None = None,
+    ) -> None:
+        """Record worker resume (start).
+
+        Args:
+            reason: Resume reason ("manual", "external", "auto")
+            resumed_by: User ID or None for external/auto
+        """
+        # Increment appropriate counter
+        auto_count = self.state.auto_resume_count
+        manual_count = self.state.manual_resume_count
+
+        if reason == "auto":
+            auto_count += 1
+        elif reason == "manual":
+            manual_count += 1
+        # external doesn't increment either counter
+
+        resumed_at = datetime.now(timezone.utc)
+        was_auto_paused = self.state.pause_reason == "idle_timeout"
+
+        self.state.on(
+            self.register_event(  # type: ignore
+                WorkerResumedDomainEvent(
+                    aggregate_id=self.id(),
+                    resume_reason=reason,
+                    resumed_by=resumed_by,
+                    resumed_at=resumed_at,
+                    auto_resume_count=auto_count,
+                    manual_resume_count=manual_count,
+                    was_auto_paused=was_auto_paused,
+                )
+            )
+        )
+
+    def in_snooze_period(self, snooze_minutes: int) -> bool:
+        """Check if worker is in snooze period (protected from auto-pause).
+
+        Args:
+            snooze_minutes: Snooze period duration in minutes
+
+        Returns:
+            True if in snooze period, False otherwise
+        """
+        if not self.state.last_resumed_at:
+            return False
+
+        now = datetime.now(timezone.utc)
+        elapsed = now - self.state.last_resumed_at
+        return elapsed.total_seconds() / 60 < snooze_minutes
+
+    def calculate_idle_duration(self) -> float | None:
+        """Calculate current idle duration in minutes.
+
+        Returns:
+            Idle duration in minutes, or None if no activity tracked
+        """
+        if not self.state.last_activity_at:
+            return None
+
+        now = datetime.now(timezone.utc)
+        idle_duration = now - self.state.last_activity_at
+        return idle_duration.total_seconds() / 60
