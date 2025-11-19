@@ -21,7 +21,7 @@ from domain.repositories import CMLWorkerRepository
 from domain.repositories.lab_record_repository import LabRecordRepository
 from integration.services.cml_api_client import CMLApiClient
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
 
 
@@ -39,7 +39,7 @@ def _parse_cml_timestamp(timestamp_str: str | None) -> datetime | None:
     try:
         return datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
     except (ValueError, AttributeError):
-        logger.warning(f"Failed to parse timestamp: {timestamp_str}")
+        log.warning(f"Failed to parse timestamp: {timestamp_str}")
         return None
 
 
@@ -94,7 +94,7 @@ class LabsRefreshJob(RecurrentBackgroundJob):
             service_provider: (Optional) Service provider for dependency injection
             **kwargs: Additional configuration parameters
         """
-        logger.info("🔧 Configuring LabsRefreshJob")
+        log.info("🔧 Configuring LabsRefreshJob")
 
         if service_provider:
             self._service_provider = service_provider
@@ -111,9 +111,9 @@ class LabsRefreshJob(RecurrentBackgroundJob):
                         self._ensure_indexes_async(service_provider)
                     )
             except Exception as e:
-                logger.warning(f"Could not create indexes during configure: {e}")
+                log.warning(f"Could not create indexes during configure: {e}")
 
-        logger.info("✅ Configuration complete")
+        log.info("✅ Configuration complete")
 
     async def _ensure_indexes_async(self, service_provider):
         """Ensure database indexes exist (helper for configure)."""
@@ -122,11 +122,11 @@ class LabsRefreshJob(RecurrentBackgroundJob):
             try:
                 lab_record_repo = scope.get_required_service(LabRecordRepository)
                 await lab_record_repo.ensure_indexes_async()
-                logger.info("✅ Lab record indexes ensured")
+                log.info("✅ Lab record indexes ensured")
             finally:
                 scope.dispose()
         except Exception as e:
-            logger.error(f"Failed to ensure indexes: {e}", exc_info=True)
+            log.error(f"Failed to ensure indexes: {e}", exc_info=True)
 
     async def run_every(self, *args, **kwargs) -> None:
         """Execute the labs refresh task - fetch and update lab records.
@@ -135,7 +135,7 @@ class LabsRefreshJob(RecurrentBackgroundJob):
         """
         # Ensure service provider is available
         if not self._service_provider:
-            logger.error("❌ Service provider not configured - job cannot execute")
+            log.error("❌ Service provider not configured - job cannot execute")
             return
 
         with tracer.start_as_current_span("labs_refresh_job") as span:
@@ -144,12 +144,12 @@ class LabsRefreshJob(RecurrentBackgroundJob):
                 worker_repository = scope.get_required_service(CMLWorkerRepository)
                 lab_record_repository = scope.get_required_service(LabRecordRepository)
 
-                logger.info("🔄 Starting labs refresh cycle")
+                log.info("🔄 Starting labs refresh cycle")
                 workers = await worker_repository.get_active_workers_async()
                 span.set_attribute("workers.count", len(workers))
 
                 if not workers:
-                    logger.debug("No active workers for labs refresh")
+                    log.debug("No active workers for labs refresh")
                     span.set_attribute("labs.refresh.skipped", True)
                     return
 
@@ -163,7 +163,7 @@ class LabsRefreshJob(RecurrentBackgroundJob):
                             not worker.state.https_endpoint
                             or worker.state.status != CMLWorkerStatus.RUNNING
                         ):
-                            logger.debug(
+                            log.debug(
                                 f"⏭️ Skipping worker {worker.id()} - status={worker.state.status}, endpoint={worker.state.https_endpoint}"
                             )
                             return (0, 0, 0)
@@ -172,7 +172,7 @@ class LabsRefreshJob(RecurrentBackgroundJob):
                                 worker, lab_record_repository
                             )
                         except Exception as e:
-                            logger.error(
+                            log.error(
                                 f"❌ Failed labs refresh for worker {worker.id()}: {e}",
                                 exc_info=True,
                             )
@@ -187,7 +187,7 @@ class LabsRefreshJob(RecurrentBackgroundJob):
                 total_labs_created = sum(r[1] for r in results)
                 total_labs_updated = sum(r[2] for r in results)
 
-                logger.info(
+                log.info(
                     f"✅ Labs refresh complete: synced={total_labs_synced}, created={total_labs_created}, updated={total_labs_updated}"
                 )
                 span.set_attribute("labs.synced", total_labs_synced)
@@ -195,7 +195,7 @@ class LabsRefreshJob(RecurrentBackgroundJob):
                 span.set_attribute("labs.updated", total_labs_updated)
 
             except Exception as e:
-                logger.error(f"Labs refresh job failed: {e}", exc_info=True)
+                log.error(f"Labs refresh job failed: {e}", exc_info=True)
                 span.record_exception(e)
                 span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
                 raise
@@ -217,7 +217,7 @@ class LabsRefreshJob(RecurrentBackgroundJob):
         worker_id = worker.id()
         https_endpoint = worker.state.https_endpoint
 
-        logger.debug(f"Refreshing labs for worker {worker_id} at {https_endpoint}")
+        log.debug(f"Refreshing labs for worker {worker_id} at {https_endpoint}")
 
         # Get settings for CML credentials
 
@@ -233,13 +233,13 @@ class LabsRefreshJob(RecurrentBackgroundJob):
         try:
             lab_ids = await cml_client.get_labs()
         except Exception as e:
-            logger.error(
+            log.error(
                 f"Failed to fetch labs from worker {worker_id}: {e}", exc_info=True
             )
             return (0, 0, 0)
 
         if not lab_ids:
-            logger.debug(f"No labs found for worker {worker_id}")
+            log.debug(f"No labs found for worker {worker_id}")
             return (0, 0, 0)
 
         synced = 0
@@ -252,7 +252,7 @@ class LabsRefreshJob(RecurrentBackgroundJob):
                 # Fetch lab details
                 lab_details = await cml_client.get_lab_details(lab_id)
                 if not lab_details:
-                    logger.warning(f"Failed to fetch details for lab {lab_id}")
+                    log.warning(f"Failed to fetch details for lab {lab_id}")
                     continue
 
                 # Check if lab record exists
@@ -299,14 +299,14 @@ class LabsRefreshJob(RecurrentBackgroundJob):
                 synced += 1
 
             except Exception as e:
-                logger.error(
+                log.error(
                     f"Failed to sync lab {lab_id} for worker {worker_id}: {e}",
                     exc_info=True,
                 )
                 # Continue with next lab
                 continue
 
-        logger.info(
+        log.info(
             f"Worker {worker_id}: synced={synced}, created={created}, updated={updated}"
         )
 

@@ -543,10 +543,40 @@ class BackgroundTaskScheduler(HostedService):
 
     # Removed legacy cleanup and reschedule helper methods for simplicity after Redis reset.
 
+    async def trigger_job_now(self, job_id: str) -> None:
+        """Trigger an existing scheduled job to run immediately.
+
+        Args:
+            job_id: The ID of the job to trigger
+
+        Raises:
+            BackgroundTaskException: If job not found or execution fails
+        """
+        if not self._started:
+            raise BackgroundTaskException("Scheduler is not running")
+
+        try:
+            job = self._scheduler.get_job(job_id)
+            if not job:
+                raise BackgroundTaskException(f"Job '{job_id}' not found")
+
+            log.info(f"Manually triggering job '{job_id}' ({job.name})")
+
+            # Modify the job to run immediately
+            job.modify(next_run_time=datetime.datetime.now())
+
+            log.info(f"Job '{job_id}' triggered successfully")
+
+        except BackgroundTaskException:
+            raise
+        except Exception as ex:
+            log.error(f"Error triggering job '{job_id}': {ex}")
+            raise BackgroundTaskException(f"Failed to trigger job: {ex}")
+
     async def stop_async(self) -> None:
         """Stop the background task scheduler."""
         if not self._started:
-            log.warning("Background task scheduler is not started")
+            log.warning("Background task scheduler is not running")
             return
 
         log.info("Stopping background task scheduler")
