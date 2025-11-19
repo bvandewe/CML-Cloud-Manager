@@ -2,7 +2,7 @@
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 
 from neuroglia.mediation import Command, CommandHandler, Mediator
 from opentelemetry import trace
@@ -102,11 +102,15 @@ class DetectWorkerIdleCommandHandler(CommandHandler[DetectWorkerIdleCommand, dic
                 # Step 2: Update worker activity state
                 log.info(f"Updating activity state for worker {command.worker_id}")
 
+                checked_at = datetime.now(timezone.utc)
                 update_result = await self._mediator.execute_async(
                     UpdateWorkerActivityCommand(
                         worker_id=command.worker_id,
                         last_activity_at=telemetry_data.get("latest_activity_at"),
                         recent_events=telemetry_data.get("recent_events", []),
+                        last_check_at=checked_at,
+                        next_check_at=None,  # Will be calculated by GetWorkerIdleStatusQuery
+                        target_pause_at=None,  # Will be calculated by GetWorkerIdleStatusQuery
                     )
                 )
 
