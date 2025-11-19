@@ -8,6 +8,10 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ### Fixed
 
+- **Update Worker Activity Command**: Fixed missing required arguments for update_activity method
+  - Added optional fields: last_check_at, next_check_at, target_pause_at
+  - Defaults last_check_at to current UTC time if not provided
+  - Properly passes all required parameters to domain method
 - **Update Worker Activity Command**: Fixed repository method call signature
   - Changed `get_async()` to `get_by_id_async()` (correct method name)
   - Removed invalid `cancellation_token` parameter

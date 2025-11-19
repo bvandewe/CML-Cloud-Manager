@@ -23,11 +23,17 @@ class UpdateWorkerActivityCommand(Command[OperationResult[None]]):
         worker_id: Worker identifier
         last_activity_at: Timestamp of latest activity
         recent_events: List of recent telemetry events (max 10)
+        last_check_at: Timestamp when telemetry was checked (defaults to now)
+        next_check_at: Next scheduled idle check time (optional)
+        target_pause_at: Calculated auto-pause time if no activity (optional)
     """
 
     worker_id: str
     last_activity_at: datetime | None
     recent_events: list[dict] = None
+    last_check_at: datetime | None = None
+    next_check_at: datetime | None = None
+    target_pause_at: datetime | None = None
 
 
 class UpdateWorkerActivityCommandHandler(
@@ -47,13 +53,12 @@ class UpdateWorkerActivityCommandHandler(
         self._repository = worker_repository
 
     async def handle_async(
-        self, command: UpdateWorkerActivityCommand, cancellation_token=None
+        self, command: UpdateWorkerActivityCommand
     ) -> OperationResult[None]:
         """Execute the command.
 
         Args:
             command: Command parameters
-            cancellation_token: Cancellation token
 
         Returns:
             OperationResult indicating success or failure
@@ -77,12 +82,15 @@ class UpdateWorkerActivityCommandHandler(
 
                 # Update activity tracking
                 worker.update_activity(
-                    last_activity_at=command.last_activity_at,
                     recent_events=command.recent_events or [],
+                    last_activity_at=command.last_activity_at,
+                    last_check_at=command.last_check_at or datetime.utcnow(),
+                    next_check_at=command.next_check_at,
+                    target_pause_at=command.target_pause_at,
                 )
 
                 # Persist changes
-                await self._repository.update_async(worker, cancellation_token)
+                await self._repository.update_async(worker)
 
                 log.info(
                     f"Updated activity for worker {command.worker_id}: "
