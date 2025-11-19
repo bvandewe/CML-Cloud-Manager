@@ -142,195 +142,189 @@ class SyncWorkerCMLDataCommandHandler(
                     }
                 )
 
-            # 3. Health check CML service availability
-            with tracer.start_as_current_span("health_check_cml_service") as span:
+            # 3. Query CML API for system information and health
+            # Resilient approach: Try to collect as much data as possible without failing fast
+            # Service status is determined based on what APIs respond successfully
+            with tracer.start_as_current_span("query_cml_api") as span:
                 log.info(
-                    f"Performing CML service health check for worker {command.worker_id} "
+                    f"Querying CML API for worker {command.worker_id} "
                     f"at {worker.state.https_endpoint}"
                 )
+
+                # Create CML API client for this worker
+                cml_client = CMLApiClient(
+                    base_url=worker.state.https_endpoint,
+                    username=self.settings.cml_worker_api_username,
+                    password=self.settings.cml_worker_api_password,
+                    verify_ssl=False,
+                    timeout=15.0,
+                )
+
+                # Track what we successfully retrieved
+                system_info = None
+                system_health = None
+                system_stats = None
+                license_info_dict = None
+                api_accessible = False
+
+                # Try system_information (no auth required - most reliable readiness check)
                 try:
-                    # Create CML API client for health check
-                    health_check_client = CMLApiClient(
-                        base_url=worker.state.https_endpoint,
-                        username=self.settings.cml_worker_api_username,
-                        password=self.settings.cml_worker_api_password,
-                        verify_ssl=False,
-                        timeout=10.0,
-                    )
-
-                    # Try to call system_health endpoint
-                    system_health = await health_check_client.get_system_health()
-
-                    if system_health and system_health.valid:
-                        # Service is available and healthy
-                        status_updated = worker.update_service_status(
-                            new_service_status=CMLServiceStatus.AVAILABLE,
-                            https_endpoint=worker.state.https_endpoint,
+                    system_info = await cml_client.get_system_information()
+                    if system_info:
+                        api_accessible = True
+                        log.debug(
+                            f"✅ Retrieved system info for worker {command.worker_id}: "
+                            f"version={system_info.version}, ready={system_info.ready}"
                         )
-                        if status_updated:
-                            log.info(
-                                f"✅ CML service health check passed for worker {command.worker_id} - "
-                                f"service marked as AVAILABLE (licensed={system_health.is_licensed}, "
-                                f"enterprise={system_health.is_enterprise})"
-                            )
-                        span.set_attribute("health_check.passed", True)
-                        span.set_attribute(
-                            "service.licensed", system_health.is_licensed
-                        )
-                    else:
-                        # Service responded but not healthy
-                        worker.update_service_status(
-                            new_service_status=CMLServiceStatus.ERROR,
-                            https_endpoint=worker.state.https_endpoint,
-                        )
-                        log.warning(
-                            f"⚠️  CML service health check failed for worker {command.worker_id} - "
-                            f"service returned invalid health status"
-                        )
-                        span.set_attribute("health_check.passed", False)
-                        # Don't continue if health check failed
-                        await self.cml_worker_repository.update_async(worker)
-                        return self.ok(
-                            {
-                                "worker_id": command.worker_id,
-                                "cml_data_synced": False,
-                                "reason": "CML service health check failed",
-                            }
-                        )
-
                 except IntegrationException as e:
-                    # Service not accessible
+                    log.warning(
+                        f"⚠️ Could not fetch system info for worker {command.worker_id}: {e}"
+                    )
+                    span.set_attribute("system_info.error", str(e))
+
+                # Try system_health (requires auth)
+                try:
+                    system_health = await cml_client.get_system_health()
+                    if system_health:
+                        api_accessible = True
+                        log.debug(
+                            f"✅ Retrieved system health for worker {command.worker_id}: "
+                            f"valid={system_health.valid}, licensed={system_health.is_licensed}"
+                        )
+                except IntegrationException as e:
+                    log.warning(
+                        f"⚠️ Could not fetch system health for worker {command.worker_id}: {e}"
+                    )
+                    span.set_attribute("system_health.error", str(e))
+
+                # Try system_stats (requires auth)
+                try:
+                    system_stats = await cml_client.get_system_stats()
+                    if system_stats:
+                        api_accessible = True
+                        log.debug(
+                            f"✅ Retrieved system stats for worker {command.worker_id}: "
+                            f"running_nodes={system_stats.running_nodes}"
+                        )
+                except IntegrationException as e:
+                    log.warning(
+                        f"⚠️ Could not fetch system stats for worker {command.worker_id}: {e}"
+                    )
+                    span.set_attribute("system_stats.error", str(e))
+
+                # Try licensing info (requires auth)
+                try:
+                    license_info = await cml_client.get_licensing()
+                    if license_info:
+                        license_info_dict = license_info.raw_data
+                        log.info(
+                            f"✅ CML licensing info collected for worker {command.worker_id}: "
+                            f"{license_info.active_license} ({license_info.registration_status})"
+                        )
+                except Exception as e:
+                    log.warning(
+                        f"⚠️ Could not fetch CML licensing info for worker {command.worker_id}: {e}"
+                    )
+                    span.set_attribute("licensing.error", str(e))
+
+                # Determine service status based on what we successfully retrieved
+                if not api_accessible:
+                    # Nothing worked - service is unavailable
                     worker.update_service_status(
                         new_service_status=CMLServiceStatus.UNAVAILABLE,
                         https_endpoint=worker.state.https_endpoint,
                     )
                     log.info(
-                        f"❌ CML service not accessible for worker {command.worker_id}: {e} - "
-                        f"service marked as UNAVAILABLE"
+                        f"❌ CML service not accessible for worker {command.worker_id} - "
+                        f"all API calls failed"
                     )
-                    span.set_attribute("health_check.passed", False)
-                    span.set_attribute("health_check.error", str(e))
-                    # Save status and return
+                    # Save and return - don't bail completely, just mark unavailable
                     await self.cml_worker_repository.update_async(worker)
                     return self.ok(
                         {
                             "worker_id": command.worker_id,
                             "cml_data_synced": False,
-                            "reason": f"CML service not accessible: {str(e)}",
+                            "reason": "CML API not accessible",
+                            "service_status": CMLServiceStatus.UNAVAILABLE.value,
                         }
                     )
 
-                except Exception as e:
-                    # Unexpected error during health check
+                # At least one API worked - update service status based on health
+                if system_health and system_health.valid:
+                    worker.update_service_status(
+                        new_service_status=CMLServiceStatus.AVAILABLE,
+                        https_endpoint=worker.state.https_endpoint,
+                    )
+                    log.info(
+                        f"✅ CML service healthy for worker {command.worker_id} - "
+                        f"marked as AVAILABLE"
+                    )
+                elif system_info:
+                    # System info worked but health didn't - mark as AVAILABLE anyway
+                    worker.update_service_status(
+                        new_service_status=CMLServiceStatus.AVAILABLE,
+                        https_endpoint=worker.state.https_endpoint,
+                    )
+                    log.info(
+                        f"✅ CML service responding for worker {command.worker_id} - "
+                        f"marked as AVAILABLE (health check unavailable)"
+                    )
+                else:
+                    # Some API worked but we can't determine health
                     worker.update_service_status(
                         new_service_status=CMLServiceStatus.ERROR,
                         https_endpoint=worker.state.https_endpoint,
                     )
                     log.warning(
-                        f"⚠️  Unexpected error during CML health check for worker {command.worker_id}: {e}"
-                    )
-                    span.set_attribute("health_check.passed", False)
-                    span.record_exception(e)
-                    # Save status and return
-                    await self.cml_worker_repository.update_async(worker)
-                    return self.ok(
-                        {
-                            "worker_id": command.worker_id,
-                            "cml_data_synced": False,
-                            "reason": f"Health check error: {str(e)}",
-                        }
+                        f"⚠️ CML service status unclear for worker {command.worker_id} - "
+                        f"marked as ERROR"
                     )
 
-            # 4. Query CML API for version and system stats (only if service AVAILABLE)
-            if worker.state.service_status == CMLServiceStatus.AVAILABLE:
-                with tracer.start_as_current_span("query_cml_api") as span:
-                    log.info(
-                        f"Querying CML API for worker {command.worker_id} "
-                        f"at {worker.state.https_endpoint}"
-                    )
-                    try:
-                        # Create CML API client for this worker
-                        cml_client = CMLApiClient(
-                            base_url=worker.state.https_endpoint,
-                            username=self.settings.cml_worker_api_username,
-                            password=self.settings.cml_worker_api_password,
-                            verify_ssl=False,
-                            timeout=15.0,
-                        )
+                # Update CML metrics with whatever data we have
+                cml_version = system_info.version if system_info else None
+                cml_ready = system_info.ready if system_info else False
+                system_health_dict = None
+                if system_health:
+                    system_health_dict = {
+                        "valid": system_health.valid,
+                        "is_licensed": system_health.is_licensed,
+                        "is_enterprise": system_health.is_enterprise,
+                        "computes": system_health.computes,
+                        "controller": system_health.controller,
+                    }
 
-                        # Query system information (version, ready state)
-                        system_info = await cml_client.get_system_information()
-                        cml_version = system_info.version if system_info else None
-                        cml_ready = system_info.ready if system_info else False
+                # Update metrics (even with partial data)
+                worker.update_cml_metrics(
+                    cml_version=cml_version,
+                    system_info=system_stats.computes if system_stats else {},
+                    system_health=system_health_dict,
+                    license_info=license_info_dict,
+                    ready=cml_ready,
+                    uptime_seconds=None,
+                    labs_count=system_stats.running_nodes if system_stats else 0,
+                    change_threshold_percent=self.settings.metrics_change_threshold_percent,
+                )
 
-                        # Query system health (requires auth)
-                        system_health = await cml_client.get_system_health()
-                        system_health_dict = None
-                        if system_health:
-                            system_health_dict = {
-                                "valid": system_health.valid,
-                                "is_licensed": system_health.is_licensed,
-                                "is_enterprise": system_health.is_enterprise,
-                                "computes": system_health.computes,
-                                "controller": system_health.controller,
-                            }
+                # Set tracing attributes
+                span.set_attribute("cml.version", cml_version or "unknown")
+                span.set_attribute("cml.ready", cml_ready)
+                span.set_attribute(
+                    "cml.licensed",
+                    system_health.is_licensed if system_health else False,
+                )
+                span.set_attribute(
+                    "cml.valid", system_health.valid if system_health else False
+                )
+                span.set_attribute(
+                    "cml.nodes_running",
+                    system_stats.running_nodes if system_stats else 0,
+                )
 
-                        # Query system stats (requires auth)
-                        system_stats = await cml_client.get_system_stats()
-
-                        # Query licensing information (requires auth)
-                        license_info_dict = None
-                        try:
-                            license_info = await cml_client.get_licensing()
-                            if license_info:
-                                license_info_dict = license_info.raw_data
-                                log.info(
-                                    f"✅ CML licensing info collected for worker {command.worker_id}: "
-                                    f"{license_info.active_license} ({license_info.registration_status})"
-                                )
-                        except Exception as e:
-                            log.warning(
-                                f"⚠️ Could not fetch CML licensing info for worker {command.worker_id}: {e}"
-                            )
-
-                        if system_stats:
-                            # Update CML metrics in worker aggregate
-                            worker.update_cml_metrics(
-                                cml_version=cml_version,
-                                system_info=system_stats.computes,
-                                system_health=system_health_dict,
-                                license_info=license_info_dict,
-                                ready=cml_ready,
-                                uptime_seconds=None,
-                                labs_count=system_stats.running_nodes,
-                                change_threshold_percent=self.settings.metrics_change_threshold_percent,
-                            )
-
-                            span.set_attribute("cml.version", cml_version or "unknown")
-                            span.set_attribute("cml.ready", cml_ready)
-                            span.set_attribute(
-                                "cml.licensed",
-                                system_health.is_licensed if system_health else False,
-                            )
-                            span.set_attribute(
-                                "cml.valid",
-                                system_health.valid if system_health else False,
-                            )
-                            span.set_attribute(
-                                "cml.nodes_running", system_stats.running_nodes
-                            )
-
-                            log.info(
-                                f"✅ CML data synced for worker {command.worker_id}: "
-                                f"version={cml_version}, nodes={system_stats.running_nodes}"
-                            )
-
-                    except IntegrationException as e:
-                        log.warning(
-                            f"⚠️ Failed to query CML API for worker {command.worker_id}: {e}"
-                        )
-                        span.set_attribute("cml_api.error", str(e))
-                        # Continue anyway - not critical
+                log.info(
+                    f"✅ CML data synced for worker {command.worker_id}: "
+                    f"version={cml_version}, ready={cml_ready}, "
+                    f"service={worker.state.service_status.value}"
+                )
 
             # 5. Save updated worker
             with tracer.start_as_current_span("save_worker"):
