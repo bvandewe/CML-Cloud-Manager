@@ -8,6 +8,10 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ### Fixed
 
+- **Telemetry Timestamp Parsing**: Fixed timestamp format mismatch in telemetry event filtering
+  - CML API returns timestamps without 'Z' suffix (e.g., "2025-11-19T21:11:59")
+  - Updated parser to handle 4 ISO 8601 variants (with/without microseconds, with/without Z)
+  - Prevents all telemetry events from being rejected due to parsing errors
 - **Activity Detection Job Runtime Errors**: Fixed multiple runtime errors in ActivityDetectionJob
   - Changed `worker.id` attribute references to `worker.id()` method calls
   - Fixed `OperationResult` attribute names (`is_successful` → `is_success`, `content` → `data`, `errors` → `error_message`)

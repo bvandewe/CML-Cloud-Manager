@@ -11,7 +11,10 @@ log = logging.getLogger(__name__)
 def parse_event_timestamp(timestamp_str: str) -> datetime:
     """Parse CML telemetry event timestamp.
 
-    CML timestamps are in ISO 8601 format (e.g., "2025-11-19T10:25:32.810Z").
+    CML timestamps can be in multiple ISO 8601 formats:
+    - "2025-11-19T10:25:32.810Z" (with microseconds and Z)
+    - "2025-11-19T10:25:32Z" (without microseconds, with Z)
+    - "2025-11-19T10:25:32" (without microseconds, without Z)
 
     Args:
         timestamp_str: ISO format timestamp string
@@ -19,17 +22,25 @@ def parse_event_timestamp(timestamp_str: str) -> datetime:
     Returns:
         datetime object in UTC
     """
-    # Handle both with and without microseconds
-    if "." in timestamp_str:
-        # With microseconds: "2025-11-19T10:25:32.810Z"
-        return datetime.strptime(timestamp_str, "%Y-%m-%dT%H:%M:%S.%fZ").replace(
-            tzinfo=None
-        )
-    else:
-        # Without microseconds: "2025-11-19T10:25:32Z"
-        return datetime.strptime(timestamp_str, "%Y-%m-%dT%H:%M:%SZ").replace(
-            tzinfo=None
-        )
+    # Try formats in order of specificity
+    formats = [
+        "%Y-%m-%dT%H:%M:%S.%fZ",  # With microseconds and Z
+        "%Y-%m-%dT%H:%M:%S.%f",  # With microseconds, no Z
+        "%Y-%m-%dT%H:%M:%SZ",  # Without microseconds, with Z
+        "%Y-%m-%dT%H:%M:%S",  # Without microseconds, no Z
+    ]
+
+    for fmt in formats:
+        try:
+            return datetime.strptime(timestamp_str, fmt).replace(tzinfo=None)
+        except ValueError:
+            continue
+
+    # If none match, raise error with helpful message
+    raise ValueError(
+        f"Timestamp '{timestamp_str}' does not match any expected format. "
+        f"Expected ISO 8601 format like '2025-11-19T10:25:32' or '2025-11-19T10:25:32Z'"
+    )
 
 
 def filter_relevant_events(
