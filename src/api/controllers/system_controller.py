@@ -1,7 +1,7 @@
 import logging
 from typing import Any
 
-from classy_fastapi.decorators import delete, get
+from classy_fastapi.decorators import delete, get, post
 from fastapi import Depends, HTTPException
 from neuroglia.dependency_injection import ServiceProviderBase
 from neuroglia.mapping.mapper import Mapper
@@ -69,6 +69,58 @@ class SystemController(ControllerBase):
         except Exception as e:
             logger.error(f"Failed to retrieve scheduler jobs: {e}")
             return []
+
+    @post(
+        "/scheduler/jobs/{job_id}/trigger",
+        response_model=dict,
+        response_description="Job trigger result",
+        status_code=200,
+        responses=ControllerBase.error_responses,
+    )
+    async def trigger_scheduler_job(
+        self,
+        job_id: str,
+        token: str = Depends(get_current_user),
+        roles: str = Depends(require_roles("admin")),
+    ) -> Any:
+        """Trigger an existing scheduled job to run immediately.
+
+        This endpoint allows administrators to manually trigger a background job
+        without waiting for its scheduled time. The job will run immediately while
+        maintaining its original schedule for future executions.
+
+        (**Requires `admin` role!**)
+        """
+        try:
+            from application.services import BackgroundTaskScheduler
+
+            scheduler: BackgroundTaskScheduler = (
+                self.service_provider.get_required_service(BackgroundTaskScheduler)
+            )
+            if not scheduler or not scheduler._scheduler:
+                raise HTTPException(status_code=503, detail="Scheduler not available")
+
+            job = scheduler._scheduler.get_job(job_id)
+            if not job:
+                raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
+
+            # Trigger the job to run now
+            await scheduler.trigger_job_now(job_id)
+
+            logger.info(f"Job '{job_id}' triggered manually by admin")
+            return {
+                "success": True,
+                "message": f"Job '{job_id}' ({job.name}) triggered successfully",
+                "job_id": job_id,
+                "job_name": job.name,
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to trigger job '{job_id}': {e}")
+            raise HTTPException(
+                status_code=500, detail=f"Failed to trigger job: {str(e)}"
+            )
 
     @delete(
         "/scheduler/jobs/{job_id}",

@@ -221,6 +221,25 @@ async function deleteJob(jobId) {
 }
 
 /**
+ * Trigger a scheduled job to run immediately (admin only)
+ */
+async function triggerJob(jobId) {
+    if (!isAdmin()) {
+        showToast('Permission denied. Admin access required.', 'error');
+        return;
+    }
+
+    try {
+        const result = await systemApi.triggerJob(jobId);
+        showToast(result.message || 'Job triggered successfully', 'success');
+        await refreshScheduler();
+    } catch (error) {
+        console.error('Failed to trigger job:', error);
+        showToast(error.message || 'Failed to trigger job', 'error');
+    }
+}
+
+/**
  * Render health components HTML
  */
 function renderHealthComponents(components) {
@@ -276,6 +295,8 @@ function renderHealthComponents(components) {
  */
 function renderSchedulerJobs(jobs) {
     const isAdminUser = isAdmin();
+    console.log('[renderSchedulerJobs] isAdminUser:', isAdminUser);
+    console.log('[renderSchedulerJobs] jobs count:', jobs.length);
 
     let html = `
         <div class="table-responsive">
@@ -298,6 +319,8 @@ function renderSchedulerJobs(jobs) {
         const nextRun = job.next_run_time ? formatDateTime(job.next_run_time) : 'N/A';
         const statusBadge = job.pending ? '<span class="badge bg-warning">Pending</span>' : '<span class="badge bg-success">Scheduled</span>';
 
+        console.log('[renderSchedulerJobs] Rendering job:', job.id, 'isAdmin:', isAdminUser);
+
         html += `
             <tr>
                 <td><code>${job.id}</code></td>
@@ -310,9 +333,14 @@ function renderSchedulerJobs(jobs) {
                     isAdminUser
                         ? `
                 <td>
-                    <button class="btn btn-sm btn-outline-danger" onclick="window.systemApp.deleteJob('${job.id}')" title="Delete Job">
-                        <i class="bi bi-trash"></i>
-                    </button>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button class="btn btn-outline-primary" onclick="window.systemApp.triggerJob('${job.id}')" title="Run Now">
+                            <i class="bi bi-play-fill"></i>
+                        </button>
+                        <button class="btn btn-outline-danger" onclick="window.systemApp.deleteJob('${job.id}')" title="Delete Job">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
                 </td>`
                         : ''
                 }
@@ -410,4 +438,5 @@ window.systemApp = {
     refreshHealth,
     refreshScheduler,
     deleteJob,
+    triggerJob,
 };

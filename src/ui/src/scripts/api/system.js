@@ -64,3 +64,15 @@ export async function getMetricsCollectorsStatus() {
     });
     return await response.json();
 }
+
+/**
+ * Trigger a scheduled job to run immediately
+ * @param {string} jobId - The job ID to trigger
+ * @returns {Promise<Object>} Result object
+ */
+export async function triggerJob(jobId) {
+    const response = await apiRequest(`/api/system/scheduler/jobs/${jobId}/trigger`, {
+        method: 'POST',
+    });
+    return await response.json();
+}
