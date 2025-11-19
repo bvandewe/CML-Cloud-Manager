@@ -94,6 +94,7 @@ class GetWorkerTelemetryEventsQueryHandler(
                     base_url=worker.state.https_endpoint,
                     username=app_settings.cml_worker_username,
                     password=app_settings.cml_worker_api_password,
+                    verify_ssl=False,
                 )
 
                 # Fetch raw telemetry events from CML
