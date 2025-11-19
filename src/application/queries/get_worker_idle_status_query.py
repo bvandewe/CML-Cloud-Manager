@@ -45,13 +45,12 @@ class GetWorkerIdleStatusQueryHandler(
         self._repository = worker_repository
 
     async def handle_async(
-        self, query: GetWorkerIdleStatusQuery, cancellation_token=None
+        self, query: GetWorkerIdleStatusQuery
     ) -> OperationResult[dict[str, Any]]:
         """Execute the query.
 
         Args:
             query: Query parameters
-            cancellation_token: Cancellation token
 
         Returns:
             OperationResult with idle status and eligibility information
@@ -63,9 +62,7 @@ class GetWorkerIdleStatusQueryHandler(
 
             try:
                 # Retrieve worker
-                worker = await self._repository.get_async(
-                    query.worker_id, cancellation_token
-                )
+                worker = await self._repository.get_async(query.worker_id)
 
                 if not worker:
                     log.warning(f"Worker {query.worker_id} not found")

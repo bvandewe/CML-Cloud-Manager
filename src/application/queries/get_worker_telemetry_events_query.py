@@ -60,13 +60,12 @@ class GetWorkerTelemetryEventsQueryHandler(
         self._cml_client_factory = cml_api_client_factory
 
     async def handle_async(
-        self, query: GetWorkerTelemetryEventsQuery, cancellation_token=None
+        self, query: GetWorkerTelemetryEventsQuery
     ) -> OperationResult[dict[str, Any]]:
         """Execute the query.
 
         Args:
             query: Query parameters
-            cancellation_token: Cancellation token
 
         Returns:
             OperationResult with filtered telemetry data

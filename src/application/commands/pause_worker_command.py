@@ -52,14 +52,11 @@ class PauseWorkerCommandHandler(
         self._repository = worker_repository
         self._aws_client = aws_client
 
-    async def handle_async(
-        self, command: PauseWorkerCommand, cancellation_token=None
-    ) -> OperationResult[None]:
+    async def handle_async(self, command: PauseWorkerCommand) -> OperationResult[None]:
         """Execute the command.
 
         Args:
             command: Command parameters
-            cancellation_token: Cancellation token
 
         Returns:
             OperationResult indicating success or failure
@@ -72,9 +69,7 @@ class PauseWorkerCommandHandler(
 
             try:
                 # Retrieve worker
-                worker = await self._repository.get_async(
-                    command.worker_id, cancellation_token
-                )
+                worker = await self._repository.get_async(command.worker_id)
 
                 if not worker:
                     log.warning(f"Worker {command.worker_id} not found")
@@ -109,7 +104,7 @@ class PauseWorkerCommandHandler(
                 worker.pause(is_auto_pause=command.is_auto_pause)
 
                 # Persist changes
-                await self._repository.update_async(worker, cancellation_token)
+                await self._repository.update_async(worker)
 
                 log.info(
                     f"Successfully paused worker {command.worker_id} "

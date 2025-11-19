@@ -52,14 +52,11 @@ class DetectWorkerIdleCommandHandler(CommandHandler[DetectWorkerIdleCommand, dic
         """
         self._mediator = mediator
 
-    async def handle_async(
-        self, command: DetectWorkerIdleCommand, cancellation_token=None
-    ) -> dict:
+    async def handle_async(self, command: DetectWorkerIdleCommand) -> dict:
         """Execute the command.
 
         Args:
             command: Command parameters
-            cancellation_token: Cancellation token
 
         Returns:
             OperationResult with detection results
