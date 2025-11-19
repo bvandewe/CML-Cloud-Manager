@@ -612,6 +612,10 @@ class CMLApiClient:
                 data = response.json()
                 return data if isinstance(data, list) else []
 
+        except IntegrationException:
+            # Re-raise IntegrationException without wrapping
+            raise
+
         except httpx.ConnectError as e:
             log.warning(f"Cannot connect to CML instance at {self.base_url}: {e}")
             raise IntegrationException(f"Cannot connect to CML instance: {e}") from e
@@ -619,6 +623,12 @@ class CMLApiClient:
         except httpx.TimeoutException as e:
             log.warning(f"CML API request timed out for {self.base_url}: {e}")
             raise IntegrationException(f"CML API request timed out: {e}") from e
+
+        except (ValueError, TypeError) as e:
+            log.error(f"Invalid JSON response from CML API at {self.base_url}: {e}")
+            raise IntegrationException(
+                f"Invalid JSON response from CML API: {e}"
+            ) from e
 
         except Exception as e:
             log.error(f"Unexpected error querying CML API at {self.base_url}: {e}")
@@ -909,3 +919,74 @@ class CMLApiClient:
         except Exception as e:
             log.error(f"Error wiping lab {lab_id}: {e}")
             raise IntegrationException(f"Error wiping lab: {e}") from e
+
+    async def get_telemetry_events(self) -> list[dict]:
+        """Fetch telemetry events from CML worker.
+
+        This endpoint returns ALL telemetry events - there are no filtering parameters.
+        The full event history is returned on every call.
+
+        Endpoint: GET /api/v0/telemetry/events
+
+        Returns:
+            List of event objects with category, timestamp, and data
+
+        Raises:
+            IntegrationException: On API errors
+        """
+        endpoint = f"{self.base_url}/api/v0/telemetry/events"
+
+        try:
+            token = await self._get_token()
+
+            async with httpx.AsyncClient(
+                verify=self.verify_ssl, timeout=self.timeout
+            ) as client:
+                response = await client.get(
+                    endpoint, headers={"Authorization": f"Bearer {token}"}
+                )
+
+                if response.status_code == 401:
+                    # Token expired, re-authenticate
+                    log.info("Token expired for telemetry events, re-authenticating")
+                    self._token = None
+                    token = await self._get_token()
+                    response = await client.get(
+                        endpoint, headers={"Authorization": f"Bearer {token}"}
+                    )
+
+                if response.status_code != 200:
+                    log.error(
+                        f"Failed to get telemetry events: {response.status_code} {response.text}"
+                    )
+                    raise IntegrationException(
+                        f"Failed to get telemetry events: HTTP {response.status_code}"
+                    )
+
+                events = response.json()
+                log.debug(f"Retrieved {len(events)} telemetry events")
+                return events
+
+        except IntegrationException:
+            # Re-raise IntegrationException without wrapping
+            raise
+
+        except httpx.ConnectError as e:
+            log.warning(f"Cannot connect to CML instance at {self.base_url}: {e}")
+            raise IntegrationException(f"Cannot connect to CML instance: {e}") from e
+
+        except httpx.TimeoutException as e:
+            log.warning(f"CML API request timed out for {self.base_url}: {e}")
+            raise IntegrationException(f"CML API request timed out: {e}") from e
+
+        except (ValueError, TypeError) as e:
+            log.error(
+                f"Invalid JSON response from telemetry API at {self.base_url}: {e}"
+            )
+            raise IntegrationException(
+                f"Invalid JSON response from telemetry API: {e}"
+            ) from e
+
+        except Exception as e:
+            log.error(f"Error getting telemetry events: {e}")
+            raise IntegrationException(f"Error getting telemetry events: {e}") from e
