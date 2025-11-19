@@ -937,6 +937,83 @@ window.workersApp = {
     escapeHtml,
 };
 
+// ---------------------------------------------------------------------------
+// Backward Compatibility Shim
+// Older bundled UI code (pre modular refactor) referenced `_workersJs.refreshWorker(workerId, region)`
+// and a global `refreshWorker` function to trigger an on-demand metrics refresh of a single worker.
+// After refactor we use `workersApi.requestWorkerRefresh(region, id)` plus store-driven updates.
+// This shim provides a safe no-op fallback mapping to avoid console errors in stale cached assets.
+// ---------------------------------------------------------------------------
+if (!window._workersJs) {
+    window._workersJs = {};
+}
+if (typeof window._workersJs.refreshWorker !== 'function') {
+    window._workersJs.refreshWorker = async function (workerId, region) {
+        try {
+            // Allow argument order flexibility: some legacy handlers passed (region, workerId)
+            // Detect if first arg looks like a region pattern (contains '-') and second looks like id (length > 6)
+            if (workerId && region && /-[0-9]/.test(workerId) && !/-[0-9]/.test(region)) {
+                // Likely reversed order; swap
+                const tmp = workerId;
+                workerId = region;
+                region = tmp;
+            }
+            // Fallback to current modal details if params missing
+            if ((!workerId || !region) && window.workersApp && window.workersApp.showWorkerDetails) {
+                if (window.workersInternal?.getWorkersData) {
+                    const current = window.workersInternal.getWorkersData().find(w => w.id === (workerId || (window.currentWorkerDetails && window.currentWorkerDetails.id)));
+                    region = region || current?.aws_region || 'us-east-1';
+                }
+                if (!workerId && window.currentWorkerDetails?.id) {
+                    workerId = window.currentWorkerDetails.id;
+                }
+            }
+            if (!workerId || !region) {
+                console.warn('[compat.refreshWorker] Missing workerId/region; aborting');
+                return false;
+            }
+            const btn = document.getElementById('refresh-worker-details');
+            if (btn) {
+                btn.disabled = true;
+                const original = btn.innerHTML;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Scheduling...';
+                try {
+                    const result = await workersApi.requestWorkerRefresh(region, workerId);
+                    if (result?.scheduled) {
+                        showToast('Refresh scheduled (compat)', 'info');
+                    } else {
+                        showToast('Refresh skipped (compat)', 'warning');
+                    }
+                } catch (e) {
+                    console.error('[compat.refreshWorker] Error:', e);
+                    showToast(e.message || 'Compat refresh failed', 'danger');
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = original;
+                }
+            } else {
+                // No button context; just schedule
+                const result = await workersApi.requestWorkerRefresh(region, workerId);
+                if (result?.scheduled) {
+                    showToast('Refresh scheduled (compat)', 'info');
+                }
+            }
+            return true;
+        } catch (err) {
+            console.error('[compat.refreshWorker] Unexpected error:', err);
+            return false;
+        }
+    };
+    console.log('[compat] Installed legacy _workersJs.refreshWorker shim');
+}
+
+// Legacy global alias for scripts calling just `refreshWorker(workerId, region)`
+if (typeof window.refreshWorker !== 'function') {
+    window.refreshWorker = function (workerId, region) {
+        return window._workersJs.refreshWorker(workerId, region);
+    };
+}
+
 // Alias for UI component functions
 window.workersUi = window.workersApp;
 

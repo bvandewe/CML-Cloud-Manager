@@ -13,7 +13,7 @@ class Settings(ApplicationSettings):
     """Application settings with Keycloak OAuth2/OIDC configuration and observability."""
 
     # Debugging Configuration
-    debug: bool = True
+    debug: bool = False
     environment: str = "development"  # development, production
     log_level: str = "INFO"
 
@@ -57,7 +57,7 @@ class Settings(ApplicationSettings):
     otel_instrument_httpx: bool = True
     otel_instrument_logging: bool = True
     otel_instrument_system_metrics: bool = True
-    otel_resource_attributes: dict = {}
+    otel_resource_attributes: dict[str, str] = {}
 
     # Session Configuration
     session_secret_key: str = "change-me-in-production-use-secrets-token-urlsafe"
@@ -157,6 +157,14 @@ class Settings(ApplicationSettings):
     worker_notification_webhooks: list[str] = (
         []
     )  # List of webhook URLs for notifications
+    # Metrics Change Threshold (percentage delta required to broadcast utilization updates)
+    metrics_change_threshold_percent: float = (
+        1.0  # Override via METRICS_CHANGE_THRESHOLD_PERCENT
+    )
+    # Labs Refresh Background Job Configuration
+    labs_refresh_interval: int = (
+        1800  # Seconds between labs refresh runs (default: 30 minutes)
+    )
 
     # Worker Refresh Rate Limiting
     worker_refresh_min_interval: int = (
@@ -165,7 +173,6 @@ class Settings(ApplicationSettings):
     worker_refresh_check_upcoming_job_threshold: int = (
         10  # Seconds - skip manual refresh if background job is within this threshold
     )
-
     # Auto-Import Workers Configuration
     auto_import_workers_enabled: bool = False  # Enable/disable auto-import job
     auto_import_workers_interval: int = (

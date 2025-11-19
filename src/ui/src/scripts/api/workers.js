@@ -184,6 +184,24 @@ export async function requestWorkerRefresh(region, workerId) {
 }
 
 /**
+ * Legacy refresh alias used by pre-refactor UI code (calls requestWorkerRefresh).
+ * Some older bundles called refreshWorker(workerId, region) with reversed argument order.
+ * This function normalizes argument order and provides backward compatibility.
+ * @param {string} region - AWS region (or workerId if legacy reversed order)
+ * @param {string} workerId - Worker UUID (or region if legacy reversed order)
+ * @returns {Promise<Object>} Same shape as requestWorkerRefresh
+ */
+export async function refreshWorker(region, workerId) {
+    // Detect reversed arguments (UUID first, region second expected by legacy code)
+    if (region && workerId && /^[0-9a-fA-F-]{36}$/.test(region) && /[a-z]{2}-[a-z]+-\d/.test(workerId)) {
+        const tmp = region;
+        region = workerId;
+        workerId = tmp;
+    }
+    return await requestWorkerRefresh(region, workerId);
+}
+
+/**
  * Get labs for a specific worker
  * @param {string} region - AWS region
  * @param {string} workerId - Worker ID

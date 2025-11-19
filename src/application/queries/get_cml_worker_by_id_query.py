@@ -117,6 +117,16 @@ class GetCMLWorkerByIdQueryHandler(
                 "memory_utilization": worker.state.cloudwatch_memory_utilization,
                 "created_at": worker.state.created_at.isoformat(),
                 "updated_at": worker.state.updated_at.isoformat(),
+                "start_initiated_at": (
+                    worker.state.start_initiated_at.isoformat()
+                    if worker.state.start_initiated_at
+                    else None
+                ),
+                "stop_initiated_at": (
+                    worker.state.stop_initiated_at.isoformat()
+                    if worker.state.stop_initiated_at
+                    else None
+                ),
                 "terminated_at": (
                     worker.state.terminated_at.isoformat()
                     if worker.state.terminated_at

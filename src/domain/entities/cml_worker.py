@@ -88,6 +88,8 @@ class CMLWorkerState(AggregateState[str]):
     created_at: datetime
     updated_at: datetime
     terminated_at: datetime | None
+    start_initiated_at: datetime | None
+    stop_initiated_at: datetime | None
 
     # Audit
     created_by: str | None
@@ -139,6 +141,8 @@ class CMLWorkerState(AggregateState[str]):
         self.created_at = now
         self.updated_at = now
         self.terminated_at = None
+        self.start_initiated_at = None
+        self.stop_initiated_at = None
 
         self.created_by = None
         self.terminated_by = None
@@ -196,6 +200,17 @@ class CMLWorkerState(AggregateState[str]):
         """Apply the status updated event to the state."""
         self.status = event.new_status
         self.updated_at = event.updated_at
+        # Track transition initiation timestamps for long-running operations
+        if event.new_status == CMLWorkerStatus.PENDING:
+            # Starting
+            self.start_initiated_at = event.transition_initiated_at or event.updated_at
+        elif event.new_status == CMLWorkerStatus.RUNNING:
+            # Clear start transition marker once running
+            self.start_initiated_at = None
+        elif event.new_status == CMLWorkerStatus.STOPPING:
+            self.stop_initiated_at = event.transition_initiated_at or event.updated_at
+        elif event.new_status == CMLWorkerStatus.STOPPED:
+            self.stop_initiated_at = None
 
     @dispatch(CMLServiceStatusUpdatedDomainEvent)
     def on(self, event: CMLServiceStatusUpdatedDomainEvent) -> None:  # type: ignore[override]
@@ -439,13 +454,18 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
             return False
 
         old_status = self.state.status
+        now = datetime.now(timezone.utc)
+        transition_ts: datetime | None = None
+        if new_status in (CMLWorkerStatus.PENDING, CMLWorkerStatus.STOPPING):
+            transition_ts = now
         self.state.on(
             self.register_event(  # type: ignore
                 CMLWorkerStatusUpdatedDomainEvent(
                     aggregate_id=self.id(),
                     old_status=old_status,
                     new_status=new_status,
-                    updated_at=datetime.now(timezone.utc),
+                    updated_at=now,
+                    transition_initiated_at=transition_ts,
                 )
             )
         )
@@ -637,6 +657,7 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
         uptime_seconds: int | None,
         labs_count: int,
         synced_at: datetime | None = None,
+        change_threshold_percent: float | None = None,
     ) -> None:
         """Update CML application metrics from CML API.
 
@@ -650,6 +671,89 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
             labs_count: Number of labs from CML API
             synced_at: Timestamp when data was synced from CML API
         """
+        # Domain-level suppression: only emit event if meaningful delta
+        # Always emit when no prior system_info or threshold not provided
+        emit_event = True
+        if change_threshold_percent is not None and self.state.cml_system_info:
+            try:
+                prev_info = self.state.cml_system_info
+                prev_first = next(iter(prev_info.values()), {}) if prev_info else {}
+                new_first = next(iter(system_info.values()), {}) if system_info else {}
+                prev_stats = prev_first.get("stats", {})
+                new_stats = new_first.get("stats", {})
+
+                def derive(
+                    stats: dict,
+                ) -> tuple[float | None, float | None, float | None]:
+                    cpu_util = None
+                    mem_util = None
+                    storage_util = None
+                    cpu_stats = stats.get("cpu", {})
+                    mem_stats = stats.get("memory", {})
+                    disk_stats = stats.get("disk", {})
+                    if cpu_stats:
+                        up = cpu_stats.get("user_percent")
+                        sp = cpu_stats.get("system_percent")
+                        if up is not None and sp is not None:
+                            try:
+                                cpu_util = float(up) + float(sp)
+                            except (TypeError, ValueError):
+                                cpu_util = None
+                    if mem_stats:
+                        total_kb = mem_stats.get("total_kb") or mem_stats.get("total")
+                        available_kb = mem_stats.get("available_kb") or mem_stats.get(
+                            "free"
+                        )
+                        if (
+                            isinstance(total_kb, (int, float))
+                            and isinstance(available_kb, (int, float))
+                            and total_kb > 0
+                        ):
+                            used_kb = total_kb - available_kb
+                            mem_util = (used_kb / total_kb) * 100
+                    if disk_stats:
+                        size_kb = disk_stats.get("size_kb") or disk_stats.get("used")
+                        capacity_kb = disk_stats.get("capacity_kb") or disk_stats.get(
+                            "total"
+                        )
+                        if (
+                            isinstance(size_kb, (int, float))
+                            and isinstance(capacity_kb, (int, float))
+                            and capacity_kb > 0
+                        ):
+                            storage_util = (size_kb / capacity_kb) * 100
+                    return cpu_util, mem_util, storage_util
+
+                prev_cpu, prev_mem, prev_storage = derive(prev_stats)
+                new_cpu, new_mem, new_storage = derive(new_stats)
+
+                def pct_changed(old: float | None, new: float | None) -> float:
+                    if old is None or new is None:
+                        return 100.0 if old != new else 0.0
+                    if old == 0:
+                        return 100.0 if new != 0 else 0.0
+                    return abs(new - old) / abs(old) * 100.0
+
+                cpu_delta = pct_changed(prev_cpu, new_cpu)
+                mem_delta = pct_changed(prev_mem, new_mem)
+                storage_delta = pct_changed(prev_storage, new_storage)
+                labs_changed = labs_count != self.state.cml_labs_count
+                version_changed = cml_version != self.state.cml_version
+
+                emit_event = (
+                    labs_changed
+                    or version_changed
+                    or cpu_delta >= change_threshold_percent
+                    or mem_delta >= change_threshold_percent
+                    or storage_delta >= change_threshold_percent
+                )
+            except Exception:
+                # Fail open: emit event if derivation fails
+                emit_event = True
+
+        if not emit_event:
+            return
+
         self.state.on(
             self.register_event(  # type: ignore
                 CMLMetricsUpdatedDomainEvent(

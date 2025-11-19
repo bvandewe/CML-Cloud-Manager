@@ -303,6 +303,7 @@ class SyncWorkerCMLDataCommandHandler(
                                 ready=cml_ready,
                                 uptime_seconds=None,
                                 labs_count=system_stats.running_nodes,
+                                change_threshold_percent=self.settings.metrics_change_threshold_percent,
                             )
 
                             span.set_attribute("cml.version", cml_version or "unknown")

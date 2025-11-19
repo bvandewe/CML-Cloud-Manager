@@ -10,7 +10,7 @@ Refreshes all worker data: EC2 metadata, CloudWatch metrics, CML data, and labs.
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from neuroglia.core import OperationResult
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_bus import CloudEventBus
@@ -143,13 +143,14 @@ class RequestWorkerDataRefreshCommandHandler(
                 retry_after = self._refresh_throttle.get_time_until_next_refresh(
                     command.worker_id
                 )
+                retry_after_int = int(retry_after) if retry_after is not None else 0
                 reason = "rate_limited"
 
                 # Emit skip SSE event
                 await self._emit_refresh_skipped_event(
                     worker_id=command.worker_id,
                     reason=reason,
-                    eta_seconds=int(retry_after),
+                    eta_seconds=retry_after_int,
                 )
 
                 log.info(
@@ -161,7 +162,7 @@ class RequestWorkerDataRefreshCommandHandler(
                     {
                         "scheduled": False,
                         "reason": reason,
-                        "retry_after_seconds": retry_after,
+                        "retry_after_seconds": retry_after_int,
                     }
                 )
 
@@ -238,7 +239,8 @@ class RequestWorkerDataRefreshCommandHandler(
             job.__task_id__ = job_id
             job.__task_name__ = "OnDemandWorkerDataRefreshJob"
             job.__background_task_type__ = "scheduled"
-            job.__scheduled_at__ = datetime.now(timezone.utc)
+            # Schedule slightly in the future to avoid edge-case immediate misfire
+            job.__scheduled_at__ = datetime.now(timezone.utc) + timedelta(seconds=1)
 
             # Enqueue via scheduler
             await self._scheduler.enqueue_task_async(job)
@@ -249,7 +251,7 @@ class RequestWorkerDataRefreshCommandHandler(
             # Emit requested SSE event
             await self._emit_refresh_requested_event(
                 worker_id=command.worker_id,
-                eta_seconds=1,  # Immediate execution
+                eta_seconds=1,  # ~1s execution delay
             )
 
             log.info(

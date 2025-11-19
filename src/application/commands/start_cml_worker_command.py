@@ -1,4 +1,9 @@
-"""Start CML Worker command with handler."""
+"""Start CML Worker command with handler.
+
+Marks worker as starting (PENDING) immediately; no on-demand refresh is
+scheduled because EC2 + CML readiness can take several minutes.
+Periodic monitoring jobs will update status/metrics when available.
+"""
 
 import logging
 from dataclasses import dataclass
@@ -68,6 +73,7 @@ class StartCMLWorkerCommandHandler(
         )
         self.cml_worker_repository = cml_worker_repository
         self.aws_ec2_client = aws_ec2_client
+        # No immediate refresh scheduling; monitoring jobs will pick up changes.
 
     async def handle_async(
         self, request: StartCMLWorkerCommand
@@ -160,7 +166,7 @@ class StartCMLWorkerCommandHandler(
             await self.cml_worker_repository.update_async(worker)
 
             log.info(
-                f"CML Worker started successfully: id={worker.id()}, "
+                f"CML Worker start initiated successfully: id={worker.id()}, "
                 f"aws_instance_id={worker.state.aws_instance_id}"
             )
 

@@ -6,6 +6,7 @@ for a running worker and updates the worker aggregate.
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
 from neuroglia.core import OperationResult
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_bus import CloudEventBus
@@ -17,6 +18,7 @@ from neuroglia.mediation import Command, CommandHandler, Mediator
 from neuroglia.observability.tracing import add_span_attributes
 from opentelemetry import trace
 
+from application.settings import app_settings
 from domain.enums import CMLWorkerStatus
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
 from integration.enums import (
@@ -175,11 +177,37 @@ class CollectWorkerCloudWatchMetricsCommandHandler(
                     )
                     # Continue with None values
 
-            # 4. Save updated worker
+            # 4. Record telemetry update (legacy/backward-compatible event for SSE)
+            # Always emit telemetry so UI countdown & metrics.updated SSE fire even if metrics missing
+            try:
+                poll_interval = app_settings.worker_metrics_poll_interval
+            except Exception:
+                poll_interval = None
+
+            next_refresh_at = (
+                datetime.now(timezone.utc) + timedelta(seconds=poll_interval)
+                if poll_interval
+                else None
+            )
+
+            # Use labs count from worker state (may be None -> treat as 0)
+            active_labs_count = worker.state.cml_labs_count or 0
+
+            # Emit telemetry domain event (deprecated API kept for SSE compatibility)
+            worker.update_telemetry(
+                last_activity_at=datetime.now(timezone.utc),
+                active_labs_count=active_labs_count,
+                cpu_utilization=cpu_util,
+                memory_utilization=memory_util,
+                poll_interval=poll_interval,
+                next_refresh_at=next_refresh_at,
+            )
+
+            # 5. Save updated worker (persists events & triggers snapshot broadcast)
             with tracer.start_as_current_span("save_worker"):
                 await self.cml_worker_repository.update_async(worker)
 
-            # 5. Build result summary
+            # 6. Build result summary
             result = {
                 "worker_id": command.worker_id,
                 "metrics_collected": cpu_util is not None or memory_util is not None,

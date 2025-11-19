@@ -42,6 +42,92 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 - **Worker Cards Layout Fix**: Rebuilt card markup to correct broken layout where body fields rendered outside card; cleaner structure with bottom-aligned action button.
 - **Transition Metadata Broadcasting**: Status update SSE now includes `transition_initiated_at`; snapshot SSE includes `start_initiated_at` & `stop_initiated_at` for accurate timers.
 
+#### Diagnostics & Frontend Modularization (Phase 1)
+
+- **Diagnostics API Endpoints**: Added `/api/diagnostics/intervals` (polling intervals + next run times) and `/api/diagnostics/jobs` (RBAC protected) for operational visibility into recurrent background jobs.
+  - Summaries include `id`, `name`, `next_run_time`, trigger description, derived interval seconds.
+  - Returns settings slice (`worker_metrics_poll_interval`, `labs_refresh_interval`, `auto_import_workers_interval`).
+- **SystemHealthService**: New singleton aggregating multi-component health checks (MongoDB latency, background scheduler status & job count, Redis/in-memory session store ping, CloudEvent sink POST validation, Keycloak OIDC discovery, OTEL collector TCP reachability).
+  - Produces structured `components` map with per-service `status`, `latency_ms`, and contextual metadata; overall `status` downgraded to `degraded` on any unhealthy/error component.
+- **Workers UI Modularization (God file breakup – Phase 1)**: Extracted monolithic `workers.js` concerns into discrete modules improving cohesion & testability:
+  - Store & Data Flow: `store/workerStore.js` (Map-based store, subscription API, timing metadata, in-flight request dedup, snapshot upsert & metrics update helpers).
+  - Rendering Components: `components/metricsPanel.js`, `components/status-badges.js`, `components/workerCmlPanel.js`, `components/workerLicensePanel.js`, `components/escape.js` (central HTML escaping).
+  - UI Logic Segments: `ui/worker-init.js` (view bootstrap + SSE wiring), `ui/worker-actions.js` (start/stop/refresh confirmations), `ui/worker-labs.js` (accordion lab details & controls with state polling), `ui/worker-jobs.js`, `ui/worker-monitoring.js`, `ui/worker-events.js` (placeholder), `ui/worker-timing.js` (countdown logic), `ui/worker-actions.js`.
+  - Benefits: Eliminates triple detail fetches, clarifies data flow (SSE → store → subscribers), reduces cognitive load, prepares ground for subscription-driven rendering & future TypeScript typings.
+- **Metrics Normalization Enhancements**: `metricsPanel.js` backfills CPU (combined or user+system), memory (used/total or total_kb/available_kb), disk (used/total or size_kb/capacity_kb) with clamping & graceful parse fallbacks; improves resilience when telemetry partial.
+- **Lab Controls UX Upgrade**: Accordion per lab with badges, timestamp relative formatting, descriptive cards (info, timestamps, description, notes, groups) and guarded Start/Stop/Wipe actions with confirm modals & optimistic polling (`waitForLabState`).
+- **License Details Panels**: Dedicated modal tabs rendering registration, authorization, features, transport & UDI (status badges, time blocks, feature ranges & compliance statuses).
+- **Central HTML Escape Utility**: `escape.js` consolidates escaping to prevent inconsistent DOM sanitization.
+- **Worker Timing Module**: `worker-timing.js` manages metrics refresh countdown & last-refreshed display using store timing state (poll interval + next refresh) with automatic timer reset on SSE updates.
+- **SSE Status Indicator Injection**: Workers view now prepends realtime connection badge (`initializing/connected/reconnecting/disconnected/error`) for transparency.
+- **Start/Stop Command Refinement**: `StartCMLWorkerCommandHandler` & `StopCMLWorkerCommandHandler` updated for immediate status transitions (`PENDING`, `STOPPING`) with explicit tracing spans (`retrieve_cml_worker`, `start_ec2_instance` / `stop_ec2_instance`, `update_worker_status`); avoids scheduling on-demand refresh relying on periodic monitoring for eventual RUNNING/STOPPED reconciliation.
+- **System UI Cleanup**: Removed legacy Worker Monitoring card & tab from `system.jinja`; streamlined to Health + Scheduler tabs, reducing visual noise and aligning with new dedicated Diagnostics endpoints.
+- **Frontend Refactor Plan Documented**: Added extensive `notes/FRONTEND_REFACTOR_PLAN.md` capturing assessment, root causes, phased plan (store introduction completed – Phase 1), acceptance criteria & rollback strategy.
+
+### Removed (Recent)
+
+- **Legacy Monitoring Card & Tab**: Eliminated from System view template (`system.jinja`) in favor of richer diagnostics + health aggregation.
+- **Ad-hoc Telemetry Test Script**: Deleted `test_telemetry_fix.py` (quick verification script) now superseded by structured components & handlers.
+
+### Changed (Recent)
+
+- **System View Reorganization**: Health/Scheduler primary; monitoring specifics migrated to dedicated worker details monitoring tab & diagnostics endpoints.
+- **Modal Interaction Robustness**: Lab confirmation flows manage backdrop z-index & opacity transitions preventing stacked phantom backdrops after chained modals.
+- **Refresh Button Stability**: Worker details refresh button clone strategy prevents stale event listeners & disabled state persistence.
+- **SSE Integration Path**: Initialization moved into `worker-init.js` with decoupled subscription binding and store-driven rendering.
+- **Uniform Status Badge Mapping**: `status-badges.js` centralizes mapping of worker & service states to Bootstrap contextual classes (consistency across table, cards, modal panels).
+- **Countdown Reliability**: Timer recalculations use authoritative next refresh timestamp; displays `Refreshing...` when elapsed rather than freezing at `00:00`.
+
+### Fixed (Recent)
+
+- **Duplicate Worker Detail Fetches**: Request deduplication via `inflight` Map prevents redundant concurrent API calls (resolves race & bandwidth waste).
+- **Modal Backdrop Leakage**: Confirmation modals now clean up excess backdrops & body classes; prevents darkened, unscrollable page state after multi-action sequences.
+- **Metrics Partial Data Handling**: Graceful fallbacks avoid NaN progress bars & inconsistent utilization (CPU, memory, disk) when telemetry incomplete.
+- **Lab State UI Lag**: Post-action polling reduces window where UI shows stale STARTING/STOPPING states before server reconciliation.
+- **Countdown Staleness**: Automatic reset on timing SSE updates prevents `--:--` persistence & stale last-refreshed timestamps.
+- **Escape Duplication**: Consolidated escaping logic eliminates inconsistent manual `innerText` conversions scattered across components.
+
+### Added (Helm & DevOps)
+
+- **Helm Chart**: Initial Kubernetes deployment chart (`charts/cml-cloud-manager/` & `deployment/helm/cml-cloud-manager/`) including app Deployment, Service, optional Ingress, Redis sidecar Deployment/Service, and MongoDB StatefulSet with PVC and secrets/config separation.
+- **Values Configuration**: Rich `values.yaml` defaults (intervals, auto-import, labs refresh, metrics poll, Redis/Mongo resources) with override examples in `NOTES.txt`.
+- **GitHub Actions CI**: Docker build & publish workflow (`.github/workflows/docker-publish.yml`) producing multi-tag images (commit SHA, semver tags) and running Trivy security scan.
+- **Environment Diagnostics**: Startup debug dump of environment variables (masked sensitive values) aiding operator visibility into interval & auto-import settings.
+- **System Health Service**: Aggregated health endpoint `/api/system/health` via `SystemHealthService` (Mongo latency, scheduler, session store, CloudEvent sink, Keycloak, OTEL collector).
+
+### Changed (Backend & Scheduling)
+
+- **Background Scheduler Refactor**: Simplified recurrent job discovery; stable global IDs; improved serialization with class name; safer service provider resolution; enriched diagnostics logging of scheduled jobs.
+- **Recurrent Job Scheduling**: Automatic scheduling of `AutoImportWorkersJob`, `LabsRefreshJob`, and `WorkerMetricsCollectionJob` without duplicate scans; interval now configurable for labs refresh (`LABS_REFRESH_INTERVAL`).
+- **On-Demand Refresh Job**: `OnDemandWorkerDataRefreshJob` normalized to `task_type="scheduled"` execution with slight delay to avoid misfire edge cases; refresh scheduling now records `scheduled_at` + emits requested/skip SSE events with accurate ETA seconds.
+- **Telemetry Emission**: CloudWatch metrics collection emits telemetry event unconditionally (for countdown timer continuity) and includes next refresh timestamp.
+- **Metrics Threshold**: Domain-level suppression for CML metrics changes using `metrics_change_threshold_percent` to reduce noisy events when deltas below threshold.
+- **Mongo Repository**: Added unique sparse index on `aws_instance_id` with race-safe duplicate prevention in `MongoCMLWorkerRepository.add_async`.
+- **Worker State Transitions**: Added `start_initiated_at` and `stop_initiated_at` timestamps for accurate long-running operation timers; exposed on worker detail & list queries.
+
+### Fixed (Compatibility & Stability)
+
+- **Legacy Refresh Button Error**: Added UI shim `_workersJs.refreshWorker` and API compatibility wrapper `workersApi.refreshWorker()` delegating to `requestWorkerRefresh` with normalized argument order.
+- **Rate Limiting Feedback**: Refresh throttle responses now include integer `retry_after_seconds` and emit consistent skip SSE with reason and ETA.
+- **Service Template Linting**: Disabled yamllint & pre-commit YAML checks on Helm templated files by using `.yaml.tpl` and updated exclusion patterns (prevents template false positives).
+- **Deployment Logs Truncation**: Local dev log file (`debug.log`) truncated at startup to avoid unbounded growth across sessions.
+- **Recurrent Job Resolution**: Robust fallback matching (task name, serialized class name, job id prefix) preventing skipped executions after Redis/Mongo job store resets.
+
+### Removed (Cleanup)
+
+- **Telemetry Test Script**: Deleted `test_telemetry_fix.py` (quick ad-hoc script) replaced by integrated CloudWatch telemetry + countdown logic.
+- **Redundant Exception Logging**: Removed duplicated error span attribute assignments in on-demand refresh job & bulk import command handler.
+
+### Security / Observability
+
+- **CloudEvent Sink Health Check**: Lightweight CloudEvent POST with masked event data validating sink responsiveness; degrades overall health on non-2xx responses.
+- **Keycloak & OTEL Reachability**: Added latency measurement & connection attempt for collector, marking components disabled vs unhealthy appropriately.
+
+### Dev Experience
+
+- **Masked Env Logging**: Sensitive env vars (SECRET/PASSWORD/TOKEN/KEY) masked while still showing length for debugging.
+- **Scheduler Diagnostics**: Startup job snapshot enumerates id/name/trigger/next run & kwargs for easier operator troubleshooting.
+
 ### Changed
 
 - **System View Scheduler Tab**: Improved job display clarity

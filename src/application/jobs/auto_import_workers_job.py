@@ -83,6 +83,18 @@ class AutoImportWorkersJob(RecurrentBackgroundJob):
 
         logger.info("✅ AutoImportWorkersJob configured successfully")
 
+    async def run_every(self, *args, **kwargs):
+        """Execute the job on schedule.
+
+        This method is required by ScheduledBackgroundJob base class.
+        It delegates to execute_async for the actual work
+
+        Args:
+            *args: Positional arguments (unused)
+            **kwargs: Keyword arguments (unused)
+        """
+        await self.execute_async()
+
     async def execute_async(self, context: dict | None = None) -> dict:
         """Execute auto-import workers job.
 
@@ -142,38 +154,56 @@ class AutoImportWorkersJob(RecurrentBackgroundJob):
 
                 result = await self.mediator.execute_async(command)
 
-                if result.succeeded:
-                    logger.info(
-                        f"✅ Auto-import completed: {result.data.total_imported} imported, "
-                        f"{result.data.total_skipped} skipped, {result.data.total_found} total found"
-                    )
-                    span.set_attribute("job.workers_found", result.data.total_found)
-                    span.set_attribute(
-                        "job.workers_imported", result.data.total_imported
-                    )
-                    span.set_attribute("job.workers_skipped", result.data.total_skipped)
+                # Align handling pattern with WorkerMetricsCollectionJob style (status code check)
+                status_code = getattr(result, "status", None)
+                detail = getattr(result, "detail", None)
 
-                    return {
-                        "status": "success",
-                        "total_found": result.data.total_found,
-                        "total_imported": result.data.total_imported,
-                        "total_skipped": result.data.total_skipped,
-                        "imported_worker_ids": [
-                            w.instance_id for w in result.data.imported
-                        ],
-                    }
-                else:
-                    logger.error(
-                        f"❌ Auto-import failed: {result.errors}",
-                        extra={"errors": result.errors},
+                if status_code != 200:
+                    # Use generic safe accessors for optional errors field
+                    errors_val = getattr(result, "errors", []) or []
+                    logger.warning(
+                        f"⚠️ Auto-import failed (status={status_code}) detail={detail} errors={errors_val}"
                     )
                     span.set_attribute("job.status", "failed")
-                    span.set_attribute("job.errors", str(result.errors))
-
+                    if detail:
+                        span.set_attribute("job.detail", str(detail))
+                    if errors_val:
+                        span.set_attribute("job.errors", str(errors_val))
                     return {
                         "status": "failed",
-                        "errors": result.errors,
+                        "status_code": status_code,
+                        "detail": detail,
+                        "errors": errors_val,
                     }
+
+                data = result.data
+                total_found = getattr(data, "total_found", 0)
+                total_imported = getattr(data, "total_imported", 0)
+                total_skipped = getattr(data, "total_skipped", 0)
+                imported_list = getattr(data, "imported", []) or []
+                imported_ids = [
+                    getattr(w, "instance_id", None)
+                    for w in imported_list
+                    if getattr(w, "instance_id", None)
+                ]
+
+                logger.info(
+                    f"✅ Auto-import completed: {total_imported} imported, {total_skipped} skipped, {total_found} total found"
+                )
+                span.set_attribute("job.status", "success")
+                span.set_attribute("job.workers_found", total_found)
+                span.set_attribute("job.workers_imported", total_imported)
+                span.set_attribute("job.workers_skipped", total_skipped)
+                span.set_attribute("job.imported_ids.count", len(imported_ids))
+
+                return {
+                    "status": "success",
+                    "status_code": status_code,
+                    "total_found": total_found,
+                    "total_imported": total_imported,
+                    "total_skipped": total_skipped,
+                    "imported_worker_ids": imported_ids,
+                }
 
             except Exception as ex:
                 logger.error(

@@ -69,6 +69,7 @@ class CMLWorkerStatusUpdatedDomainEvent(DomainEvent):
     old_status: CMLWorkerStatus
     new_status: CMLWorkerStatus
     updated_at: datetime
+    transition_initiated_at: datetime | None
 
     def __init__(
         self,
@@ -76,12 +77,14 @@ class CMLWorkerStatusUpdatedDomainEvent(DomainEvent):
         old_status: CMLWorkerStatus,
         new_status: CMLWorkerStatus,
         updated_at: datetime,
+        transition_initiated_at: datetime | None = None,
     ) -> None:
         super().__init__(aggregate_id)
         self.aggregate_id = aggregate_id
         self.old_status = old_status
         self.new_status = new_status
         self.updated_at = updated_at
+        self.transition_initiated_at = transition_initiated_at
 
 
 @cloudevent("cml_worker.service.status.updated.v1")

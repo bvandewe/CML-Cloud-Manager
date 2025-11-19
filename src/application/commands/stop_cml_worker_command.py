@@ -1,4 +1,9 @@
-"""Stop CML Worker command with handler."""
+"""Stop CML Worker command with handler.
+
+Sets status to STOPPING immediately; no on-demand refresh is scheduled
+because EC2/CML shutdown can take minutes. Periodic monitoring updates
+will reconcile final stopped state.
+"""
 
 import logging
 from dataclasses import dataclass
@@ -68,6 +73,7 @@ class StopCMLWorkerCommandHandler(
         )
         self.cml_worker_repository = cml_worker_repository
         self.aws_ec2_client = aws_ec2_client
+        # No immediate refresh scheduling; monitoring jobs will pick up changes.
 
     async def handle_async(
         self, request: StopCMLWorkerCommand
@@ -160,7 +166,7 @@ class StopCMLWorkerCommandHandler(
             await self.cml_worker_repository.update_async(worker)
 
             log.info(
-                f"CML Worker stopped successfully: id={worker.id()}, "
+                f"CML Worker stop initiated successfully: id={worker.id()}, "
                 f"aws_instance_id={worker.state.aws_instance_id}"
             )
 

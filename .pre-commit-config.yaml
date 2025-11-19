@@ -11,7 +11,7 @@ repos:
             exclude: '\.md$'
           - id: end-of-file-fixer
           - id: check-yaml
-            exclude: '^(deployment/helm/)'
+            exclude: '^(deployment/helm/|charts/cml-cloud-manager/)'
           - id: check-json
             exclude: '^\.vscode\.example/'
           - id: check-added-large-files
@@ -59,7 +59,7 @@ repos:
       hooks:
           - id: prettier
             types_or: [javascript, jsx, ts, tsx, css, scss, sass, html, json, yaml, markdown]
-            exclude: '^(package-lock\.json|poetry\.lock|deployment/helm/)'
+            exclude: '^(package-lock\.json|poetry\.lock|deployment/helm/|charts/cml-cloud-manager/)'
             args: ['--config', '.prettierrc']
 
     # Markdown linting
@@ -76,7 +76,7 @@ repos:
       hooks:
           - id: yamllint
             args: ['-d', '{extends: default, rules: {line-length: {max: 250}, document-start: disable}}']
-            exclude: '^(deployment/helm/|docker-compose.yml|.pre-commit-config.yaml)'
+            exclude: '^(deployment/helm/|charts/cml-cloud-manager/|docker-compose.yml|.pre-commit-config.yaml)'
 
     # Security check for Python dependencies
     - repo: https://github.com/PyCQA/bandit

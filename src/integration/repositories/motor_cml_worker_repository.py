@@ -5,9 +5,11 @@ This extends the framework's MotorRepository to provide CMLWorker-specific queri
 while inheriting all standard CRUD operations with automatic domain event publishing.
 """
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Optional, cast
 
+import pymongo.errors
 from motor.motor_asyncio import AsyncIOMotorClient
 from neuroglia.data.infrastructure.mongo import MotorRepository
 from neuroglia.data.infrastructure.tracing_mixin import TracedRepositoryMixin
@@ -19,6 +21,8 @@ from domain.repositories.cml_worker_repository import CMLWorkerRepository
 
 if TYPE_CHECKING:
     from neuroglia.mediation.mediator import Mediator
+
+log = logging.getLogger(__name__)
 
 
 class MongoCMLWorkerRepository(TracedRepositoryMixin, MotorRepository[CMLWorker, str], CMLWorkerRepository):  # type: ignore[misc]
@@ -60,6 +64,9 @@ class MongoCMLWorkerRepository(TracedRepositoryMixin, MotorRepository[CMLWorker,
             entity_type=entity_type,
             mediator=mediator,
         )
+
+        # Flag to avoid recreating indexes repeatedly
+        self._indexes_initialized: bool = False
 
     async def get_all_async(self) -> list[CMLWorker]:
         """Retrieve all CML workers."""
@@ -154,7 +161,33 @@ class MongoCMLWorkerRepository(TracedRepositoryMixin, MotorRepository[CMLWorker,
         Returns:
             The added worker with updated state
         """
-        return cast(CMLWorker, await super().add_async(entity))
+        # Ensure unique index on aws_instance_id (sparse to allow None values)
+        if not self._indexes_initialized:
+            try:
+                await self.collection.create_index(
+                    "aws_instance_id", unique=True, sparse=True
+                )
+            except Exception:
+                # Index creation failures should not block normal operation
+                log.warning("Failed to create index on aws_instance_id", exc_info=True)
+            finally:
+                self._indexes_initialized = True
+
+        instance_id = entity.state.aws_instance_id
+        if instance_id:
+            # Atomic check to prevent duplicate imports (race condition safe)
+            existing = await self.collection.find_one({"aws_instance_id": instance_id})
+            if existing:
+                # Return existing aggregate rather than creating a duplicate
+                return self._deserialize_entity(existing)
+        try:
+            return cast(CMLWorker, await super().add_async(entity))
+        except pymongo.errors.DuplicateKeyError:
+            # In rare case of race between check and insert, fetch existing
+            existing = await self.collection.find_one({"aws_instance_id": instance_id})
+            if existing:
+                return self._deserialize_entity(existing)
+            raise
 
     async def update_async(self, entity: CMLWorker) -> CMLWorker:  # type: ignore[override]
         """Update an existing CML worker.

@@ -16,10 +16,12 @@ logger = logging.getLogger(__name__)
 class SystemController(ControllerBase):
     """Controller for system internals and monitoring endpoints."""
 
+    # Class-level prefix so decorators pick it up reliably
+    prefix = "system"
+
     def __init__(
         self, service_provider: ServiceProviderBase, mapper: Mapper, mediator: Mediator
     ):
-        """Initialize System Controller."""
         ControllerBase.__init__(self, service_provider, mapper, mediator)
 
     @get(
@@ -34,15 +36,6 @@ class SystemController(ControllerBase):
         token: str = Depends(get_current_user),
         roles: str = Depends(require_roles("admin", "manager", "user")),
     ) -> Any:
-        """List all APScheduler jobs and their status.
-
-        Returns information about background scheduler jobs including:
-        - Job ID and name
-        - Next run time
-        - Trigger type
-        - Job status
-
-        (**Requires authenticated user.**)"""
         try:
             from application.services import BackgroundTaskScheduler
 
@@ -50,16 +43,14 @@ class SystemController(ControllerBase):
                 self.service_provider.get_required_service(BackgroundTaskScheduler)
             )
 
-            jobs = []
+            jobs: list[dict] = []
             if scheduler and scheduler._scheduler:
                 for job in scheduler._scheduler.get_jobs():
-                    # Extract the actual command/job class name from kwargs
                     command_name = (
                         job.kwargs.get("task_type_name", "N/A")
                         if hasattr(job, "kwargs") and job.kwargs
                         else job.name or "N/A"
                     )
-
                     jobs.append(
                         {
                             "id": job.id,
@@ -74,7 +65,6 @@ class SystemController(ControllerBase):
                             "pending": job.pending,
                         }
                     )
-
             return jobs
         except Exception as e:
             logger.error(f"Failed to retrieve scheduler jobs: {e}")
@@ -85,10 +75,7 @@ class SystemController(ControllerBase):
         response_model=dict,
         response_description="Job deletion result",
         status_code=200,
-        responses={
-            **ControllerBase.error_responses,
-            404: {"description": "Job not found"},
-        },
+        responses=ControllerBase.error_responses,
     )
     async def delete_scheduler_job(
         self,
@@ -96,37 +83,19 @@ class SystemController(ControllerBase):
         token: str = Depends(get_current_user),
         roles: str = Depends(require_roles("admin")),
     ) -> Any:
-        """Delete a scheduled job by ID.
-
-        This endpoint allows administrators to remove background jobs from the scheduler.
-        The job will be immediately removed and will not run again.
-
-        (**Requires admin role.**)"""
         try:
             from application.services import BackgroundTaskScheduler
 
             scheduler: BackgroundTaskScheduler = (
                 self.service_provider.get_required_service(BackgroundTaskScheduler)
             )
-
             if not scheduler or not scheduler._scheduler:
-                raise HTTPException(
-                    status_code=503,
-                    detail="Scheduler not available",
-                )
-
-            # Check if job exists
+                raise HTTPException(status_code=503, detail="Scheduler not available")
             job = scheduler._scheduler.get_job(job_id)
             if not job:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Job '{job_id}' not found",
-                )
-
-            # Remove the job
+                raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
             scheduler._scheduler.remove_job(job_id)
             logger.info(f"Job '{job_id}' deleted successfully by user")
-
             return {
                 "success": True,
                 "message": f"Job '{job_id}' deleted successfully",
@@ -137,9 +106,28 @@ class SystemController(ControllerBase):
         except Exception as e:
             logger.error(f"Failed to delete job '{job_id}': {e}")
             raise HTTPException(
-                status_code=500,
-                detail=f"Failed to delete job: {str(e)}",
+                status_code=500, detail=f"Failed to delete job: {str(e)}"
             )
+
+    @get(
+        "/health",
+        response_model=dict,
+        response_description="System health status",
+        status_code=200,
+        responses=ControllerBase.error_responses,
+    )
+    async def get_system_health(
+        self,
+        token: str = Depends(get_current_user),
+        roles: str = Depends(require_roles("admin", "manager", "user")),
+    ) -> Any:
+        """Return aggregated system health using `SystemHealthService`."""
+        from application.services.system_health_service import SystemHealthService
+
+        svc: SystemHealthService = self.service_provider.get_required_service(
+            SystemHealthService
+        )
+        return await svc.get_system_health(self.mediator, self.service_provider)
 
     @get(
         "/scheduler/status",
@@ -153,16 +141,12 @@ class SystemController(ControllerBase):
         token: str = Depends(get_current_user),
         roles: str = Depends(require_roles("admin", "manager", "user")),
     ) -> Any:
-        """Get APScheduler status and statistics.
-
-        (**Requires authenticated user.**)"""
         try:
             from application.services import BackgroundTaskScheduler
 
             scheduler: BackgroundTaskScheduler = (
                 self.service_provider.get_required_service(BackgroundTaskScheduler)
             )
-
             if scheduler and scheduler._scheduler:
                 jobs = scheduler._scheduler.get_jobs()
                 return {
@@ -182,13 +166,12 @@ class SystemController(ControllerBase):
                         for job in jobs
                     ],
                 }
-            else:
-                return {
-                    "running": False,
-                    "state": "NOT_INITIALIZED",
-                    "job_count": 0,
-                    "jobs": [],
-                }
+            return {
+                "running": False,
+                "state": "NOT_INITIALIZED",
+                "job_count": 0,
+                "jobs": [],
+            }
         except Exception as e:
             logger.error(f"Failed to retrieve scheduler status: {e}")
             return {
@@ -211,156 +194,45 @@ class SystemController(ControllerBase):
         token: str = Depends(get_current_user),
         roles: str = Depends(require_roles("admin", "manager", "user")),
     ) -> Any:
-        """Get worker monitoring service status.
-
-        Returns information about the background job scheduler including:
-        - Active background jobs
-        - Job count
-        - Scheduler running state
-
-        (**Requires authenticated user.**)"""
         try:
-            from application.services.background_scheduler import (
-                BackgroundTaskScheduler,
-            )
+            try:
+                from main import _monitoring_scheduler  # type: ignore
 
-            scheduler: BackgroundTaskScheduler = (
-                self.service_provider.get_required_service(BackgroundTaskScheduler)
-            )
-
-            if scheduler and scheduler._scheduler:
-                jobs = scheduler._scheduler.get_jobs()
+                monitoring_scheduler = _monitoring_scheduler
+            except Exception:
+                monitoring_scheduler = None
+            if monitoring_scheduler and monitoring_scheduler._is_running:
+                collectors = [
+                    {
+                        "worker_id": worker_id,
+                        "job_id": job_id,
+                        "status": "active",
+                        "interval": f"{monitoring_scheduler._poll_interval}s",
+                    }
+                    for worker_id, job_id in monitoring_scheduler._active_jobs.items()
+                ]
                 return {
-                    "status": "active",
-                    "scheduler_running": scheduler._scheduler.running,
-                    "job_count": len(jobs),
-                    "jobs": [
-                        {
-                            "id": job.id,
-                            "name": job.name,
-                            "next_run_time": (
-                                job.next_run_time.isoformat()
-                                if job.next_run_time
-                                else None
-                            ),
-                        }
-                        for job in jobs
-                    ],
+                    "collectors": collectors,
+                    "total_collectors": len(collectors),
+                    "active_collectors": len(collectors),
+                    "poll_interval": monitoring_scheduler._poll_interval,
                 }
-            else:
-                return {
-                    "status": "inactive",
-                    "scheduler_running": False,
-                    "job_count": 0,
-                    "jobs": [],
-                }
-        except Exception as e:
-            logger.error(f"Failed to retrieve background job scheduler status: {e}")
             return {
-                "status": "error",
-                "error": str(e),
-                "scheduler_running": False,
-                "job_count": 0,
-                "jobs": [],
-            }
-
-    @get(
-        "/health",
-        response_model=dict,
-        response_description="System health status",
-        status_code=200,
-        responses=ControllerBase.error_responses,
-    )
-    async def get_system_health(
-        self,
-        token: str = Depends(get_current_user),
-    ) -> Any:
-        """Get overall system health status.
-
-        Returns health information about:
-        - Database connectivity
-        - Redis connectivity
-        - Background schedulers
-        - Event publishing
-
-        (**Requires valid token.**)"""
-        health_status = {
-            "status": "healthy",
-            "components": {},
-        }
-
-        # Check database via mediator (which uses scoped repositories)
-        try:
-            from application.queries.get_cml_workers_query import GetCMLWorkersQuery
-            from integration.enums import AwsRegion
-
-            # Try a simple query to verify database connectivity
-            query = GetCMLWorkersQuery(aws_region=AwsRegion.US_EAST_1)
-            _ = await self.mediator.execute_async(query)
-
-            health_status["components"]["database"] = {
-                "status": "healthy",
-                "type": "mongodb",
+                "collectors": [],
+                "total_collectors": 0,
+                "active_collectors": 0,
+                "poll_interval": 0,
+                "message": "Worker monitoring is not running",
             }
         except Exception as e:
-            logger.error(f"Database health check failed: {e}")
-            health_status["components"]["database"] = {
-                "status": "unhealthy",
+            logger.error(f"Failed to retrieve metrics collectors status: {e}")
+            return {
+                "collectors": [],
+                "total_collectors": 0,
+                "active_collectors": 0,
+                "poll_interval": 0,
                 "error": str(e),
             }
-            health_status["status"] = "degraded"
-
-        # Check background scheduler
-        try:
-            from application.services import BackgroundTaskScheduler
-
-            scheduler: BackgroundTaskScheduler = (
-                self.service_provider.get_required_service(BackgroundTaskScheduler)
-            )
-            if scheduler and scheduler._scheduler and scheduler._scheduler.running:
-                health_status["components"]["background_scheduler"] = {
-                    "status": "healthy",
-                    "running": True,
-                    "job_count": len(scheduler._scheduler.get_jobs()),
-                }
-            else:
-                health_status["components"]["background_scheduler"] = {
-                    "status": "unhealthy",
-                    "running": False,
-                }
-                health_status["status"] = "degraded"
-        except Exception as e:
-            logger.error(f"Scheduler health check failed: {e}")
-            health_status["components"]["background_scheduler"] = {
-                "status": "error",
-                "error": str(e),
-            }
-            health_status["status"] = "degraded"
-
-        # Check worker monitoring
-        try:
-            # Import global monitoring scheduler reference
-            from main import _monitoring_scheduler
-
-            monitoring = _monitoring_scheduler
-            if monitoring and monitoring._is_running:
-                health_status["components"]["worker_monitoring"] = {
-                    "status": "healthy",
-                    "running": True,
-                }
-            else:
-                health_status["components"]["worker_monitoring"] = {
-                    "status": "warning",
-                    "running": False,
-                }
-        except Exception as e:
-            logger.error(f"Worker monitoring health check failed: {e}")
-            health_status["components"]["worker_monitoring"] = {
-                "status": "error",
-                "error": str(e),
-            }
-
-        return health_status
 
     @get(
         "/metrics/collectors",
@@ -385,10 +257,13 @@ class SystemController(ControllerBase):
 
         (**Requires authenticated user.**)"""
         try:
-            # Import global monitoring scheduler reference
-            from main import _monitoring_scheduler
+            # Optional monitoring scheduler (may not be configured)
+            try:
+                from main import _monitoring_scheduler  # type: ignore
 
-            monitoring_scheduler = _monitoring_scheduler
+                monitoring_scheduler = _monitoring_scheduler
+            except Exception:
+                monitoring_scheduler = None
 
             if monitoring_scheduler and monitoring_scheduler._is_running:
                 # Get active monitoring jobs - one collector per worker

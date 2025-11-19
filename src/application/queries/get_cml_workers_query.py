@@ -69,6 +69,18 @@ class GetCMLWorkersQueryHandler(
                     "cml_labs_count": worker.state.cml_labs_count,
                     "created_at": worker.state.created_at.isoformat(),
                     "updated_at": worker.state.updated_at.isoformat(),
+                    "start_initiated_at": (
+                        worker.state.start_initiated_at.isoformat()
+                        if worker.state.start_initiated_at
+                        else None
+                    ),
+                    "stop_initiated_at": (
+                        worker.state.stop_initiated_at.isoformat()
+                        if worker.state.stop_initiated_at
+                        else None
+                    ),
+                    # Include raw system info so UI can derive additional metrics/fallbacks
+                    "cml_system_info": worker.state.cml_system_info,
                 }
                 for worker in filtered_workers
             ]
@@ -85,34 +97,65 @@ class GetCMLWorkersQueryHandler(
                 memory_stats = stats.get("memory", {})
                 disk_stats = stats.get("disk", {})
 
-                # CPU utilization: calculate from user + system time
+                # Derive CPU utilization
                 cpu_util = None
                 if cpu_stats:
-                    user_percent = cpu_stats.get("user_percent", 0.0)
-                    system_percent = cpu_stats.get("system_percent", 0.0)
-                    if user_percent is not None and system_percent is not None:
-                        cpu_util = user_percent + system_percent
+                    # Prefer consolidated percent if available
+                    percent = cpu_stats.get("percent")
+                    if percent is not None:
+                        try:
+                            cpu_util = float(percent)
+                        except (ValueError, TypeError):
+                            cpu_util = None
+                    else:
+                        user_percent = cpu_stats.get("user_percent")
+                        system_percent = cpu_stats.get("system_percent")
+                        if user_percent is not None and system_percent is not None:
+                            try:
+                                cpu_util = float(user_percent) + float(system_percent)
+                            except (ValueError, TypeError):
+                                cpu_util = None
 
-                # Memory utilization: calculate from available vs total
+                # Derive Memory utilization (require both total_kb & available_kb)
                 memory_util = None
                 if memory_stats:
-                    available_kb = memory_stats.get("available_kb", 0)
-                    total_kb = memory_stats.get("total_kb", 1)
-                    if total_kb > 0 and available_kb is not None:
+                    total_kb = memory_stats.get("total_kb")
+                    available_kb = memory_stats.get("available_kb")
+                    if (
+                        isinstance(total_kb, (int, float))
+                        and isinstance(available_kb, (int, float))
+                        and total_kb > 0
+                        and available_kb <= total_kb
+                    ):
                         used_kb = total_kb - available_kb
                         memory_util = (used_kb / total_kb) * 100
 
-                # Storage utilization: calculate from size vs capacity
+                # Derive Storage utilization (require both size_kb & capacity_kb)
                 storage_util = None
                 if disk_stats:
-                    size_kb = disk_stats.get("size_kb", 0)
-                    capacity_kb = disk_stats.get("capacity_kb", 1)
-                    if capacity_kb > 0 and size_kb is not None:
+                    size_kb = disk_stats.get("size_kb")
+                    capacity_kb = disk_stats.get("capacity_kb")
+                    if (
+                        isinstance(size_kb, (int, float))
+                        and isinstance(capacity_kb, (int, float))
+                        and capacity_kb > 0
+                        and size_kb <= capacity_kb
+                    ):
                         storage_util = (size_kb / capacity_kb) * 100
 
-                result[idx]["cpu_utilization"] = cpu_util
-                result[idx]["memory_utilization"] = memory_util
-                result[idx]["storage_utilization"] = storage_util
+                # Clamp values to [0,100]
+                def _clamp(v):
+                    if v is None:
+                        return None
+                    try:
+                        fv = float(v)
+                    except (ValueError, TypeError):
+                        return None
+                    return max(0.0, min(100.0, fv))
+
+                result[idx]["cpu_utilization"] = _clamp(cpu_util)
+                result[idx]["memory_utilization"] = _clamp(memory_util)
+                result[idx]["storage_utilization"] = _clamp(storage_util)
 
             logger.info(
                 f"Retrieved {len(result)} CML workers in region {request.aws_region.value}"

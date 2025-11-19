@@ -360,7 +360,3 @@ class BulkImportCMLWorkersCommandHandler(
                 f"Unexpected error bulk importing CML Workers: {e}", exc_info=True
             )
             return self.bad_request(f"Unexpected error: {str(e)}")
-            log.error(
-                f"Unexpected error bulk importing CML Workers: {e}", exc_info=True
-            )
-            return self.bad_request(f"Unexpected error: {str(e)}")

@@ -113,6 +113,12 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
         2. Process workers concurrently with semaphore (max 10 concurrent)
         3. Batch update all workers to database
         """
+        logger.info(
+            "🚀 WorkerMetricsCollectionJob cycle start (interval=%s)s job_id=%s",
+            app_settings.worker_metrics_poll_interval,
+            getattr(self, "__task_id__", "unknown"),
+        )
+
         # Ensure dependencies are injected
         assert (
             hasattr(self, "aws_ec2_client") and self.aws_ec2_client is not None
@@ -259,7 +265,7 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
                         errors += 1
                         logger.error(f"Worker processing exception: {result}")
                     elif result:
-                        worker_id, success, status = result
+                        worker_id, success, status = result  # type: ignore[assignment]
                         if success:
                             success_count += 1
                             if status == "labs_skipped":
@@ -272,8 +278,10 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
                 span.set_attribute("errors", errors)
 
                 logger.info(
-                    f"✅ Completed metrics collection: {success_count} workers processed, "
-                    f"{labs_skipped} labs skipped, {errors} errors"
+                    "✅ Completed metrics collection: %s workers processed, %s labs skipped, %s errors",
+                    success_count,
+                    labs_skipped,
+                    errors,
                 )
 
             except Exception as e:

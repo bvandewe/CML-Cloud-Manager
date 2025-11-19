@@ -43,11 +43,11 @@ def _parse_cml_timestamp(timestamp_str: str | None) -> datetime | None:
         return None
 
 
-@backgroundjob(task_type="recurrent", interval=1800)  # 30 minutes
+@backgroundjob(task_type="recurrent", interval=app_settings.labs_refresh_interval)
 class LabsRefreshJob(RecurrentBackgroundJob):
     """Recurrent background job for refreshing lab data from all active workers.
 
-    This job runs every 30 minutes and:
+    This job runs at a configurable interval (default: 30 minutes, override via LABS_REFRESH_INTERVAL env var) and:
     - Fetches labs from CML API for all active workers
     - Upserts lab records to database
     - Creates lab_records collection indexes on first run
@@ -138,58 +138,58 @@ class LabsRefreshJob(RecurrentBackgroundJob):
             logger.error("❌ Service provider not configured - job cannot execute")
             return
 
-        with tracer.start_as_current_span("labs_refresh_job.run_every") as span:
-            # Create a scope to access scoped services
+        with tracer.start_as_current_span("labs_refresh_job") as span:
             scope = self._service_provider.create_scope()
-
             try:
-                # Get repositories from scope
                 worker_repository = scope.get_required_service(CMLWorkerRepository)
                 lab_record_repository = scope.get_required_service(LabRecordRepository)
 
                 logger.info("🔄 Starting labs refresh cycle")
-
-                # Get all active workers
                 workers = await worker_repository.get_active_workers_async()
                 span.set_attribute("workers.count", len(workers))
 
-                total_labs_synced = 0
-                total_labs_created = 0
-                total_labs_updated = 0
+                if not workers:
+                    logger.debug("No active workers for labs refresh")
+                    span.set_attribute("labs.refresh.skipped", True)
+                    return
 
-                for worker in workers:
-                    # Skip workers without HTTPS endpoint or not running
-                    if (
-                        not worker.state.https_endpoint
-                        or worker.state.status != CMLWorkerStatus.RUNNING
-                    ):
-                        logger.debug(
-                            f"Skipping worker {worker.id()} - "
-                            f"status={worker.state.status}, endpoint={worker.state.https_endpoint}"
-                        )
-                        continue
+                semaphore = asyncio.Semaphore(5)
+                results = []
 
-                    try:
-                        synced, created, updated = await self._refresh_worker_labs(
-                            worker, lab_record_repository
-                        )
-                        total_labs_synced += synced
-                        total_labs_created += created
-                        total_labs_updated += updated
-                    except Exception as e:
-                        logger.error(
-                            f"Failed to refresh labs for worker {worker.id()}: {e}",
-                            exc_info=True,
-                        )
-                        span.record_exception(e)
-                        # Continue with next worker instead of failing the entire job
-                        continue
+                async def process_worker(worker):
+                    async with semaphore:
+                        # Skip non-running or missing endpoint
+                        if (
+                            not worker.state.https_endpoint
+                            or worker.state.status != CMLWorkerStatus.RUNNING
+                        ):
+                            logger.debug(
+                                f"⏭️ Skipping worker {worker.id()} - status={worker.state.status}, endpoint={worker.state.https_endpoint}"
+                            )
+                            return (0, 0, 0)
+                        try:
+                            return await self._refresh_worker_labs(
+                                worker, lab_record_repository
+                            )
+                        except Exception as e:
+                            logger.error(
+                                f"❌ Failed labs refresh for worker {worker.id()}: {e}",
+                                exc_info=True,
+                            )
+                            span.record_exception(e)
+                            return (0, 0, 0)
 
-                logger.info(
-                    f"✅ Labs refresh complete: synced={total_labs_synced}, "
-                    f"created={total_labs_created}, updated={total_labs_updated}"
+                results = await asyncio.gather(
+                    *[process_worker(w) for w in workers], return_exceptions=False
                 )
 
+                total_labs_synced = sum(r[0] for r in results)
+                total_labs_created = sum(r[1] for r in results)
+                total_labs_updated = sum(r[2] for r in results)
+
+                logger.info(
+                    f"✅ Labs refresh complete: synced={total_labs_synced}, created={total_labs_created}, updated={total_labs_updated}"
+                )
                 span.set_attribute("labs.synced", total_labs_synced)
                 span.set_attribute("labs.created", total_labs_created)
                 span.set_attribute("labs.updated", total_labs_updated)
@@ -200,7 +200,6 @@ class LabsRefreshJob(RecurrentBackgroundJob):
                 span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
                 raise
             finally:
-                # Dispose the scope to release scoped services
                 scope.dispose()
 
     async def _refresh_worker_labs(

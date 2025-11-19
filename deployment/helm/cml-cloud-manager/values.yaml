@@ -1,0 +1,93 @@
+image:
+    repository: cml-cloud-manager
+    tag: latest
+    pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+service:
+    type: ClusterIP
+    port: 8000
+
+ingress:
+    enabled: false
+    className: ''
+    annotations: {}
+    hosts:
+        - host: cml.local
+          paths:
+              - path: /
+                pathType: Prefix
+    tls: []
+
+resources:
+    limits:
+        cpu: 500m
+        memory: 512Mi
+    requests:
+        cpu: 100m
+        memory: 256Mi
+
+redis:
+    enabled: true
+    image: redis:7.2-alpine
+    port: 6379
+    resources:
+        requests:
+            cpu: 50m
+            memory: 64Mi
+        limits:
+            cpu: 200m
+            memory: 256Mi
+
+mongodb:
+    enabled: true
+    image: mongo:6.0
+    port: 27017
+    auth:
+        username: root  # pragma: allowlist secret
+        password: pass # change via --set mongodb.auth.password=... or secret override  # pragma: allowlist secret
+    persistence:
+        enabled: true
+        accessModes:
+            - ReadWriteOnce
+        size: 5Gi
+        storageClass: '' # leave empty to use default
+    resources:
+        requests:
+            cpu: 100m
+            memory: 256Mi
+        limits:
+            cpu: 500m
+            memory: 512Mi
+
+env:
+    # General application settings
+    DEBUG: 'false'
+    APP_PORT: '8000'
+    LOG_LEVEL: INFO
+    WORKER_METRICS_POLL_INTERVAL: '300'
+    LABS_REFRESH_INTERVAL: '1800'
+    AUTO_IMPORT_WORKERS_ENABLED: 'false'
+    AUTO_IMPORT_WORKERS_INTERVAL: '3600'
+    AUTO_IMPORT_WORKERS_REGION: us-east-1
+
+    # Redis integration
+    REDIS_ENABLED: 'true'
+    REDIS_URL: redis://cml-cloud-manager-redis:6379/0
+
+    # Mongo connection (pydantic nested key mapping)
+    CONNECTION_STRINGS__MONGO: mongodb://root:pass@cml-cloud-manager-mongodb:27017/?authSource=admin  # pragma: allowlist secret (example credentials; override via --set or external Secret)
+
+    # Disable OTEL by default in minimal chart (can enable if collector available)
+    OTEL_ENABLED: 'false'
+
+secretEnv:
+    SESSION_SECRET_KEY: 'change-me-in-prod' # override via --set secretEnv.SESSION_SECRET_KEY=...  # pragma: allowlist secret
+    AWS_ACCESS_KEY_ID: '' # provide via --set or external secret  # pragma: allowlist secret
+    AWS_SECRET_ACCESS_KEY: '' # provide via --set or external secret  # pragma: allowlist secret
+    CML_WORKER_API_PASSWORD: 'admin' # example, change in prod  # pragma: allowlist secret
+
+nodeSelector: {}
+affinity: {}
+tolerations: []

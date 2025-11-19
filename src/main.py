@@ -1,6 +1,7 @@
 """Main application entry point with SubApp mounting."""
 
 import logging
+import os
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -28,6 +29,7 @@ from api.services.openapi_config import (
 )
 from application.services.background_scheduler import BackgroundTaskScheduler
 from application.services.sse_event_relay import SSEEventRelayHostedService
+from application.services.system_health_service import SystemHealthService
 from application.settings import app_settings, configure_logging
 from domain.entities import Task
 from domain.entities.cml_worker import CMLWorker
@@ -45,8 +47,65 @@ from integration.repositories.motor_lab_record_repository import (
 from integration.repositories.motor_task_repository import MongoTaskRepository
 from integration.services.aws_ec2_api_client import AwsEc2Client
 
+"""Pre-config logging file truncation for LOCAL_DEV before handlers attach."""
+try:
+    if os.getenv("LOCAL_DEV", "").lower() in ("1", "true", "yes", True):
+        logs_dir = Path(__file__).parent / "logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        debug_log_path = (
+            logs_dir / "debug.log"
+        )  # actual log file used by configure_logging
+        # Truncate (create empty) before FileHandler opens in append mode
+        debug_log_path.write_text("")
+except Exception:
+    # Safe to ignore; will still proceed with logging configuration
+    print("Truncating log file failed")
+
 configure_logging(log_level=app_settings.log_level)
 log = logging.getLogger(__name__)
+
+
+def _mask_env_value(key: str, value: str) -> str:
+    """Mask sensitive environment variable values.
+
+    Any key containing common secret indicators will be masked to avoid leaking credentials.
+    """
+    sensitive_markers = ["SECRET", "PASSWORD", "TOKEN", "KEY", "ACCESS_KEY"]
+    upper_key = key.upper()
+    if any(marker in upper_key for marker in sensitive_markers):
+        # Preserve length for debugging without exposing content
+        return f"***MASKED(len={len(value)})***" if value else "***MASKED***"
+    return value
+
+
+def debug_log_environment(prefix_only: tuple[str, ...] = ("AUTO_IMPORT_",)) -> None:
+    """Dump environment variables at DEBUG level for diagnostic purposes.
+
+    Sensitive values are masked. Optionally highlight certain prefixes (e.g. AUTO_IMPORT_).
+    """
+    if not log.isEnabledFor(logging.DEBUG):
+        return
+    try:
+        log.debug("🔍 Dumping environment variables for startup diagnostics (masked)")
+        highlighted = {}
+        for k, v in sorted(os.environ.items()):
+            masked = _mask_env_value(k, v)
+            # Log all variables
+            log.debug("ENV %s=%s", k, masked)
+            if prefix_only and any(k.startswith(p) for p in prefix_only):
+                highlighted[k] = v
+        if highlighted:
+            log.debug("✅ Highlighted AUTO_IMPORT settings: %s", highlighted)
+        # Also log resolved settings object values of interest
+        log.debug(
+            "🧪 Resolved auto-import settings: enabled=%s interval=%s region=%s ami_name=%s",
+            app_settings.auto_import_workers_enabled,
+            app_settings.auto_import_workers_interval,
+            app_settings.auto_import_workers_region,
+            app_settings.auto_import_workers_ami_name,
+        )
+    except Exception as ex:
+        log.warning("Failed to dump environment variables: %s", ex)
 
 
 def create_app() -> FastAPI:
@@ -60,6 +119,9 @@ def create_app() -> FastAPI:
         Configured FastAPI application with multiple mounted apps
     """
     log.debug("🚀 Creating Cml Cloud Manager application...")
+
+    # Early environment diagnostics before service configuration & scheduler startup
+    debug_log_environment()
 
     builder = WebApplicationBuilder(app_settings=app_settings)
 
@@ -136,7 +198,8 @@ def create_app() -> FastAPI:
         modules=["application.jobs"],  # Scan for @backgroundjob decorated classes
     )
 
-    # Note: WorkerMetricsOrchestrator removed - using RefreshWorkerMetricsCommand directly via Mediator for simplicity
+    # Configure SystemHealthService (aggregated health checks)
+    SystemHealthService.configure(builder)
 
     # Configure WorkerRefreshThrottle as singleton for rate-limiting
     WorkerRefreshThrottle.configure(builder)

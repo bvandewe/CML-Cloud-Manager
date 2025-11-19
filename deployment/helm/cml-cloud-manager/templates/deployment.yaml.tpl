@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "cml.name" . }}
+  labels:
+{{ include "cml.labels" . | indent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+{{ include "cml.selectorLabels" . | indent 6 }}
+  template:
+    metadata:
+      labels:
+{{ include "cml.selectorLabels" . | indent 8 }}
+    spec:
+      containers:
+        - name: cml-cloud-manager
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.port }}
+              name: http
+          envFrom:
+            - configMapRef:
+                name: {{ include "cml.name" . }}-config
+            - secretRef:
+                name: {{ include "cml.name" . }}-secret
+          env:
+            - name: PYTHONPATH
+              value: /app/src
+            - name: CONNECTION_STRINGS__MONGO
+              value: {{ .Values.env.CONNECTION_STRINGS__MONGO | quote }}
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+      nodeSelector:
+{{ toYaml .Values.nodeSelector | indent 8 }}
+      affinity:
+{{ toYaml .Values.affinity | indent 8 }}
+      tolerations:
+{{ toYaml .Values.tolerations | indent 8 }}

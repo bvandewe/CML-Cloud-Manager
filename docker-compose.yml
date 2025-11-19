@@ -16,8 +16,9 @@ services:
             - '${APP_PORT:-8020}:8080' # Main application port
             - '5678:5678' # Debug port
         environment:
-            LOCAL_DEV: 'true'
+            LOCAL_DEV: true
             LOG_LEVEL: DEBUG
+            DEBUG: true
             PYTHONPATH: '/app/src'
 
             APP_URL: http://localhost:${APP_PORT:-8030}
@@ -81,10 +82,15 @@ services:
             CML_WORKER_API_USERNAME: ${CML_WORKER_API_USERNAME}
             CML_WORKER_API_PASSWORD: ${CML_WORKER_API_PASSWORD}
 
+            AUTO_IMPORT_WORKERS_FORCE_REQUEUE: true
             AUTO_IMPORT_WORKERS_ENABLED: ${AUTO_IMPORT_WORKERS_ENABLED}
             AUTO_IMPORT_WORKERS_INTERVAL: ${AUTO_IMPORT_WORKERS_INTERVAL}
             AUTO_IMPORT_WORKERS_REGION: ${AUTO_IMPORT_WORKERS_REGION}
             AUTO_IMPORT_WORKERS_AMI_NAME: ${AUTO_IMPORT_WORKERS_AMI_NAME}
+
+            LABS_REFRESH_INTERVAL: ${LABS_REFRESH_INTERVAL}
+
+            WORKER_METRICS_POLL_INTERVAL: ${WORKER_METRICS_POLL_INTERVAL}
 
         volumes:
             - ./:/app

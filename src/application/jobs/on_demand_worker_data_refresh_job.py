@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
 
 
-@backgroundjob(task_type="one_time")
+@backgroundjob(task_type="scheduled")
 class OnDemandWorkerDataRefreshJob(ScheduledBackgroundJob):
     """One-time background job for refreshing a single worker's data on demand.
 
@@ -70,18 +70,6 @@ class OnDemandWorkerDataRefreshJob(ScheduledBackgroundJob):
         self._service_provider = service_provider
 
     async def run_at(self, *args, **kwargs):
-        """Execute the job at the scheduled time.
-
-        This method is required by ScheduledBackgroundJob base class.
-        It delegates to execute_async for the actual work.
-
-        Args:
-            *args: Positional arguments (unused)
-            **kwargs: Keyword arguments (unused)
-        """
-        await self.execute_async()
-
-    async def execute_async(self, context=None):
         """Execute full data refresh for the specified worker.
 
         This method orchestrates both metrics and labs refresh commands:
@@ -193,7 +181,4 @@ class OnDemandWorkerDataRefreshJob(ScheduledBackgroundJob):
                     f"❌ On-demand data refresh job failed for worker {self.worker_id}"
                 )
                 span.set_attribute("error", True)
-                span.set_attribute("error.message", str(e))
-                span.set_attribute("error.message", str(e))
-                span.set_attribute("error.message", str(e))
                 span.set_attribute("error.message", str(e))
