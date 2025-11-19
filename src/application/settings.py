@@ -152,7 +152,32 @@ class Settings(ApplicationSettings):
     # Worker Monitoring Configuration
     worker_monitoring_enabled: bool = True
     worker_metrics_poll_interval: int = (
-        300  # Seconds between metrics collections (default: 5 minutes)
+        300  # 5 minutes (must match WorkerMetricsCollectionJob)
+    )
+
+    # Worker Activity Detection & Idle Timeout Configuration
+    worker_activity_detection_enabled: bool = True  # Feature flag
+    worker_activity_detection_interval: int = 1800  # 30 minutes between checks
+    worker_idle_timeout_minutes: int = 60  # Idle time before auto-pause
+    worker_auto_pause_enabled: bool = True  # Enable automatic pause on idle
+    worker_auto_pause_snooze_minutes: int = 60  # Prevent re-pause after resume
+    worker_activity_events_max_stored: int = 10  # Max recent events to store
+
+    # Event filtering for activity detection
+    worker_activity_relevant_categories: list[str] = [
+        "start_lab",
+        "stop_lab",
+        "wipe_lab",
+        "import_lab",
+        "export_lab",
+        "start_node",
+        "stop_node",
+        "queue_node",
+        "boot_node",
+        "user_activity",  # Filtered further by user_id pattern
+    ]
+    worker_activity_excluded_user_pattern: str = (
+        "^00000000-0000-.*"  # Admin UUID pattern (automated API calls)
     )
     worker_notification_webhooks: list[str] = (
         []
