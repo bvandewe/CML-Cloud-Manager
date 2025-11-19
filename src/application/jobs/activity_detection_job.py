@@ -99,41 +99,41 @@ class ActivityDetectionJob(RecurrentBackgroundJob):
             for worker in running_workers:
                 # Skip if idle detection disabled for this worker
                 if not worker.state.is_idle_detection_enabled:
-                    log.debug(f"Skipping worker {worker.id}: idle detection disabled")
+                    log.debug(f"Skipping worker {worker.id()}: idle detection disabled")
                     continue
 
-                log.info(f"Checking idle status for worker {worker.id}")
+                log.info(f"Checking idle status for worker {worker.id()}")
 
                 try:
                     # Execute idle detection command
                     result = await mediator.execute_async(
-                        DetectWorkerIdleCommand(worker_id=worker.id)
+                        DetectWorkerIdleCommand(worker_id=worker.id())
                     )
 
-                    if result.is_successful:
-                        detection_data = result.content
+                    if result.is_success:
+                        detection_data = result.data
                         results.append(detection_data)
 
                         if detection_data.get("auto_pause_triggered"):
                             log.info(
-                                f"Worker {worker.id} auto-paused "
+                                f"Worker {worker.id()} auto-paused "
                                 f"(idle for {detection_data.get('idle_minutes'):.1f} minutes)"
                             )
                         else:
                             log.debug(
-                                f"Worker {worker.id} idle check complete: "
+                                f"Worker {worker.id()} idle check complete: "
                                 f"is_idle={detection_data.get('is_idle')}, "
                                 f"eligible={detection_data.get('eligible_for_pause')}"
                             )
                     else:
                         log.warning(
-                            f"Idle detection failed for worker {worker.id}: "
-                            f"{result.errors}"
+                            f"Idle detection failed for worker {worker.id()}: "
+                            f"{result.error_message}"
                         )
 
                 except Exception as e:
                     log.error(
-                        f"Error checking worker {worker.id} for idle activity: {e}",
+                        f"Error checking worker {worker.id()} for idle activity: {e}",
                         exc_info=True,
                     )
 
