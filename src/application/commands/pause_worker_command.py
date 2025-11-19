@@ -9,6 +9,7 @@ from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 
 from domain.repositories import CMLWorkerRepository
+from integration.enums import AwsRegion
 from integration.services.aws_ec2_api_client import AwsEc2Client
 
 log = logging.getLogger(__name__)
@@ -80,7 +81,7 @@ class PauseWorkerCommandHandler(
                     )
 
                 # Validate worker has EC2 instance ID
-                if not worker.state.ec2_instance_id:
+                if not worker.state.aws_instance_id:
                     log.warning(f"Worker {command.worker_id} has no EC2 instance ID")
                     return self.bad_request("Worker has no EC2 instance ID")
 
@@ -93,12 +94,14 @@ class PauseWorkerCommandHandler(
 
                 # Stop EC2 instance
                 log.info(
-                    f"Stopping EC2 instance {worker.state.ec2_instance_id} "
+                    f"Stopping EC2 instance {worker.state.aws_instance_id} "
                     f"for worker {command.worker_id} "
                     f"(auto_pause={command.is_auto_pause}, reason={command.reason})"
                 )
 
-                await self._aws_client.stop_instance(worker.state.ec2_instance_id)
+                self._aws_client.stop_instance(
+                    AwsRegion(worker.state.aws_region), worker.state.aws_instance_id
+                )
 
                 # Update worker aggregate
                 worker.pause(is_auto_pause=command.is_auto_pause)
