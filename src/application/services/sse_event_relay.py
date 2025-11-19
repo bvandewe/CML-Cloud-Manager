@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
@@ -118,7 +118,7 @@ class SSEEventRelay:
         event_message = {
             "type": event_type,
             "source": source,
-            "time": datetime.utcnow().isoformat() + "Z",
+            "time": datetime.now(timezone.utc).isoformat() + "Z",
             "data": data,
         }
         async with self._lock:

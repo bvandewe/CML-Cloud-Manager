@@ -3,7 +3,7 @@
 import json
 import secrets
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import cast
 
 try:
@@ -82,7 +82,7 @@ class InMemorySessionStore(SessionStore):
     def create_session(self, tokens: dict, user_info: dict) -> str:
         """Create a new session and return session ID."""
         session_id = secrets.token_urlsafe(32)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         self._sessions[session_id] = {
             "tokens": tokens,
@@ -101,7 +101,7 @@ class InMemorySessionStore(SessionStore):
             return None
 
         # Check if session expired
-        if session["expires_at"] < datetime.utcnow():
+        if session["expires_at"] < datetime.now(timezone.utc):
             # Clean up expired session
             self.delete_session(session_id)
             return None
@@ -122,7 +122,7 @@ class InMemorySessionStore(SessionStore):
             merged_tokens.update(new_tokens)
             session["tokens"] = merged_tokens
             # Extend expiration time
-            session["expires_at"] = datetime.utcnow() + self._session_timeout
+            session["expires_at"] = datetime.now(timezone.utc) + self._session_timeout
 
     def cleanup_expired_sessions(self) -> int:
         """Remove all expired sessions (optional maintenance method).
@@ -130,7 +130,7 @@ class InMemorySessionStore(SessionStore):
         Returns:
             Number of sessions cleaned up
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         expired = [
             sid
             for sid, session in self._sessions.items()
@@ -186,7 +186,7 @@ class RedisSessionStore(SessionStore):
     def create_session(self, tokens: dict, user_info: dict) -> str:
         """Create a new session and return session ID."""
         session_id = secrets.token_urlsafe(32)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         session_data = {
             "tokens": tokens,
@@ -238,7 +238,7 @@ class RedisSessionStore(SessionStore):
         session["tokens"] = merged_tokens
 
         # Extend expiration time
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         session["expires_at"] = now + timedelta(seconds=self._session_timeout_seconds)
 
         # Convert datetime objects to ISO format for JSON serialization

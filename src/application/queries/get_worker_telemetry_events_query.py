@@ -2,7 +2,7 @@
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from neuroglia.core import OperationResult
@@ -128,7 +128,7 @@ class GetWorkerTelemetryEventsQueryHandler(
                     "filtered_events_count": len(filtered_events),
                     "recent_events": recent_events,
                     "latest_activity_at": latest_activity,
-                    "checked_at": datetime.utcnow(),
+                    "checked_at": datetime.now(timezone.utc),
                 }
 
                 log.info(

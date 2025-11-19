@@ -2,7 +2,7 @@
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 
 from neuroglia.core import OperationResult
 from neuroglia.mediation import Command, CommandHandler
@@ -82,9 +82,9 @@ class UpdateWorkerActivityCommandHandler(
 
                 # Update activity tracking
                 worker.update_activity(
-                    recent_events=command.recent_events or [],
+                    recent_events=command.recent_events,
                     last_activity_at=command.last_activity_at,
-                    last_check_at=command.last_check_at or datetime.utcnow(),
+                    last_check_at=command.last_check_at or datetime.now(timezone.utc),
                     next_check_at=command.next_check_at,
                     target_pause_at=command.target_pause_at,
                 )

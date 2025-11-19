@@ -944,7 +944,7 @@ class AwsEc2Client:
                 region_name=aws_region.value,
             )
 
-            now = datetime.datetime.utcnow()
+            now = datetime.datetime.now(datetime.timezone.utc)
             start_time = (
                 now
                 - Ec2InstanceResourcesUtilizationRelativeStartTime.to_timedelta(

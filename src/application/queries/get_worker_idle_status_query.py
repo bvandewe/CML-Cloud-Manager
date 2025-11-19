@@ -2,7 +2,7 @@
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from neuroglia.core import OperationResult
@@ -114,7 +114,7 @@ class GetWorkerIdleStatusQueryHandler(
                     "eligible_for_pause": eligible_for_pause,
                     "next_idle_check_at": worker.state.next_idle_check_at,
                     "target_pause_at": worker.state.target_pause_at,
-                    "checked_at": datetime.utcnow(),
+                    "checked_at": datetime.now(timezone.utc),
                 }
 
                 log.debug(

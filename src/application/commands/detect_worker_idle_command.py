@@ -72,7 +72,7 @@ class DetectWorkerIdleCommandHandler(CommandHandler[DetectWorkerIdleCommand, dic
 
             detection_result = {
                 "worker_id": command.worker_id,
-                "checked_at": datetime.utcnow(),
+                "checked_at": datetime.now(timezone.utc),
                 "telemetry_fetched": False,
                 "activity_updated": False,
                 "idle_check_performed": False,
