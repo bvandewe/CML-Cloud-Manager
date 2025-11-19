@@ -8,6 +8,9 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ### Fixed
 
+- **Update Worker Activity Command**: Fixed repository method call signature
+  - Changed `get_async()` to `get_by_id_async()` (correct method name)
+  - Removed invalid `cancellation_token` parameter
 - **System View Scheduler Buttons**: Fixed admin action buttons not rendering in scheduler tab
   - Refactored template literal conditional to use explicit if/else for HTML generation
   - Buttons (Play/Delete) now correctly appear for admin users
