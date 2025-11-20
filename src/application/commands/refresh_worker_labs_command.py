@@ -18,7 +18,6 @@ from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 from pymongo.errors import DuplicateKeyError
 
-from application.services.sse_event_relay import SSEEventRelay
 from application.settings import Settings
 from domain.entities.lab_record import LabRecord
 from domain.enums import CMLWorkerStatus
@@ -82,7 +81,6 @@ class RefreshWorkerLabsCommandHandler(
         lab_record_repository: LabRecordRepository,
         cml_api_client_factory: CMLApiClientFactory,
         settings: Settings,
-        sse_relay: SSEEventRelay,
     ):
         super().__init__(
             mediator,
@@ -94,7 +92,6 @@ class RefreshWorkerLabsCommandHandler(
         self._lab_record_repository = lab_record_repository
         self._cml_client_factory = cml_api_client_factory
         self._settings = settings
-        self._sse_relay = sse_relay
 
     @tracer.start_as_current_span("refresh_worker_labs_command_handler")
     async def handle_async(self, request: RefreshWorkerLabsCommand) -> OperationResult[dict]:
@@ -153,21 +150,8 @@ class RefreshWorkerLabsCommandHandler(
             span.set_attribute("labs.updated", updated)
             span.set_status(Status(StatusCode.OK))
 
-            # 4. Broadcast event to SSE clients for real-time UI updates
-            try:
-                await self._sse_relay.broadcast_event(
-                    event_type="worker.labs.updated",
-                    data={
-                        "worker_id": command.worker_id,
-                        "labs_synced": synced,
-                        "labs_created": created,
-                        "labs_updated": updated,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                    },
-                )
-            except Exception as e:
-                # Don't fail the command if SSE broadcast fails
-                log.warning(f"Failed to broadcast SSE event for labs refresh on worker {command.worker_id}: {e}")
+            # SSE events are broadcast automatically by domain event handlers
+            # when lab records are created/updated via repository operations
 
             log.info(
                 f"✅ Labs refreshed for worker {command.worker_id}: "

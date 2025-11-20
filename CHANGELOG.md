@@ -18,6 +18,17 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
   - No functionality impacted - bus was never used in actual scheduling flow
   - Rationale: Bus infrastructure designed for dynamic job submission but never utilized; all jobs scheduled statically at startup
 
+- **SSE Broadcasting Architecture**: Resolved manual SSE broadcast anti-pattern (Issue #5) for cleaner event-driven design
+  - Created domain event handlers for `LabRecordCreatedDomainEvent`, `LabRecordUpdatedDomainEvent`, and `LabStateChangedDomainEvent`
+  - Removed manual `sse_relay.broadcast_event()` calls from commands: `RefreshWorkerLabsCommand`, `RequestWorkerDataRefreshCommand`
+  - Removed manual SSE broadcasts from background jobs: `OnDemandWorkerDataRefreshJob`
+  - All SSE events now broadcast automatically via domain event handlers when repository operations complete
+  - Eliminates duplicate events (commands + domain handlers broadcasting same event)
+  - Ensures consistent event schemas across all SSE broadcasts
+  - Decouples commands from UI layer (SSEEventRelay no longer injected into commands)
+  - CloudEvents now properly published to external subscribers
+  - No breaking changes - same SSE events delivered to UI clients
+
 ### Performance
 
 - **Lab Synchronization Batch Operations**: Resolved N+1 database pattern (Issue #3) with 96% performance improvement

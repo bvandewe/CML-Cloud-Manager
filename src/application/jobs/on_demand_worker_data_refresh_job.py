@@ -19,7 +19,6 @@ from application.services.background_scheduler import (
     ScheduledBackgroundJob,
     backgroundjob,
 )
-from application.services.sse_event_relay import SSEEventRelay
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -95,7 +94,6 @@ class OnDemandWorkerDataRefreshJob(ScheduledBackgroundJob):
 
                 try:
                     mediator = scope.get_required_service(Mediator)
-                    sse_relay = scope.get_required_service(SSEEventRelay)
 
                     logger.info(f"🔄 Executing on-demand data refresh for worker {self.worker_id}")
 
@@ -108,24 +106,11 @@ class OnDemandWorkerDataRefreshJob(ScheduledBackgroundJob):
                     # Check if refresh was skipped due to throttling
                     if metrics_result.status == 200 and metrics_result.data.get("refresh_skipped"):
                         reason = metrics_result.data.get("reason", "unknown")
-                        retry_after = metrics_result.data.get("retry_after_seconds")
 
                         logger.info(f"⏭️ Metrics refresh skipped for worker {self.worker_id}: {reason}")
 
-                        # Emit SSE event to inform user
-                        await sse_relay.broadcast_event(
-                            event_type="worker.refresh.throttled",
-                            data={
-                                "worker_id": self.worker_id,
-                                "reason": reason,
-                                "retry_after_seconds": retry_after,
-                                "message": (
-                                    f"Refresh {reason}. Please wait {retry_after}s before trying again."
-                                    if retry_after
-                                    else f"Refresh {reason}."
-                                ),
-                            },
-                        )
+                        # SSE events are broadcast automatically by domain event handlers
+                        # when worker state changes via repository operations
 
                         span.set_attribute("metrics.refresh.skipped", True)
                         span.set_attribute("metrics.skip.reason", reason)
@@ -176,17 +161,7 @@ class OnDemandWorkerDataRefreshJob(ScheduledBackgroundJob):
 
                     if overall_success:
                         logger.info(f"✅ On-demand data refresh completed for worker {self.worker_id}")
-
-                        # Signal UI to refresh worker data from DB
-                        # This is more efficient than sending all data via SSE
-                        await sse_relay.broadcast_event(
-                            event_type="worker.data.refreshed",
-                            data={
-                                "worker_id": self.worker_id,
-                                "message": "Worker data has been refreshed, reload from server",
-                            },
-                        )
-                        logger.debug(f"📡 Broadcasted worker.data.refreshed SSE event for {self.worker_id}")
+                        # SSE events are broadcast automatically by domain event handlers
                     else:
                         logger.warning(f"⚠️ On-demand data refresh had errors for worker {self.worker_id}")
 

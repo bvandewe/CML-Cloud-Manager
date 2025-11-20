@@ -256,31 +256,5 @@ class RequestWorkerDataRefreshCommandHandler(
             log.exception(error_msg)
             return self.internal_server_error(error_msg)
 
-    async def _emit_refresh_requested_event(self, worker_id: str, eta_seconds: int) -> None:
-        """Emit worker.refresh.requested SSE event."""
-        event_data = {
-            "worker_id": worker_id,
-            "requested_at": datetime.now(timezone.utc).isoformat(),
-            "eta_seconds": eta_seconds,
-        }
-
-        await self._sse_relay.broadcast_event(
-            event_type="worker.refresh.requested",
-            data=event_data,
-        )
-
-    async def _emit_refresh_skipped_event(self, worker_id: str, reason: str, eta_seconds: int | None) -> None:
-        """Emit worker.refresh.skipped SSE event."""
-        event_data = {
-            "worker_id": worker_id,
-            "skipped_at": datetime.now(timezone.utc).isoformat(),
-            "reason": reason,
-        }
-
-        if eta_seconds is not None:
-            event_data["seconds_until_next"] = str(eta_seconds)
-
-        await self._sse_relay.broadcast_event(
-            event_type="worker.refresh.skipped",
-            data=event_data,
-        )
+    # Note: SSE events for refresh operations are now handled by domain event handlers
+    # triggered automatically when worker state changes via repository operations
