@@ -27,15 +27,16 @@ This review analyzes the orchestration design between AWS-based Cisco Modeling L
 
 1. ~~**Dual Orchestration Paths**: Command-driven and job-driven metrics collection with 90% code duplication~~ ✅ **RESOLVED**
 2. ~~**Sequential Processing**: Background jobs process workers serially instead of concurrently~~ ✅ **RESOLVED**
-3. **N+1 Database Pattern**: Individual updates per worker instead of batch operations
+3. **N+1 Database Pattern**: Lab synchronization performs individual updates per lab (50 labs = 50 DB writes)
 4. **Command SRP Violations**: Single commands handling 5-6 different integration points
 5. **Manual SSE Broadcasting**: Commands bypassing domain event architecture to emit SSE directly
 6. **Missing Resilience**: No circuit breakers or exponential backoff for external API failures
 
 **Notes**:
 
-- Issue #2 (Sequential Processing) was resolved on November 18, 2025 with concurrent processing using asyncio.gather() and semaphore controls
-- Issue #1 (Command Duplication) was also resolved on November 18, 2025 with job delegation to commands via Mediator
+- Issue #1 (Command Duplication) resolved on November 18, 2025 - jobs delegate to commands via Mediator
+- Issue #2 (Sequential Processing) resolved on November 18, 2025 - concurrent processing with asyncio.gather() and semaphore controls
+- Issue #3 (N+1 Database Pattern) verified on November 20, 2025 - confirmed in both LabsRefreshJob and RefreshWorkerLabsCommand
 
 ---
 
@@ -206,25 +207,95 @@ class RefreshWorkerMetricsCommandHandler:
 - Single source of truth for worker refresh logic ✅
 - Commands reused across: jobs, user requests, import workflows ✅
 
-🟡 **Issue 3: N+1 Database Updates**
+🔴 **Issue 3: N+1 Database Updates (CONFIRMED)**
+
+**Status**: ACTIVE ISSUE - Affecting lab synchronization performance
+
+**Locations**:
+
+- `src/application/jobs/labs_refresh_job.py::_refresh_worker_labs()` (lines 200-345)
+- `src/application/commands/refresh_worker_labs_command.py::_sync_worker_labs()` (lines 200-350)
+
+**Current Implementation** (Anti-pattern):
 
 ```python
-for worker in workers:
-    await repository.update_async(worker)  # 100 DB writes for 100 workers
+# ❌ N+1 Pattern - Individual DB operations per lab
+for lab_id in lab_ids:
+    lab_details = await cml_client.get_lab_details(lab_id)
+    existing_record = await lab_repository.get_by_lab_id_async(worker_id, lab_id)
+
+    if existing_record:
+        existing_record.update_from_cml(...)
+        await lab_repository.update_async(existing_record)  # ❌ DB write per lab
+        updated += 1
+    else:
+        new_record = LabRecord.create(...)
+        await lab_repository.add_async(new_record)  # ❌ DB write per lab
+        created += 1
 ```
+
+**Impact Analysis**:
+
+- **Scenario**: Worker with 50 labs = 50 individual MongoDB operations
+- **Performance**: ~50ms * 50 labs = 2.5 seconds vs ~50ms for bulk operation (50x slower)
+- **Affected Operations**: Background job (every 30 min), user-initiated refresh, import workflows
+- **Scalability**: Problem scales linearly with lab count (100 labs = 5 seconds)
 
 **Recommended Fix**:
 
 ```python
-# Collect all updated workers
-updated_workers = []
-for worker in workers:
-    # ... update worker state
-    updated_workers.append(worker)
+# ✅ Batch Pattern - Collect all updates, then bulk write
+labs_to_create = []
+labs_to_update = []
 
-# Bulk update
-await repository.update_many_async(updated_workers)  # 1 DB operation
+for lab_id in lab_ids:
+    lab_details = await cml_client.get_lab_details(lab_id)
+    existing_record = await lab_repository.get_by_lab_id_async(worker_id, lab_id)
+
+    if existing_record:
+        existing_record.update_from_cml(...)
+        labs_to_update.append(existing_record)
+    else:
+        new_record = LabRecord.create(...)
+        labs_to_create.append(new_record)
+
+# Bulk operations (1 DB call each)
+if labs_to_create:
+    await lab_repository.add_many_async(labs_to_create)
+if labs_to_update:
+    await lab_repository.update_many_async(labs_to_update)
 ```
+
+**Implementation Requirements**:
+
+1. **Add batch methods to LabRecordRepository interface**:
+
+   ```python
+   @abstractmethod
+   async def add_many_async(self, lab_records: list[LabRecord]) -> int:
+       """Add multiple lab records in bulk."""
+
+   @abstractmethod
+   async def update_many_async(self, lab_records: list[LabRecord]) -> int:
+       """Update multiple lab records in bulk."""
+   ```
+
+2. **Implement in MongoLabRecordRepository** (follow CMLWorkerRepository pattern):
+
+   ```python
+   async def update_many_async(self, entities: list[LabRecord]) -> int:
+       from pymongo import UpdateOne
+       operations = [
+           UpdateOne({"id": entity.id()}, {"$set": serialized_dict})
+           for entity in entities
+       ]
+       result = await self.collection.bulk_write(operations, ordered=False)
+       return result.modified_count
+   ```
+
+3. **Refactor both LabsRefreshJob and RefreshWorkerLabsCommand** to use batch operations
+
+**Reference Implementation**: `src/integration/repositories/motor_cml_worker_repository.py::update_many_async()` (lines 193-244)
 
 #### 1.2 LabsRefreshJob
 
@@ -1064,19 +1135,22 @@ Proper separation of concerns:
    - **Status**: ✅ Completed November 18, 2025
    - **Result**: 90% faster job execution (100s → 10s for 50 workers)
 
-3. **🔴 Remove Manual SSE Broadcasting from Commands**
+3. **🔴 Implement Batch Database Operations for Lab Synchronization**
+   - Add `add_many_async()` and `update_many_async()` to LabRecordRepository interface
+   - Implement in MongoLabRecordRepository using MongoDB bulk_write
+   - Refactor LabsRefreshJob and RefreshWorkerLabsCommand to use batch operations
+   - **Status**: 🔴 CONFIRMED - N+1 pattern exists in both implementations
+   - **Impact**: 50x performance improvement (50 labs: 2.5s → 50ms)
+   - **Effort**: 1 day
+   - **Priority**: HIGH - Affects background jobs (every 30 min), user-initiated refresh, import workflows
+
+4. **🔴 Remove Manual SSE Broadcasting from Commands**
    - Delete `await sse_relay.broadcast_event()` from command handlers
    - Rely exclusively on domain event handlers
    - **Effort**: 1-2 days
    - **Impact**: Eliminates duplicate events, consistent schema
 
 ### Medium Priority (Next Sprint)
-
-4. **🟡 Add Batch Database Operations**
-   - Implement `update_many_async()` in repositories
-   - Update jobs to use batch operations
-   - **Effort**: 1 day
-   - **Impact**: 10x faster DB operations
 
 5. **🟡 Refactor Large Commands (SRP)**
    - Break `SyncWorkerCMLDataCommand` into 4-5 focused sub-commands
@@ -1122,7 +1196,7 @@ The CML Cloud Manager architecture demonstrates solid foundations with event-dri
 
 - ~~50% code reduction (eliminate duplication)~~ ✅ **COMPLETED** - Jobs delegate to commands via Mediator
 - ~~90% faster background job execution (concurrency)~~ ✅ **COMPLETED** - Semaphore-controlled concurrent processing
-- 10x faster database operations (batching) - **PENDING**
+- 50x faster lab synchronization (batching) - **PENDING** (Issue #3 confirmed)
 - Improved system stability (resilience patterns) - **PENDING**
 - Better maintainability (smaller, focused commands) - **PENDING**
 
@@ -1155,5 +1229,5 @@ The CML Cloud Manager architecture demonstrates solid foundations with event-dri
 
 **Reviewer**: Code Reviewer Agent
 **Date**: November 20, 2025
-**Last Updated**: November 20, 2025 (Command Duplication + Sequential Processing → Both Resolved)
-**Document Version**: 1.1
+**Last Updated**: November 20, 2025 (Issues #1, #2 Resolved | Issue #3 Confirmed)
+**Document Version**: 1.2

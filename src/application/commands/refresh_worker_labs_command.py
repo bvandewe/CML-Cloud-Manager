@@ -11,9 +11,7 @@ from datetime import datetime, timezone
 
 from neuroglia.core import OperationResult
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_bus import CloudEventBus
-from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import (
-    CloudEventPublishingOptions,
-)
+from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import CloudEventPublishingOptions
 from neuroglia.mapping import Mapper
 from neuroglia.mediation import Command, CommandHandler, Mediator
 from opentelemetry import trace
@@ -249,7 +247,11 @@ class RefreshWorkerLabsCommandHandler(
         created = 0
         updated = 0
 
-        # Process each lab
+        # Collect lab records for batch operations
+        labs_to_create = []
+        labs_to_update = []
+
+        # Process each lab and collect for batch operations
         for lab_id in lab_ids:
             try:
                 # Fetch lab details
@@ -275,8 +277,7 @@ class RefreshWorkerLabsCommandHandler(
                         groups=lab_details.groups,
                         cml_modified_at=_parse_cml_timestamp(lab_details.modified),
                     )
-                    await self._lab_record_repository.update_async(existing_record)
-                    updated += 1
+                    labs_to_update.append(existing_record)
                 else:
                     # Create new record
                     new_record = LabRecord.create(
@@ -294,32 +295,7 @@ class RefreshWorkerLabsCommandHandler(
                         cml_created_at=_parse_cml_timestamp(lab_details.created),
                         cml_modified_at=_parse_cml_timestamp(lab_details.modified),
                     )
-                    try:
-                        await self._lab_record_repository.add_async(new_record)
-                        created += 1
-                    except DuplicateKeyError:
-                        # Race condition: record was created by another process
-                        # Fetch and update it instead
-                        log.warning(
-                            f"Duplicate lab record detected for worker {worker_id}, lab {lab_id}. "
-                            f"Fetching and updating existing record."
-                        )
-                        existing_record = await self._lab_record_repository.get_by_lab_id_async(worker_id, lab_id)
-                        if existing_record:
-                            existing_record.update_from_cml(
-                                title=lab_details.lab_title,
-                                description=lab_details.lab_description,
-                                notes=lab_details.lab_notes,
-                                state=lab_details.state,
-                                owner_username=lab_details.owner_username,
-                                owner_fullname=lab_details.owner_fullname,
-                                node_count=lab_details.node_count,
-                                link_count=lab_details.link_count,
-                                groups=lab_details.groups,
-                                cml_modified_at=_parse_cml_timestamp(lab_details.modified),
-                            )
-                            await self._lab_record_repository.update_async(existing_record)
-                            updated += 1
+                    labs_to_create.append(new_record)
 
                 synced += 1
 
@@ -330,6 +306,76 @@ class RefreshWorkerLabsCommandHandler(
                 )
                 # Continue with next lab
                 continue
+
+        # Batch create new lab records
+        if labs_to_create:
+            try:
+                created = await self._lab_record_repository.add_many_async(labs_to_create)
+                log.debug(f"Batch created {created} lab records for worker {worker_id}")
+            except DuplicateKeyError:
+                # Race condition: some records were created by another process
+                # Fall back to individual inserts with duplicate handling
+                log.warning(
+                    f"Duplicate key error in batch insert for worker {worker_id}, falling back to individual inserts"
+                )
+                for new_record in labs_to_create:
+                    try:
+                        await self._lab_record_repository.add_async(new_record)
+                        created += 1
+                    except DuplicateKeyError:
+                        # Fetch and update the existing record instead
+                        log.warning(
+                            f"Duplicate lab record detected for worker {worker_id}, lab {new_record.state.lab_id}. "
+                            f"Fetching and updating existing record."
+                        )
+                        existing_record = await self._lab_record_repository.get_by_lab_id_async(
+                            worker_id, new_record.state.lab_id
+                        )
+                        if existing_record:
+                            # Copy the state from new_record to existing_record
+                            existing_record.update_from_cml(
+                                title=new_record.state.title,
+                                description=new_record.state.description,
+                                notes=new_record.state.notes,
+                                state=new_record.state.state,
+                                owner_username=new_record.state.owner_username,
+                                owner_fullname=new_record.state.owner_fullname,
+                                node_count=new_record.state.node_count,
+                                link_count=new_record.state.link_count,
+                                groups=new_record.state.groups,
+                                cml_modified_at=new_record.state.cml_modified_at,
+                            )
+                            labs_to_update.append(existing_record)
+            except Exception as e:
+                log.error(f"Failed to batch create lab records: {e}", exc_info=True)
+                # Fall back to individual inserts
+                for new_record in labs_to_create:
+                    try:
+                        await self._lab_record_repository.add_async(new_record)
+                        created += 1
+                    except Exception as insert_error:
+                        log.error(
+                            f"Failed to insert lab record {new_record.state.lab_id}: {insert_error}",
+                            exc_info=True,
+                        )
+
+        # Batch update existing lab records
+        if labs_to_update:
+            try:
+                updated = await self._lab_record_repository.update_many_async(labs_to_update)
+                log.debug(f"Batch updated {updated} lab records for worker {worker_id}")
+            except Exception as e:
+                log.error(f"Failed to batch update lab records: {e}", exc_info=True)
+                # Fall back to individual updates
+                for existing_record in labs_to_update:
+                    try:
+                        await self._lab_record_repository.update_async(existing_record)
+                        updated += 1
+                    except Exception as update_error:
+                        log.error(
+                            f"Failed to update lab record {existing_record.id()}: {update_error}",
+                            exc_info=True,
+                        )
 
         log.info(f"Worker {worker_id}: synced={synced}, created={created}, updated={updated}")
 

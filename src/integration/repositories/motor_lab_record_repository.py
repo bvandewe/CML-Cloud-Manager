@@ -78,12 +78,103 @@ class MongoLabRecordRepository(TracedRepositoryMixin, MotorRepository[LabRecord,
         """Remove a lab record by ID."""
         await self.collection.delete_one({"id": record_id})
 
-    async def remove_by_lab_id_async(self, worker_id: str, lab_id: str) -> None:
+    async def add_many_async(self, lab_records: list[LabRecord]) -> int:
+        """Add multiple lab records in a batch operation.
+
+        Uses MongoDB's insert_many for efficient batch inserts.
+
+        Args:
+            lab_records: List of LabRecord entities to add
+
+        Returns:
+            Number of records inserted
+        """
+        if not lab_records:
+            return 0
+
+        import json
+
+        documents = []
+        for record in lab_records:
+            # Serialize the entity state to bytes/bytearray
+            serialized_bytes = self._serializer.serialize(record.state)
+
+            # Convert bytes to dict for MongoDB
+            serialized_dict = json.loads(serialized_bytes)
+
+            documents.append(serialized_dict)
+
+        # Execute bulk insert using Motor's async insert_many
+        result = await self.collection.insert_many(documents, ordered=False)
+
+        # Publish domain events for each entity (if mediator configured)
+        if self._mediator:
+            for record in lab_records:
+                # Use the _pending_events attribute from AggregateRoot
+                if hasattr(record, "_pending_events") and record._pending_events:
+                    for event in record._pending_events:
+                        await self._mediator.publish_async(event)
+                    record.clear_pending_events()
+
+        return len(result.inserted_ids)
+
+    async def update_many_async(self, lab_records: list[LabRecord]) -> int:
+        """Update multiple lab records in a batch operation.
+
+        Uses MongoDB's bulk_write for efficient batch updates.
+
+        Args:
+            lab_records: List of LabRecord entities to update
+
+        Returns:
+            Number of records updated
+        """
+        if not lab_records:
+            return 0
+
+        import json
+
+        from pymongo import UpdateOne
+
+        operations = []
+        for record in lab_records:
+            # Serialize the entity state to bytes/bytearray
+            serialized_bytes = self._serializer.serialize(record.state)
+
+            # Convert bytes to dict for MongoDB
+            serialized_dict = json.loads(serialized_bytes)
+
+            # Create update operation using Motor's collection
+            operations.append(
+                UpdateOne(
+                    {"id": record.id()},
+                    {"$set": serialized_dict},
+                )
+            )
+
+        # Execute bulk write using Motor's async bulk_write
+        result = await self.collection.bulk_write(operations, ordered=False)
+
+        # Publish domain events for each entity (if mediator configured)
+        if self._mediator:
+            for record in lab_records:
+                # Use the _pending_events attribute from AggregateRoot
+                if hasattr(record, "_pending_events") and record._pending_events:
+                    for event in record._pending_events:
+                        await self._mediator.publish_async(event)
+                    record.clear_pending_events()
+
+        return result.modified_count
+
+    async def remove_by_lab_id_async(self, worker_id: str, lab_id: str) -> bool:
         """Remove a lab record by worker ID and CML lab ID.
 
         Args:
             worker_id: Worker ID hosting the lab
             lab_id: CML lab ID to remove
+
+        Returns:
+            True if record was deleted, False if not found
         """
         result = await self.collection.delete_one({"worker_id": worker_id, "lab_id": lab_id})
         return result.deleted_count > 0

@@ -33,6 +33,28 @@ class LabRecordRepository(ABC):
         """Update an existing lab record."""
 
     @abstractmethod
+    async def add_many_async(self, lab_records: list[LabRecord]) -> int:
+        """Add multiple lab records in a batch operation.
+
+        Args:
+            lab_records: List of LabRecord entities to add
+
+        Returns:
+            Number of records inserted
+        """
+
+    @abstractmethod
+    async def update_many_async(self, lab_records: list[LabRecord]) -> int:
+        """Update multiple lab records in a batch operation.
+
+        Args:
+            lab_records: List of LabRecord entities to update
+
+        Returns:
+            Number of records updated
+        """
+
+    @abstractmethod
     async def remove_async(self, lab_record: LabRecord) -> None:
         """Remove a lab record."""
 
