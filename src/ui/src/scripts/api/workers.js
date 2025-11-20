@@ -257,6 +257,52 @@ export async function wipeLab(region, workerId, labId) {
 }
 
 /**
+ * Delete a lab from a worker
+ * @param {string} region - AWS region
+ * @param {string} workerId - Worker UUID
+ * @param {string} labId - Lab ID
+ * @returns {Promise<Object>}
+ */
+export async function deleteLab(region, workerId, labId) {
+    const response = await apiRequest(`/api/labs/region/${region}/workers/${workerId}/labs/${labId}/delete`, {
+        method: 'POST',
+    });
+    return await response.json();
+}
+
+/**
+ * Download a lab's topology as YAML
+ * @param {string} region - AWS region
+ * @param {string} workerId - Worker UUID
+ * @param {string} labId - Lab ID
+ * @returns {Promise<string>} YAML content
+ */
+export async function downloadLab(region, workerId, labId) {
+    const response = await apiRequest(`/api/labs/region/${region}/workers/${workerId}/labs/${labId}/download`, {
+        method: 'GET',
+    });
+    return await response.text();
+}
+
+/**
+ * Import a lab from YAML file
+ * @param {string} region - AWS region
+ * @param {string} workerId - Worker UUID
+ * @param {File} file - YAML file to upload
+ * @returns {Promise<Object>} Import result with lab_id
+ */
+export async function importLab(region, workerId, file) {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await apiRequest(`/api/labs/region/${region}/workers/${workerId}/labs/import`, {
+        method: 'POST',
+        body: formData,
+    });
+    return await response.json();
+}
+
+/**
  * Refresh labs data from CML API for a specific worker
  * @param {string} region - AWS region
  * @param {string} workerId - Worker UUID

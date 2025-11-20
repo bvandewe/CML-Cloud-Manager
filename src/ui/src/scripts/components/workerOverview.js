@@ -100,14 +100,16 @@ export function renderWorkerOverview(worker) {
         <div id="worker-tags-section" aria-label="AWS EC2 Instance Tags">
           <div id="worker-tags-list" class="mb-2">
             ${(() => {
-                const tags = worker.tags || {};
+                const tags = worker.aws_tags || {};
                 const keys = Object.keys(tags);
                 if (!keys.length) return '<span class="text-muted">No tags found</span>';
                 return keys
                     .map(
                         k =>
-                            `<span class="badge bg-light text-dark border me-1 mb-1 tag-item" data-tag-key="${k}" title="${k}: ${tags[k]}">${k}: ${tags[k]}${
-                                isAdmin() ? ' <button type="button" class="btn btn-sm btn-outline-danger ms-1 p-0 px-1 remove-tag-btn" data-remove-tag="' + k + '" aria-label="Remove tag ' + k + '"><i class="bi bi-x"></i></button>' : ''
+                            `<span class="badge bg-light text-dark border me-1 mb-1 tag-item" data-tag-key="${escapeHtml(k)}" title="${escapeHtml(k)}: ${escapeHtml(tags[k])}">${escapeHtml(k)}: ${escapeHtml(tags[k])}${
+                                isAdmin()
+                                    ? ' <button type="button" class="btn btn-sm btn-outline-danger ms-1 p-0 px-1 remove-tag-btn" data-remove-tag="' + escapeHtml(k) + '" aria-label="Remove tag ' + escapeHtml(k) + '"><i class="bi bi-x"></i></button>'
+                                    : ''
                             }</span>`
                     )
                     .join('');

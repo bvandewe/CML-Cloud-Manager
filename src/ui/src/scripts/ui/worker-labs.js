@@ -83,11 +83,26 @@ export async function loadLabsTab() {
     labsContent.innerHTML = '<div class="text-center py-4"><div class="spinner-border"></div><p class="mt-2">Loading labs...</p></div>';
     try {
         const labs = await workersApi.getWorkerLabs(region, workerId);
+
+        // Build upload section header
+        let html = `
+        <div class="mb-3 d-flex justify-content-between align-items-center">
+            <h6 class="mb-0"><i class="bi bi-folder2-open"></i> Labs on this Worker</h6>
+            <div>
+                <input type="file" id="lab-upload-input" accept=".yaml,.yml" style="display: none" onchange="window.workersApp.handleLabFileSelected(event, '${region}', '${workerId}')">
+                <button type="button" class="btn btn-sm btn-primary" onclick="document.getElementById('lab-upload-input').click()">
+                    <i class="bi bi-upload"></i> Upload Lab YAML
+                </button>
+            </div>
+        </div>
+        `;
+
         if (!Array.isArray(labs) || labs.length === 0) {
-            labsContent.innerHTML = '<div class="alert alert-info"><i class="bi bi-folder2-open"></i> No labs found on this worker</div>';
+            html += '<div class="alert alert-info"><i class="bi bi-folder2-open"></i> No labs found on this worker</div>';
+            labsContent.innerHTML = html;
             return;
         }
-        let html = '<div class="accordion accordion-flush" id="labs-accordion">';
+        html += '<div class="accordion accordion-flush" id="labs-accordion">';
         labs.forEach((lab, index) => {
             const collapseId = `lab-collapse-${index}`;
             const headingId = `lab-heading-${index}`;
@@ -168,16 +183,24 @@ export async function loadLabsTab() {
                 }
                 <div class='col-12'><div class='card'><div class='card-body'>
                   <h6 class='card-subtitle mb-3 text-muted'><i class='bi bi-gear'></i> Lab Controls</h6>
-                  <div class='btn-group' role='group'>
+                  <div class='btn-group mb-2' role='group'>
                     <button type='button' class='btn btn-success ${isStarted ? 'disabled' : ''}' onclick="window.workersApp.handleStartLab('${region}', '${workerId}', '${escapeHtml(lab.id)}')" ${
                         isStarted ? 'disabled' : ''
-                    }><i class='bi bi-play-fill'></i> Start Lab</button>
+                    }><i class='bi bi-play-fill'></i> Start</button>
                     <button type='button' class='btn btn-warning ${!isStarted ? 'disabled' : ''}' onclick="window.workersApp.handleStopLab('${region}', '${workerId}', '${escapeHtml(lab.id)}', '${escapeHtml(lab.title || lab.id)}')" ${
                         !isStarted ? 'disabled' : ''
-                    }><i class='bi bi-stop-fill'></i> Stop Lab</button>
-                    <button type='button' class='btn btn-danger' onclick="window.workersApp.handleWipeLab('${region}', '${workerId}', '${escapeHtml(lab.id)}', '${escapeHtml(lab.title || lab.id)}')"><i class='bi bi-trash-fill'></i> Wipe Lab</button>
+                    }><i class='bi bi-stop-fill'></i> Stop</button>
+                    <button type='button' class='btn btn-danger' onclick="window.workersApp.handleWipeLab('${region}', '${workerId}', '${escapeHtml(lab.id)}', '${escapeHtml(lab.title || lab.id)}')"><i class='bi bi-trash-fill'></i> Wipe</button>
                   </div>
-                  <div class='mt-2'><small class='text-muted'><i class='bi bi-info-circle'></i> Stop and Wipe operations require confirmation</small></div>
+                  <div class='btn-group mb-2' role='group'>
+                    <button type='button' class='btn btn-primary' onclick="window.workersApp.handleDownloadLab('${region}', '${workerId}', '${escapeHtml(lab.id)}', '${escapeHtml(
+                        lab.title || lab.id
+                    )}')"><i class='bi bi-download'></i> Download YAML</button>
+                    <button type='button' class='btn btn-danger' onclick="window.workersApp.handleDeleteLab('${region}', '${workerId}', '${escapeHtml(lab.id)}', '${escapeHtml(
+                        lab.title || lab.id
+                    )}')"><i class='bi bi-trash3-fill'></i> Delete Lab</button>
+                  </div>
+                  <div class='mt-2'><small class='text-muted'><i class='bi bi-info-circle'></i> Stop, Wipe, and Delete operations require confirmation</small></div>
                 </div></div></div>
               </div>
             </div>
@@ -233,6 +256,71 @@ export async function handleWipeLab(region, workerId, labId, labTitle) {
         await loadLabsTab();
     } catch (error) {
         showToast(`Failed to wipe lab: ${error.message}`, 'danger');
+    }
+}
+
+export async function handleDeleteLab(region, workerId, labId, labTitle) {
+    const confirmed = await confirmDialog('Delete Lab', `Are you sure you want to permanently delete lab "${labTitle}"?`, 'This will completely remove the lab and all its data. This action cannot be undone!', 'danger');
+    if (!confirmed) return;
+    try {
+        showToast('Deleting lab...', 'info');
+        await workersApi.deleteLab(region, workerId, labId);
+        showToast('Lab deleted successfully', 'success');
+        await loadLabsTab();
+    } catch (error) {
+        showToast(`Failed to delete lab: ${error.message}`, 'danger');
+    }
+}
+
+export async function handleDownloadLab(region, workerId, labId, labTitle) {
+    try {
+        showToast('Downloading lab...', 'info');
+        const yamlContent = await workersApi.downloadLab(region, workerId, labId);
+
+        // Create a blob and download it
+        const blob = new Blob([yamlContent], { type: 'text/yaml' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${labTitle || labId}.yaml`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+
+        showToast('Lab downloaded successfully', 'success');
+    } catch (error) {
+        showToast(`Failed to download lab: ${error.message}`, 'danger');
+    }
+}
+
+export function handleLabFileSelected(event, region, workerId) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.name.endsWith('.yaml') && !file.name.endsWith('.yml')) {
+        showToast('Please select a YAML file (.yaml or .yml)', 'warning');
+        event.target.value = ''; // Reset file input
+        return;
+    }
+
+    // Trigger import
+    handleImportLab(region, workerId, file);
+    event.target.value = ''; // Reset file input for next use
+}
+
+export async function handleImportLab(region, workerId, file) {
+    try {
+        showToast(`Importing lab from ${file.name}...`, 'info');
+        const result = await workersApi.importLab(region, workerId, file);
+
+        showToast(`Lab "${result.title || result.lab_id}" imported successfully`, 'success');
+
+        // Reload labs to show the new lab
+        await loadLabsTab();
+    } catch (error) {
+        showToast(`Failed to import lab: ${error.message}`, 'danger');
     }
 }
 

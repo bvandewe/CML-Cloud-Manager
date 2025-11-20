@@ -9,7 +9,7 @@ import { stopMetricsCountdown } from './worker-timing.js';
 import { setupCreateWorkerModal, setupImportWorkerModal, setupDeleteWorkerModal, setupLicenseModal } from './worker-modals.js';
 import { loadLabsTab } from './worker-labs.js';
 import { loadJobsTab } from './worker-jobs.js';
-import { loadMonitoringTab } from './worker-monitoring.js';
+import { loadMonitoringTab, initializeMonitoringSSE } from './worker-monitoring.js';
 import { loadEventsTab } from './worker-events.js';
 import * as bootstrap from 'bootstrap';
 
@@ -170,6 +170,9 @@ export function initializeWorkersView(user, deps) {
     });
     setupSSEStatusIndicator();
     sseClient.connect();
+
+    // Initialize monitoring SSE listeners
+    initializeMonitoringSSE();
 
     // Role-specific view
     if (hasAdminAccess(user)) {

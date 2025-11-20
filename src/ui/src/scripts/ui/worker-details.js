@@ -3,7 +3,7 @@
 
 import * as workersApi from '../api/workers.js';
 import { showToast } from './notifications.js';
-import { isAdmin } from '../utils/roles.js';
+import { isAdmin, isAdminOrManager } from '../utils/roles.js';
 import { initializeDateTooltips } from '../utils/dates.js';
 import { renderWorkerOverview } from '../components/workerOverview.js';
 import { renderMetrics } from '../components/metricsPanel.js';
@@ -57,18 +57,38 @@ export async function showWorkerDetails(workerId, region) {
     setupRefreshButtonRef && setupRefreshButtonRef();
     setupDeleteButtonInDetailsRef && setupDeleteButtonInDetailsRef();
 
-    // Role-based tab/button visibility
-    const adminTabs = document.querySelectorAll('.admin-only-tab');
+    modal.show();
+
+    // Role-based tab/button visibility (must be after modal.show())
+    const adminTabs = modalElement.querySelectorAll('.admin-only-tab');
+    const adminManagerTabs = modalElement.querySelectorAll('.admin-manager-only-tab');
     const adminButtons = modalElement.querySelectorAll('.admin-only');
+
+    console.log('[worker-details] isAdmin():', isAdmin(), 'isAdminOrManager():', isAdminOrManager());
+    console.log('[worker-details] Found adminTabs:', adminTabs.length, 'adminManagerTabs:', adminManagerTabs.length);
+
     if (isAdmin()) {
-        adminTabs.forEach(t => (t.style.display = 'block'));
+        adminTabs.forEach(t => {
+            console.log('[worker-details] Showing admin tab:', t);
+            t.style.display = 'block';
+        });
+        adminManagerTabs.forEach(t => {
+            console.log('[worker-details] Showing admin-manager tab:', t);
+            t.style.display = 'block';
+        });
         adminButtons.forEach(b => (b.style.display = ''));
-    } else {
+    } else if (isAdminOrManager()) {
+        adminManagerTabs.forEach(t => {
+            console.log('[worker-details] Showing admin-manager tab for manager:', t);
+            t.style.display = 'block';
+        });
         adminTabs.forEach(t => (t.style.display = 'none'));
         adminButtons.forEach(b => (b.style.display = 'none'));
+    } else {
+        adminTabs.forEach(t => (t.style.display = 'none'));
+        adminManagerTabs.forEach(t => (t.style.display = 'none'));
+        adminButtons.forEach(b => (b.style.display = 'none'));
     }
-
-    modal.show();
 
     // Timing header + countdown
     ensureTimingHeader(modalElement);
@@ -195,7 +215,7 @@ function setupTagManagement(worker, region) {
                 btn.disabled = true;
                 btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
                 try {
-                    const currentTags = { ...(worker.tags || {}) };
+                    const currentTags = { ...(worker.aws_tags || {}) };
                     delete currentTags[key];
                     const result = await workersApi.updateWorkerTags(region, workerId, currentTags);
                     if (result && typeof result === 'object') {
@@ -237,7 +257,7 @@ function setupTagManagement(worker, region) {
             }
             feedbackEl.textContent = 'Saving tag...';
             try {
-                const currentTags = { ...(worker.tags || {}) };
+                const currentTags = { ...(worker.aws_tags || {}) };
                 currentTags[key] = value;
                 const result = await workersApi.updateWorkerTags(region, workerId, currentTags);
                 if (result && typeof result === 'object') {

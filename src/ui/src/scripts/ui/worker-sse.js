@@ -50,6 +50,7 @@ export function initWorkerSSE({ upsertWorkerSnapshot, updateWorkerMetrics, updat
             aws_instance_id: data.aws_instance_id,
             public_ip: data.public_ip,
             private_ip: data.private_ip,
+            aws_tags: data.aws_tags || {},
             ami_id: data.ami_id,
             ami_name: data.ami_name,
             ami_description: data.ami_description,
@@ -192,6 +193,65 @@ export function initWorkerSSE({ upsertWorkerSnapshot, updateWorkerMetrics, updat
         let message = `Refresh skipped: ${reason}`;
         if (etaSec) message += ` (retry in ${etaSec}s)`;
         showToast(message, 'warning');
+    });
+
+    // Worker data refreshed - reload worker from DB
+    sseClient.on('worker.data.refreshed', async data => {
+        console.log('[SSE] Worker data refreshed, reloading from DB:', data);
+        if (data.worker_id) {
+            try {
+                // Fetch fresh worker data from DB
+                const { getWorkerDetails } = await import('../api/workers.js');
+                // Worker region needed - get from existing snapshot
+                const existingCard = document.querySelector(`[data-worker-id="${data.worker_id}"]`);
+                if (existingCard) {
+                    const region = existingCard.dataset.workerRegion || 'us-east-1';
+                    const workerDetails = await getWorkerDetails(region, data.worker_id);
+
+                    // Update snapshot with fresh data from DB
+                    upsertWorkerSnapshot({
+                        id: workerDetails.id,
+                        name: workerDetails.name,
+                        aws_region: workerDetails.aws_region,
+                        status: workerDetails.status,
+                        service_status: workerDetails.service_status,
+                        instance_type: workerDetails.instance_type,
+                        aws_instance_id: workerDetails.aws_instance_id,
+                        public_ip: workerDetails.public_ip,
+                        private_ip: workerDetails.private_ip,
+                        ami_id: workerDetails.ami_id,
+                        ami_name: workerDetails.ami_name,
+                        ami_description: workerDetails.ami_description,
+                        ami_creation_date: workerDetails.ami_creation_date,
+                        https_endpoint: workerDetails.https_endpoint,
+                        license_status: workerDetails.license_status,
+                        cml_version: workerDetails.cml_version,
+                        cml_ready: workerDetails.cml_ready,
+                        cml_uptime_seconds: workerDetails.cml_uptime_seconds,
+                        cml_labs_count: workerDetails.cml_labs_count,
+                        cpu_utilization: workerDetails.cpu_utilization,
+                        memory_utilization: workerDetails.memory_utilization,
+                        storage_utilization: workerDetails.storage_utilization,
+                        poll_interval: workerDetails.poll_interval,
+                        next_refresh_at: workerDetails.next_refresh_at,
+                        created_at: workerDetails.created_at,
+                        updated_at: workerDetails.updated_at,
+                        terminated_at: workerDetails.terminated_at,
+                        _reason: 'data_refreshed',
+                    });
+                    console.log(`[SSE] Worker ${data.worker_id} data reloaded from DB`);
+                }
+            } catch (error) {
+                console.error('[SSE] Failed to reload worker data:', error);
+            }
+        }
+    });
+
+    // Worker imported - same as data refreshed (will auto-trigger refresh)
+    sseClient.on('worker.imported', async data => {
+        console.log('[SSE] Worker imported, will receive snapshot shortly:', data);
+        // Snapshot is already broadcasted by event handler, no need to refetch
+        // The worker.data.refreshed event will come after the scheduled refresh completes
     });
 
     console.log('[worker-sse] Handlers registered');

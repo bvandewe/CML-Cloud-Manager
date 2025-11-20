@@ -18,7 +18,7 @@ import { getStatusBadgeClass, getServiceStatusBadgeClass, getCpuProgressClass, g
 import { showWorkerDetails, loadCloudWatchMetrics, setupEnableMonitoringButton, bindWorkerDetailsDependencies } from './worker-details.js';
 import { ensureTimingHeader, startMetricsCountdown, stopMetricsCountdown, resetMetricsCountdown, updateLastRefreshedDisplay } from './worker-timing.js';
 import { subscribe, fetchWorkerDetails, setActiveWorker, getActiveWorker, getWorker, getAllWorkers, getTiming, updateTiming, upsertWorkerSnapshot, updateWorkerMetrics, logStoreSnapshot } from '../store/workerStore.js';
-import { loadLabsTab, handleStartLab, handleStopLab, handleWipeLab, bindLabsDependencies } from './worker-labs.js';
+import { loadLabsTab, handleStartLab, handleStopLab, handleWipeLab, handleDeleteLab, handleDownloadLab, handleLabFileSelected, handleImportLab, bindLabsDependencies } from './worker-labs.js';
 import { loadJobsTab } from './worker-jobs.js';
 import { loadMonitoringTab } from './worker-monitoring.js';
 import { loadEventsTab } from './worker-events.js';
@@ -258,6 +258,7 @@ async function loadWorkers() {
                 cpu_utilization: w.cpu_utilization,
                 memory_utilization: w.memory_utilization,
                 storage_utilization: w.storage_utilization,
+                cml_system_info: w.cml_system_info, // Include for card fallback logic
                 poll_interval: w.poll_interval,
                 next_refresh_at: w.next_refresh_at,
                 updated_at: w.updated_at,
@@ -933,6 +934,10 @@ window.workersApp = {
     handleStartLab,
     handleStopLab,
     handleWipeLab,
+    handleDeleteLab,
+    handleDownloadLab,
+    handleLabFileSelected,
+    handleImportLab,
     // Expose escapeHtml for legacy inline handlers (will remove later)
     escapeHtml,
 };

@@ -11,9 +11,13 @@
  */
 export async function apiRequest(url, options = {}) {
     const headers = {
-        'Content-Type': 'application/json',
         ...options.headers,
     };
+
+    // Only set Content-Type if not sending FormData (browser will set it with boundary)
+    if (!(options.body instanceof FormData)) {
+        headers['Content-Type'] = 'application/json';
+    }
 
     const response = await fetch(url, {
         ...options,

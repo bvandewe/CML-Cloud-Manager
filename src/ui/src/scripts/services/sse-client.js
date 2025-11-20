@@ -83,12 +83,57 @@ class SSEClient {
                 showToast(`Worker created: ${data.data.name}`, 'info');
             });
 
+            // Worker imported event
+            this.eventSource.addEventListener('worker.imported', event => {
+                const data = JSON.parse(event.data);
+                console.log('SSE: Worker imported', data);
+                this.emit('worker.imported', data.data);
+                showToast(`Worker imported: ${data.data.name}`, 'success');
+            });
+
             // Worker terminated event
             this.eventSource.addEventListener('worker.terminated', event => {
                 const data = JSON.parse(event.data);
                 console.log('SSE: Worker terminated', data);
                 this.emit('worker.terminated', data.data);
                 showToast(`Worker terminated: ${data.data.name}`, 'warning');
+            });
+
+            // Worker activity updated event
+            this.eventSource.addEventListener('worker.activity.updated', event => {
+                const data = JSON.parse(event.data);
+                console.log('SSE: Worker activity updated', data);
+                this.emit('worker.activity.updated', data.data);
+            });
+
+            // Worker paused event
+            this.eventSource.addEventListener('worker.paused', event => {
+                const data = JSON.parse(event.data);
+                console.log('SSE: Worker paused', data);
+                this.emit('worker.paused', data.data);
+            });
+
+            // Worker resumed event
+            this.eventSource.addEventListener('worker.resumed', event => {
+                const data = JSON.parse(event.data);
+                console.log('SSE: Worker resumed', data);
+                this.emit('worker.resumed', data.data);
+            });
+
+            // Worker refresh throttled event
+            this.eventSource.addEventListener('worker.refresh.throttled', event => {
+                const data = JSON.parse(event.data);
+                console.log('SSE: Worker refresh throttled', data);
+                const retryMsg = data.data.retry_after_seconds ? ` Please wait ${data.data.retry_after_seconds}s.` : '';
+                showToast(`Refresh rate limited.${retryMsg}`, 'warning');
+                this.emit('worker.refresh.throttled', data.data);
+            });
+
+            // Worker data refreshed event (signals UI to reload from DB)
+            this.eventSource.addEventListener('worker.data.refreshed', event => {
+                const data = JSON.parse(event.data);
+                console.log('SSE: Worker data refreshed', data);
+                this.emit('worker.data.refreshed', data.data);
             });
 
             // Error handling

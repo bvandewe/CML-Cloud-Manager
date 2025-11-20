@@ -49,7 +49,7 @@ export function startMetricsCountdown() {
     updateLastRefreshedDisplay();
     const active = getActiveWorker();
     const timing = active ? getTiming(active.id) : null;
-    if (!timing || !timimingHasNext(timing)) {
+    if (!timing || !timingHasNext(timing)) {
         setCountdownText('--:--');
         return;
     }
@@ -81,7 +81,7 @@ export function resetMetricsCountdown(data) {
 function updateMetricsCountdownDisplay() {
     const active = getActiveWorker();
     const timing = active ? getTiming(active.id) : null;
-    if (!timing || !timimingHasNext(timing)) {
+    if (!timing || !timingHasNext(timing)) {
         setCountdownText('--:--');
         return;
     }
@@ -103,6 +103,6 @@ function setCountdownText(text) {
     if (countdownElement) countdownElement.textContent = text;
 }
 
-function timimingHasNext(timing) {
+function timingHasNext(timing) {
     return !!timing.nextRefreshAt;
 }
