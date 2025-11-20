@@ -212,6 +212,32 @@ export async function loadLabsTab() {
         initializeDateTooltips();
     } catch (error) {
         // Show upload button even on error
+        let errorMessage = error.message;
+        let errorIcon = 'exclamation-triangle';
+        let toastType = 'danger';
+
+        // Provide more specific guidance based on error type
+        if (error.message.includes('Authentication required')) {
+            errorMessage = 'Session expired. Please log in again.';
+            errorIcon = 'shield-lock';
+            // Don't show toast - login redirect will happen automatically
+        } else if (error.message.includes('Permission denied')) {
+            errorMessage = "You don't have permission to view labs for this worker.";
+            errorIcon = 'shield-exclamation';
+            showToast(errorMessage, 'warning');
+        } else if (error.message.includes('Worker') && error.message.includes('not found')) {
+            errorMessage = 'This worker no longer exists or was deleted.';
+            errorIcon = 'server';
+            showToast(errorMessage, 'danger');
+        } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+            errorMessage = 'Network error. Please check your connection and try again.';
+            errorIcon = 'wifi-off';
+            showToast(errorMessage, 'danger');
+        } else {
+            // Generic error
+            showToast(`Failed to load labs: ${errorMessage}`, 'danger');
+        }
+
         const errorHtml = `
         <div class="mb-3 d-flex justify-content-between align-items-center">
             <h6 class="mb-0"><i class="bi bi-folder2-open"></i> Labs on this Worker</h6>
@@ -222,7 +248,9 @@ export async function loadLabsTab() {
                 </button>
             </div>
         </div>
-        <div class='alert alert-danger'><i class='bi bi-exclamation-triangle'></i> Failed to load labs: ${escapeHtml(error.message)}</div>
+        <div class='alert alert-danger'>
+            <i class='bi bi-${errorIcon}'></i> ${escapeHtml(errorMessage)}
+        </div>
         `;
         labsContent.innerHTML = errorHtml;
     }

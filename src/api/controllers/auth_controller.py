@@ -1,7 +1,7 @@
 """Authentication API controller with OAuth2/OIDC flow."""
 
 import secrets
-from datetime import datetime
+from datetime import datetime, timezone
 from urllib.parse import urlencode
 
 import jwt
@@ -164,6 +164,46 @@ class AuthController(ControllerBase):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication failed"
             )
+
+    @get("/session")
+    async def get_session_info(self, session_id: str | None = Cookie(None)):
+        """Get session information including expiration time.
+
+        Returns:
+            Dict with session info: { "authenticated": bool, "expires_at": str|null, "expires_in_seconds": int|null }
+        """
+        if not session_id:
+            return {
+                "authenticated": False,
+                "expires_at": None,
+                "expires_in_seconds": None,
+            }
+
+        session = self.session_store.get_session(session_id)
+        if not session:
+            return {
+                "authenticated": False,
+                "expires_at": None,
+                "expires_in_seconds": None,
+            }
+
+        expires_at = session.get("expires_at")
+        if expires_at:
+            now = datetime.now(timezone.utc)
+            # Ensure expires_at is datetime object
+            if isinstance(expires_at, str):
+                expires_at = datetime.fromisoformat(expires_at)
+            elif not expires_at.tzinfo:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+            expires_in_seconds = int((expires_at - now).total_seconds())
+            return {
+                "authenticated": True,
+                "expires_at": expires_at.isoformat(),
+                "expires_in_seconds": max(0, expires_in_seconds),
+            }
+
+        return {"authenticated": True, "expires_at": None, "expires_in_seconds": None}
 
     @post("/refresh")
     async def refresh(self, session_id: str | None = Cookie(None)):
