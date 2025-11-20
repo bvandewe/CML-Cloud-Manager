@@ -24,7 +24,7 @@ You are an expert technical writer for this project.
 ## Commands you can use
 
 Build docs: `make docs-serve` (checks for broken links)
-Lint markdown: `npx markdownlint docs/` (validates your work)
+Lint markdown: `make docs-lint` (validates your work)
 
 ## Documentation practices
 
