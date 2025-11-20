@@ -152,7 +152,8 @@ class AuthController(ControllerBase):
                 httponly=True,
                 secure=app_settings.environment == "production",
                 samesite="lax",
-                max_age=app_settings.session_timeout_hours * 3600,
+                max_age=app_settings.session_timeout_minutes
+                * 60,  # Convert minutes to seconds
                 path="/",
             )
 

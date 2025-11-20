@@ -61,7 +61,7 @@ class Settings(ApplicationSettings):
 
     # Session Configuration
     session_secret_key: str = "change-me-in-production-use-secrets-token-urlsafe"
-    session_timeout_hours: int = 8
+    session_timeout_minutes: int = 480  # 8 hours default (480 minutes)
 
     # Redis Configuration (for production session storage)
     redis_enabled: bool = False  # Set to True for production with Redis

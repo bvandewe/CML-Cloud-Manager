@@ -319,7 +319,7 @@ class DualAuthService:
             try:
                 session_store = RedisSessionStore(
                     redis_url=app_settings.redis_url,
-                    session_timeout_hours=app_settings.session_timeout_hours,
+                    session_timeout_minutes=app_settings.session_timeout_minutes,
                     key_prefix=app_settings.redis_key_prefix,
                 )
                 # Test connection
@@ -331,12 +331,12 @@ class DualAuthService:
                 log.error(f"❌ Failed to connect to Redis: {e}")
                 log.warning("⚠️ Falling back to InMemorySessionStore")
                 session_store = InMemorySessionStore(
-                    session_timeout_hours=app_settings.session_timeout_hours
+                    session_timeout_minutes=app_settings.session_timeout_minutes
                 )
         else:
             log.info("💾 Using InMemorySessionStore (development only)")
             session_store = InMemorySessionStore(
-                session_timeout_hours=app_settings.session_timeout_hours
+                session_timeout_minutes=app_settings.session_timeout_minutes
             )
 
         # Register session store
