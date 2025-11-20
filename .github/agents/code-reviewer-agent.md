@@ -161,8 +161,8 @@ When asked to review code:
 - **Patterns:** Commands/Queries self-contained with handlers
 - **Key Rules:**
   - Domain entities use `@dispatch` for event-driven state
-  - Handlers use `self.ok()`, `self.bad_request()`, etc. (NOT `OperationResult.success()`)
-  - Repository methods accept `cancellation_token`, Mediator calls do NOT
+  - Handlers use `self.ok()`, `self.bad_request()`, etc. (NOT `OperationResult.success()`) inherited from mediator's `RequestHandler`
+  - Repository methods and Mediator calls do NOT accept `cancellation_token`
   - All imports at module level (no inline imports except TYPE_CHECKING)
 
 **Architecture Layers:**
