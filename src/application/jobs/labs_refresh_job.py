@@ -9,6 +9,7 @@ import logging
 from datetime import datetime
 
 from opentelemetry import trace
+from pymongo.errors import DuplicateKeyError
 
 from application.services.background_scheduler import (
     RecurrentBackgroundJob,
@@ -236,6 +237,37 @@ class LabsRefreshJob(RecurrentBackgroundJob):
             )
             return (0, 0, 0)
 
+        # Detect and remove orphaned lab records (labs deleted outside our system)
+        existing_records = await lab_record_repository.get_all_by_worker_async(
+            worker_id
+        )
+        existing_lab_ids = {record.state.lab_id for record in existing_records}
+        current_lab_ids = set(lab_ids) if lab_ids else set()
+        orphaned_lab_ids = existing_lab_ids - current_lab_ids
+
+        if orphaned_lab_ids:
+            log.info(
+                f"Found {len(orphaned_lab_ids)} orphaned lab records for worker {worker_id}: "
+                f"{list(orphaned_lab_ids)}"
+            )
+            for orphaned_lab_id in orphaned_lab_ids:
+                try:
+                    # Use direct MongoDB deletion instead of aggregate remove_async
+                    deleted = await lab_record_repository.remove_by_lab_id_async(
+                        worker_id, orphaned_lab_id
+                    )
+                    if deleted:
+                        log.info(f"Removed orphaned lab record: {orphaned_lab_id}")
+                    else:
+                        log.warning(
+                            f"Orphaned lab record {orphaned_lab_id} not found in DB"
+                        )
+                except Exception as e:
+                    log.error(
+                        f"Failed to remove orphaned lab record {orphaned_lab_id}: {e}",
+                        exc_info=True,
+                    )
+
         if not lab_ids:
             log.debug(f"No labs found for worker {worker_id}")
             return (0, 0, 0)
@@ -291,8 +323,38 @@ class LabsRefreshJob(RecurrentBackgroundJob):
                         cml_created_at=_parse_cml_timestamp(lab_details.created),
                         cml_modified_at=_parse_cml_timestamp(lab_details.modified),
                     )
-                    await lab_record_repository.add_async(new_record)
-                    created += 1
+                    try:
+                        await lab_record_repository.add_async(new_record)
+                        created += 1
+                    except DuplicateKeyError:
+                        # Race condition: record was created by another process
+                        # Fetch and update it instead
+                        log.warning(
+                            f"Duplicate lab record detected for worker {worker_id}, lab {lab_id}. "
+                            f"Fetching and updating existing record."
+                        )
+                        existing_record = (
+                            await lab_record_repository.get_by_lab_id_async(
+                                worker_id, lab_id
+                            )
+                        )
+                        if existing_record:
+                            existing_record.update_from_cml(
+                                title=lab_details.lab_title,
+                                description=lab_details.lab_description,
+                                notes=lab_details.lab_notes,
+                                state=lab_details.state,
+                                owner_username=lab_details.owner_username,
+                                owner_fullname=lab_details.owner_fullname,
+                                node_count=lab_details.node_count,
+                                link_count=lab_details.link_count,
+                                groups=lab_details.groups,
+                                cml_modified_at=_parse_cml_timestamp(
+                                    lab_details.modified
+                                ),
+                            )
+                            await lab_record_repository.update_async(existing_record)
+                            updated += 1
 
                 synced += 1
 
