@@ -4,11 +4,10 @@ from __future__ import annotations
 Background task scheduling infrastructure for the Neuroglia framework.
 
 This module provides comprehensive background task scheduling capabilities using
-APScheduler with Redis persistence, reactive streams integration, and support for
-both scheduled (one-time) and recurrent background jobs.
+APScheduler with Redis persistence and support for both scheduled (one-time)
+and recurrent background jobs.
 """
 
-import asyncio
 import contextvars
 import datetime
 import inspect
@@ -19,8 +18,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from neuroglia.core import ModuleLoader, TypeFinder
-from neuroglia.reactive.rx_async import AsyncRx
-from rx.subject.subject import Subject
 
 # Removed dynamic interval logic; app_settings import no longer needed here.
 # If reintroducing dynamic intervals later, re-add the import.
@@ -155,23 +152,6 @@ class RecurrentTaskDescriptor(TaskDescriptor):
 
     interval: int
     started_at: datetime.datetime | None = None
-
-
-class BackgroundTasksBus:
-    """Defines the fundamentals of a service used to manage incoming and outgoing streams of background tasks."""
-
-    def __init__(self) -> None:
-        """Initialize the background tasks bus with a new input stream."""
-        self.input_stream: Subject = Subject()
-
-    def schedule_task(self, task_descriptor: TaskDescriptor) -> None:
-        """Schedule a task by sending it through the input stream."""
-        self.input_stream.on_next(task_descriptor)
-
-    def dispose(self) -> None:
-        """Dispose of the input stream and release resources."""
-        if hasattr(self.input_stream, "dispose"):
-            self.input_stream.dispose()
 
 
 class BackgroundTaskSchedulerOptions:
@@ -428,7 +408,6 @@ class BackgroundTaskScheduler(HostedService):
     def __init__(
         self,
         options: BackgroundTaskSchedulerOptions,
-        background_task_bus: BackgroundTasksBus,
         scheduler: Optional[Any] = None,
         service_provider: Optional[Any] = None,
     ):
@@ -436,7 +415,6 @@ class BackgroundTaskScheduler(HostedService):
 
         Args:
             options: Configuration options for task type registration
-            background_task_bus: Bus for receiving task requests
             scheduler: APScheduler instance (will create one if not provided)
             service_provider: Service provider for dependency injection during deserialization
         """
@@ -448,7 +426,6 @@ class BackgroundTaskScheduler(HostedService):
 
         # Attribute declarations (improve static analysis clarity)
         self._options: BackgroundTaskSchedulerOptions = options
-        self._background_task_bus: BackgroundTasksBus = background_task_bus
         self._service_provider: Optional[Any] = service_provider
         self._started: bool = False
         self._scheduler: Any  # AsyncIOScheduler instance set below
@@ -479,14 +456,6 @@ class BackgroundTaskScheduler(HostedService):
             # Set service provider in context variable (thread-safe, async-safe)
             _service_provider_context.set(self._service_provider)
             self._scheduler.start()
-
-            # Subscribe to the task bus for incoming job requests
-            def handle_task_request(task_desc):
-                asyncio.create_task(self._on_job_request_async(task_desc))
-
-            AsyncRx.subscribe(
-                self._background_task_bus.input_stream, handle_task_request
-            )
 
             # Directly schedule recurrent background jobs (simplified - no duplicate/invalid cleanup)
             for task_name, task_class in self._options.type_maps.items():
@@ -589,35 +558,12 @@ class BackgroundTaskScheduler(HostedService):
             if running_jobs:
                 log.info(f"Waiting for {len(running_jobs)} running jobs to complete")
 
-            # Dispose of the task bus
-            self._background_task_bus.dispose()
             self._started = False
             log.info("Background task scheduler stopped successfully")
 
         except Exception as ex:
             log.error(f"Error stopping background task scheduler: {ex}")
             raise BackgroundTaskException(f"Failed to stop scheduler: {ex}")
-
-    async def _on_job_request_async(self, task_descriptor: TaskDescriptor) -> None:
-        """Handle incoming job requests from the task bus."""
-        try:
-            # Find the Python type of the task
-            task_type = self._options.get_task_type(task_descriptor.name)
-            if task_type is None:
-                log.warning(
-                    f"Ignored incoming job request: the specified type '{task_descriptor.name}' "
-                    f"is not supported. Did you forget to put the '@backgroundjob' decorator on the class?"
-                )
-                return
-
-            # Deserialize and enqueue the task
-            task = self.deserialize_task(task_type, task_descriptor)
-            await self.enqueue_task_async(task)
-
-        except Exception as ex:
-            log.error(
-                f"Error processing job request for '{task_descriptor.name}': {ex}"
-            )
 
     def deserialize_task(
         self, task_type: type, task_descriptor: TaskDescriptor
@@ -984,7 +930,6 @@ class BackgroundTaskScheduler(HostedService):
                     jobstores=jobstores,
                 ),
             )
-            builder.services.add_singleton(BackgroundTasksBus, BackgroundTasksBus)
             builder.services.add_singleton(
                 BackgroundTaskSchedulerOptions, singleton=options
             )
@@ -994,7 +939,6 @@ class BackgroundTaskScheduler(HostedService):
                 BackgroundTaskScheduler,
                 implementation_factory=lambda provider: BackgroundTaskScheduler(
                     provider.get_required_service(BackgroundTaskSchedulerOptions),
-                    provider.get_required_service(BackgroundTasksBus),
                     provider.get_required_service(scheduler_cls),
                     service_provider=provider,
                 ),
