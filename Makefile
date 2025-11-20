@@ -1,4 +1,4 @@
-.PHONY: help build-ui dev-ui run test lint format clean install-dev-tools update-neuroglia-config restart-service
+.PHONY: help build-ui dev-ui run test lint lint-docs format clean install-dev-tools update-neuroglia-config restart-service
 
 # Default target
 .DEFAULT_GOAL := help
@@ -223,6 +223,10 @@ test-cov: ## Run tests with coverage
 lint: ## Run linting checks
 	@echo "$(BLUE)Running linting checks...$(NC)"
 	poetry run ruff check .
+
+lint-docs: ## Lint markdown files in docs folder
+	@echo "$(BLUE)Linting markdown documentation...$(NC)"
+	poetry run pre-commit run markdownlint --files $(DOCS_FOLDER)/**/*.md
 
 format: ## Format code with black
 	@echo "$(BLUE)Formatting code...$(NC)"
