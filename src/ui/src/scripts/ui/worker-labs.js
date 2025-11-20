@@ -211,7 +211,20 @@ export async function loadLabsTab() {
         labsContent.innerHTML = html;
         initializeDateTooltips();
     } catch (error) {
-        labsContent.innerHTML = `<div class='alert alert-danger'><i class='bi bi-exclamation-triangle'></i> Failed to load labs: ${escapeHtml(error.message)}</div>`;
+        // Show upload button even on error
+        const errorHtml = `
+        <div class="mb-3 d-flex justify-content-between align-items-center">
+            <h6 class="mb-0"><i class="bi bi-folder2-open"></i> Labs on this Worker</h6>
+            <div>
+                <input type="file" id="lab-upload-input" accept=".yaml,.yml" style="display: none" onchange="window.workersApp.handleLabFileSelected(event, '${region}', '${workerId}')">
+                <button type="button" class="btn btn-sm btn-primary" onclick="document.getElementById('lab-upload-input').click()">
+                    <i class="bi bi-upload"></i> Upload Lab YAML
+                </button>
+            </div>
+        </div>
+        <div class='alert alert-danger'><i class='bi bi-exclamation-triangle'></i> Failed to load labs: ${escapeHtml(error.message)}</div>
+        `;
+        labsContent.innerHTML = errorHtml;
     }
 }
 
