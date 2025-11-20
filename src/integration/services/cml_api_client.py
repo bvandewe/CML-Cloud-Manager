@@ -924,6 +924,161 @@ class CMLApiClient:
             log.error(f"Error wiping lab {lab_id}: {e}")
             raise IntegrationException(f"Error wiping lab: {e}") from e
 
+    async def download_lab(self, lab_id: str) -> str:
+        """Download lab topology as YAML.
+
+        Args:
+            lab_id: Lab identifier
+
+        Returns:
+            YAML string containing lab topology
+
+        Raises:
+            IntegrationException: On API errors
+        """
+        endpoint = f"{self.base_url}/api/v0/labs/{lab_id}/download"
+
+        try:
+            token = await self._get_token()
+
+            async with httpx.AsyncClient(
+                verify=self.verify_ssl, timeout=self.timeout
+            ) as client:
+                response = await client.get(
+                    endpoint, headers={"Authorization": f"Bearer {token}"}
+                )
+
+                if response.status_code == 401:
+                    # Token expired, re-authenticate
+                    log.info("Token expired, re-authenticating")
+                    self._token = None
+                    token = await self._get_token()
+                    response = await client.get(
+                        endpoint, headers={"Authorization": f"Bearer {token}"}
+                    )
+
+                if response.status_code != 200:
+                    log.error(
+                        f"Failed to download lab {lab_id}: {response.status_code} {response.text}"
+                    )
+                    raise IntegrationException(
+                        f"Failed to download lab: HTTP {response.status_code}"
+                    )
+
+                log.info(f"Successfully downloaded lab {lab_id}")
+                return response.text
+
+        except Exception as e:
+            log.error(f"Error downloading lab {lab_id}: {e}")
+            raise IntegrationException(f"Error downloading lab: {e}") from e
+
+    async def import_lab(self, yaml_content: str, title: str | None = None) -> dict:
+        """Import a lab from YAML topology.
+
+        Args:
+            yaml_content: Lab topology in CML2 YAML format
+            title: Optional title for the imported lab (overrides title in YAML)
+
+        Returns:
+            Dict with lab_id of the imported lab
+
+        Raises:
+            IntegrationException: On API errors
+        """
+        endpoint = f"{self.base_url}/api/v0/import"
+        if title:
+            endpoint = f"{endpoint}?title={title}"
+
+        try:
+            token = await self._get_token()
+
+            # CML expects application/json content type with YAML as string payload
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            }
+
+            async with httpx.AsyncClient(
+                verify=self.verify_ssl, timeout=self.timeout
+            ) as client:
+                response = await client.post(
+                    endpoint, content=yaml_content, headers=headers
+                )
+
+                if response.status_code == 401:
+                    # Token expired, re-authenticate
+                    log.info("Token expired, re-authenticating")
+                    self._token = None
+                    token = await self._get_token()
+                    headers["Authorization"] = f"Bearer {token}"
+                    response = await client.post(
+                        endpoint, content=yaml_content, headers=headers
+                    )
+
+                if response.status_code != 200:
+                    log.error(
+                        f"Failed to import lab: {response.status_code} {response.text}"
+                    )
+                    raise IntegrationException(
+                        f"Failed to import lab: HTTP {response.status_code}"
+                    )
+
+                result = response.json()
+                log.info(f"Successfully imported lab: {result.get('id')}")
+                return result
+
+        except Exception as e:
+            log.error(f"Error importing lab: {e}")
+            raise IntegrationException(f"Error importing lab: {e}") from e
+
+    async def delete_lab(self, lab_id: str) -> bool:
+        """Delete a lab.
+
+        Args:
+            lab_id: Lab identifier
+
+        Returns:
+            True if deletion succeeded
+
+        Raises:
+            IntegrationException: On API errors
+        """
+        endpoint = f"{self.base_url}/api/v0/labs/{lab_id}"
+
+        try:
+            token = await self._get_token()
+
+            async with httpx.AsyncClient(
+                verify=self.verify_ssl, timeout=self.timeout
+            ) as client:
+                response = await client.delete(
+                    endpoint, headers={"Authorization": f"Bearer {token}"}
+                )
+
+                if response.status_code == 401:
+                    # Token expired, re-authenticate
+                    log.info("Token expired, re-authenticating")
+                    self._token = None
+                    token = await self._get_token()
+                    response = await client.delete(
+                        endpoint, headers={"Authorization": f"Bearer {token}"}
+                    )
+
+                if response.status_code not in [200, 204]:
+                    log.error(
+                        f"Failed to delete lab {lab_id}: {response.status_code} {response.text}"
+                    )
+                    raise IntegrationException(
+                        f"Failed to delete lab: HTTP {response.status_code}"
+                    )
+
+                log.info(f"Successfully deleted lab {lab_id}")
+                return True
+
+        except Exception as e:
+            log.error(f"Error deleting lab {lab_id}: {e}")
+            raise IntegrationException(f"Error deleting lab: {e}") from e
+
     async def get_telemetry_events(self) -> list[dict]:
         """Fetch telemetry events from CML worker.
 

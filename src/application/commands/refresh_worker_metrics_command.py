@@ -75,6 +75,8 @@ class RefreshWorkerMetricsCommand(Command[OperationResult[dict]]):
     """
 
     worker_id: str
+    force: bool = False  # Bypass throttle (for user-initiated on-demand refreshes)
+    initiated_by: str = "user"  # "user" or "background_job" - for throttle logic
 
 
 class RefreshWorkerMetricsCommandHandler(
@@ -126,8 +128,15 @@ class RefreshWorkerMetricsCommandHandler(
         )
 
         try:
-            # Rate-limiting: Check if refresh is allowed
-            if not self._refresh_throttle.can_refresh(command.worker_id):
+            # Rate-limiting: Check if refresh is allowed (only for user-initiated requests)
+            # Background jobs bypass throttle to ensure regular data collection
+            is_user_request = command.initiated_by == "user"
+
+            if (
+                is_user_request
+                and not command.force
+                and not self._refresh_throttle.can_refresh(command.worker_id)
+            ):
                 retry_after = self._refresh_throttle.get_time_until_next_refresh(
                     command.worker_id
                 )
@@ -181,8 +190,9 @@ class RefreshWorkerMetricsCommandHandler(
                         }
                     )
 
-            # Record refresh attempt
-            self._refresh_throttle.record_refresh(command.worker_id)
+            # Record refresh attempt (only for user requests to prevent background jobs from blocking user refreshes)
+            if is_user_request:
+                self._refresh_throttle.record_refresh(command.worker_id)
 
             results = {}
 

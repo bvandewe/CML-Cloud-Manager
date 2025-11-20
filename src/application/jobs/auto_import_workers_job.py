@@ -86,18 +86,6 @@ class AutoImportWorkersJob(RecurrentBackgroundJob):
     async def run_every(self, *args, **kwargs):
         """Execute the job on schedule.
 
-        This method is required by ScheduledBackgroundJob base class.
-        It delegates to execute_async for the actual work
-
-        Args:
-            *args: Positional arguments (unused)
-            **kwargs: Keyword arguments (unused)
-        """
-        await self.execute_async()
-
-    async def execute_async(self, context: dict | None = None) -> dict:
-        """Execute auto-import workers job.
-
         This method discovers EC2 instances matching the configured AMI name/region
         and imports them via BulkImportCMLWorkersCommand.
 

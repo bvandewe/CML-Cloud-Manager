@@ -70,6 +70,8 @@ class GetCMLWorkerByIdQueryHandler(
                 "https_endpoint": worker.state.https_endpoint,
                 "public_ip": worker.state.public_ip,
                 "private_ip": worker.state.private_ip,
+                # AWS Tags
+                "aws_tags": worker.state.aws_tags,
                 # EC2 Metrics
                 "ec2_instance_state_detail": worker.state.ec2_instance_state_detail,
                 "ec2_system_status_check": worker.state.ec2_system_status_check,
@@ -106,12 +108,7 @@ class GetCMLWorkerByIdQueryHandler(
                     if worker.state.next_refresh_at
                     else None
                 ),
-                # Backward compatibility (deprecated)
-                "last_activity_at": (
-                    worker.state.cloudwatch_last_collected_at.isoformat()
-                    if worker.state.cloudwatch_last_collected_at
-                    else None
-                ),
+                # Backward compatibility (deprecated - use cloudwatch_last_collected_at)
                 "active_labs_count": worker.state.cml_labs_count,
                 "cpu_utilization": worker.state.cloudwatch_cpu_utilization,
                 "memory_utilization": worker.state.cloudwatch_memory_utilization,
@@ -133,6 +130,45 @@ class GetCMLWorkerByIdQueryHandler(
                     else None
                 ),
                 "created_by": worker.state.created_by,
+                # Activity tracking and idle detection
+                "last_activity_at": (
+                    worker.state.last_activity_at.isoformat()
+                    if worker.state.last_activity_at
+                    else None
+                ),
+                "last_activity_check_at": (
+                    worker.state.last_activity_check_at.isoformat()
+                    if worker.state.last_activity_check_at
+                    else None
+                ),
+                "next_idle_check_at": (
+                    worker.state.next_idle_check_at.isoformat()
+                    if worker.state.next_idle_check_at
+                    else None
+                ),
+                "target_pause_at": (
+                    worker.state.target_pause_at.isoformat()
+                    if worker.state.target_pause_at
+                    else None
+                ),
+                "is_idle_detection_enabled": worker.state.is_idle_detection_enabled,
+                # Pause/resume tracking
+                "auto_pause_count": worker.state.auto_pause_count,
+                "manual_pause_count": worker.state.manual_pause_count,
+                "auto_resume_count": worker.state.auto_resume_count,
+                "manual_resume_count": worker.state.manual_resume_count,
+                "last_paused_at": (
+                    worker.state.last_paused_at.isoformat()
+                    if worker.state.last_paused_at
+                    else None
+                ),
+                "last_resumed_at": (
+                    worker.state.last_resumed_at.isoformat()
+                    if worker.state.last_resumed_at
+                    else None
+                ),
+                "paused_by": worker.state.paused_by,
+                "pause_reason": worker.state.pause_reason,
             }
 
             logger.info(f"Retrieved CML worker {worker.state.id}")

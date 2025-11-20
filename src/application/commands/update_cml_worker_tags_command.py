@@ -124,23 +124,71 @@ class UpdateCMLWorkerTagsCommandHandler(
 
                 span.set_attribute("ec2.instance_id", worker.state.aws_instance_id)
 
-            with tracer.start_as_current_span("add_ec2_tags") as span:
-                # Add/update tags on EC2 instance
+            with tracer.start_as_current_span("update_ec2_tags") as span:
+                # Update tags on EC2 instance
+                # This involves:
+                # 1. Get current tags from AWS
+                # 2. Add/update tags that are in the new tag dict
+                # 3. Remove tags that are not in the new tag dict
 
                 aws_region = AwsRegion(worker.state.aws_region)
 
-                success = self.aws_ec2_client.add_tags(
+                # Get current tags from AWS
+                current_tags = self.aws_ec2_client.get_tags(
                     aws_region=aws_region,
                     instance_id=worker.state.aws_instance_id,
-                    tags=command.tags,
                 )
 
-                if not success:
-                    error_msg = f"Failed to add tags to EC2 instance {worker.state.aws_instance_id}"
-                    log.error(error_msg)
-                    return self.bad_request(error_msg)
+                # Determine which tags to add/update and which to remove
+                tags_to_add = {}
+                tags_to_remove = []
 
-                span.set_attribute("ec2.tags_added", True)
+                # Find tags to add or update (in new dict but different value or not in current)
+                for key, value in command.tags.items():
+                    if key not in current_tags or current_tags[key] != value:
+                        tags_to_add[key] = value
+
+                # Find tags to remove (in current but not in new dict)
+                for key in current_tags:
+                    if key not in command.tags:
+                        tags_to_remove.append(key)
+
+                # Add/update tags if any
+                if tags_to_add:
+                    success = self.aws_ec2_client.add_tags(
+                        aws_region=aws_region,
+                        instance_id=worker.state.aws_instance_id,
+                        tags=tags_to_add,
+                    )
+
+                    if not success:
+                        error_msg = f"Failed to add tags to EC2 instance {worker.state.aws_instance_id}"
+                        log.error(error_msg)
+                        return self.bad_request(error_msg)
+
+                    log.info(
+                        f"Added/updated {len(tags_to_add)} tags on instance {worker.state.aws_instance_id}: {list(tags_to_add.keys())}"
+                    )
+
+                # Remove tags if any
+                if tags_to_remove:
+                    success = self.aws_ec2_client.remove_tags(
+                        aws_region=aws_region,
+                        instance_id=worker.state.aws_instance_id,
+                        tag_keys=tags_to_remove,
+                    )
+
+                    if not success:
+                        error_msg = f"Failed to remove tags from EC2 instance {worker.state.aws_instance_id}"
+                        log.error(error_msg)
+                        return self.bad_request(error_msg)
+
+                    log.info(
+                        f"Removed {len(tags_to_remove)} tags from instance {worker.state.aws_instance_id}: {tags_to_remove}"
+                    )
+
+                span.set_attribute("ec2.tags_added", len(tags_to_add))
+                span.set_attribute("ec2.tags_removed", len(tags_to_remove))
 
             with tracer.start_as_current_span("retrieve_updated_tags") as span:
                 # Retrieve all tags to return updated state

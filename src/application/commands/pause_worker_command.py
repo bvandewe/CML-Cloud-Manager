@@ -104,7 +104,13 @@ class PauseWorkerCommandHandler(
                 )
 
                 # Update worker aggregate
-                worker.pause(is_auto_pause=command.is_auto_pause)
+                reason = "idle_timeout" if command.is_auto_pause else "manual"
+                paused_by = "system" if command.is_auto_pause else None
+                worker.pause(
+                    reason=command.reason or reason,
+                    paused_by=paused_by,
+                    idle_duration_minutes=None,  # Could be calculated from last_activity_at if needed
+                )
 
                 # Persist changes
                 await self._repository.update_async(worker)

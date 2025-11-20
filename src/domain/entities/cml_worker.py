@@ -24,6 +24,7 @@ from domain.events.cml_worker import (
     CMLWorkerInstanceAssignedDomainEvent,
     CMLWorkerLicenseUpdatedDomainEvent,
     CMLWorkerStatusUpdatedDomainEvent,
+    CMLWorkerTagsUpdatedDomainEvent,
     CMLWorkerTelemetryUpdatedDomainEvent,
     CMLWorkerTerminatedDomainEvent,
 )
@@ -64,6 +65,9 @@ class CMLWorkerState(AggregateState[str]):
     # Network details
     public_ip: str | None
     private_ip: str | None
+
+    # AWS tags
+    aws_tags: dict[str, str]  # EC2 instance tags
 
     # EC2 Metrics (from AWS EC2 API)
     ec2_instance_state_detail: str | None  # e.g., "ok", "impaired", "insufficient-data"
@@ -143,6 +147,9 @@ class CMLWorkerState(AggregateState[str]):
 
         self.public_ip = None
         self.private_ip = None
+
+        # AWS tags initialization
+        self.aws_tags = {}
 
         # EC2 Metrics
         self.ec2_instance_state_detail = None
@@ -348,6 +355,12 @@ class CMLWorkerState(AggregateState[str]):
         self.terminated_at = event.terminated_at
         self.terminated_by = event.terminated_by
         self.updated_at = event.terminated_at
+
+    @dispatch(CMLWorkerTagsUpdatedDomainEvent)
+    def on(self, event: CMLWorkerTagsUpdatedDomainEvent) -> None:  # type: ignore[override]
+        """Apply AWS tags update to the state."""
+        self.aws_tags = event.aws_tags
+        self.updated_at = event.updated_at
 
     @dispatch(CloudWatchMonitoringUpdatedDomainEvent)
     def on(self, event: CloudWatchMonitoringUpdatedDomainEvent) -> None:  # type: ignore[override]
@@ -698,6 +711,22 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
                     ami_name=ami_name,
                     ami_description=ami_description,
                     ami_creation_date=ami_creation_date,
+                    updated_at=datetime.now(timezone.utc),
+                )
+            )
+        )
+
+    def update_aws_tags(self, aws_tags: dict[str, str]) -> None:
+        """Update AWS tags for the EC2 instance.
+
+        Args:
+            aws_tags: Dictionary of AWS tags (key-value pairs)
+        """
+        self.state.on(
+            self.register_event(  # type: ignore
+                CMLWorkerTagsUpdatedDomainEvent(
+                    aggregate_id=self.id(),
+                    aws_tags=aws_tags,
                     updated_at=datetime.now(timezone.utc),
                 )
             )

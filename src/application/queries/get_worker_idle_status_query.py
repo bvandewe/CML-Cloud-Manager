@@ -45,12 +45,12 @@ class GetWorkerIdleStatusQueryHandler(
         self._repository = worker_repository
 
     async def handle_async(
-        self, query: GetWorkerIdleStatusQuery
+        self, request: GetWorkerIdleStatusQuery
     ) -> OperationResult[dict[str, Any]]:
         """Execute the query.
 
         Args:
-            query: Query parameters
+            request: Query parameters
 
         Returns:
             OperationResult with idle status and eligibility information
@@ -58,31 +58,33 @@ class GetWorkerIdleStatusQueryHandler(
         with tracer.start_as_current_span(
             "GetWorkerIdleStatusQueryHandler.handle_async"
         ) as span:
-            span.set_attribute("worker_id", query.worker_id)
+            span.set_attribute("worker_id", request.worker_id)
 
             try:
                 # Retrieve worker
-                worker = await self._repository.get_by_id_async(query.worker_id)
+                worker = await self._repository.get_by_id_async(request.worker_id)
 
                 if not worker:
-                    log.warning(f"Worker {query.worker_id} not found")
+                    log.warning(f"Worker {request.worker_id} not found")
                     span.set_status(Status(StatusCode.ERROR, "Worker not found"))
                     return self.not_found(
-                        f"Worker {query.worker_id}",
-                        f"Worker {query.worker_id} not found",
+                        f"Worker {request.worker_id}",
+                        f"Worker {request.worker_id} not found",
                     )
 
                 # Calculate idle duration
-                idle_duration = worker.calculate_idle_duration()
-                idle_minutes = (
-                    idle_duration.total_seconds() / 60 if idle_duration else 0
-                )
+                idle_minutes = worker.calculate_idle_duration()
 
                 # Check if currently in snooze period
-                in_snooze = worker.in_snooze_period()
+                in_snooze = worker.in_snooze_period(
+                    app_settings.worker_auto_pause_snooze_minutes
+                )
 
                 # Determine if worker is idle based on threshold
-                is_idle = idle_minutes >= app_settings.worker_idle_timeout_minutes
+                is_idle = (
+                    idle_minutes is not None
+                    and idle_minutes >= app_settings.worker_idle_timeout_minutes
+                )
 
                 # Check if auto-pause is enabled (globally and for this worker)
                 auto_pause_enabled = (
@@ -100,7 +102,7 @@ class GetWorkerIdleStatusQueryHandler(
 
                 # Build status response
                 status_data = {
-                    "worker_id": query.worker_id,
+                    "worker_id": request.worker_id,
                     "is_idle": is_idle,
                     "idle_minutes": idle_minutes,
                     "idle_threshold_minutes": app_settings.worker_idle_timeout_minutes,
@@ -115,7 +117,7 @@ class GetWorkerIdleStatusQueryHandler(
                 }
 
                 log.debug(
-                    f"Worker {query.worker_id} idle status: "
+                    f"Worker {request.worker_id} idle status: "
                     f"idle={is_idle}, eligible_for_pause={eligible_for_pause}"
                 )
 
@@ -127,7 +129,7 @@ class GetWorkerIdleStatusQueryHandler(
 
             except Exception as e:
                 log.error(
-                    f"Error checking idle status for worker {query.worker_id}: {e}",
+                    f"Error checking idle status for worker {request.worker_id}: {e}",
                     exc_info=True,
                 )
                 span.set_status(Status(StatusCode.ERROR, str(e)))

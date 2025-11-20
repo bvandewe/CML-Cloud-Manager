@@ -11,6 +11,11 @@ from .cml_worker import (
     CMLWorkerTelemetryUpdatedDomainEvent,
     CMLWorkerTerminatedDomainEvent,
 )
+from .lab_record_events import (
+    LabRecordCreatedDomainEvent,
+    LabRecordUpdatedDomainEvent,
+    LabStateChangedDomainEvent,
+)
 from .task import (
     TaskAssigneeUpdatedDomainEvent,
     TaskCreatedDomainEvent,
@@ -41,6 +46,9 @@ __all__ = [
     "CMLWorkerStatusUpdatedDomainEvent",
     "CMLWorkerTelemetryUpdatedDomainEvent",
     "CMLWorkerTerminatedDomainEvent",
+    "LabRecordCreatedDomainEvent",
+    "LabRecordUpdatedDomainEvent",
+    "LabStateChangedDomainEvent",
     "TaskAssigneeUpdatedDomainEvent",
     "TaskCreatedDomainEvent",
     "TaskDepartmentUpdatedDomainEvent",

@@ -200,8 +200,11 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
                             worker_id = worker.id()
 
                             # Step 1: Refresh metrics (EC2, CloudWatch, CML system data)
+                            # Mark as background_job so it doesn't trigger user throttle
                             metrics_result = await mediator.execute_async(
-                                RefreshWorkerMetricsCommand(worker_id=worker_id)
+                                RefreshWorkerMetricsCommand(
+                                    worker_id=worker_id, initiated_by="background_job"
+                                )
                             )
 
                             if metrics_result.status != 200:

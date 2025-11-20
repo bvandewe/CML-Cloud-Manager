@@ -245,8 +245,8 @@ class RequestWorkerDataRefreshCommandHandler(
             # Enqueue via scheduler
             await self._scheduler.enqueue_task_async(job)
 
-            # Record throttle timestamp AFTER scheduling
-            self._refresh_throttle.record_refresh(command.worker_id)
+            # Note: Throttle recording happens in RefreshWorkerMetricsCommand when job executes
+            # This prevents recording throttle before the actual refresh happens
 
             # Emit requested SSE event
             await self._emit_refresh_requested_event(

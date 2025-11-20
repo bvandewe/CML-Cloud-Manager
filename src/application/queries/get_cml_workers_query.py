@@ -65,6 +65,7 @@ class GetCMLWorkersQueryHandler(
                     "https_endpoint": worker.state.https_endpoint,
                     "public_ip": worker.state.public_ip,
                     "private_ip": worker.state.private_ip,
+                    "aws_tags": worker.state.aws_tags,
                     "license_status": worker.state.license_status.value,
                     "cml_labs_count": worker.state.cml_labs_count,
                     "created_at": worker.state.created_at.isoformat(),
@@ -86,6 +87,7 @@ class GetCMLWorkersQueryHandler(
             ]
 
             # Extract CML metrics (CPU, memory, storage) from cml_system_info if available
+            # Fall back to CloudWatch metrics if CML metrics are not available
             for idx, worker in enumerate(filtered_workers):
                 system_info = worker.state.cml_system_info or {}
                 # Get first compute node stats
@@ -97,7 +99,7 @@ class GetCMLWorkersQueryHandler(
                 memory_stats = stats.get("memory", {})
                 disk_stats = stats.get("disk", {})
 
-                # Derive CPU utilization
+                # Derive CPU utilization from CML
                 cpu_util = None
                 if cpu_stats:
                     # Prefer consolidated percent if available
@@ -116,7 +118,14 @@ class GetCMLWorkersQueryHandler(
                             except (ValueError, TypeError):
                                 cpu_util = None
 
-                # Derive Memory utilization (require both total_kb & available_kb)
+                # Fallback to CloudWatch CPU if CML not available
+                if (
+                    cpu_util is None
+                    and worker.state.cloudwatch_cpu_utilization is not None
+                ):
+                    cpu_util = worker.state.cloudwatch_cpu_utilization
+
+                # Derive Memory utilization from CML (require both total_kb & available_kb)
                 memory_util = None
                 if memory_stats:
                     total_kb = memory_stats.get("total_kb")
@@ -130,7 +139,14 @@ class GetCMLWorkersQueryHandler(
                         used_kb = total_kb - available_kb
                         memory_util = (used_kb / total_kb) * 100
 
-                # Derive Storage utilization (require both size_kb & capacity_kb)
+                # Fallback to CloudWatch memory if CML not available
+                if (
+                    memory_util is None
+                    and worker.state.cloudwatch_memory_utilization is not None
+                ):
+                    memory_util = worker.state.cloudwatch_memory_utilization
+
+                # Derive Storage utilization from CML (require both size_kb & capacity_kb)
                 storage_util = None
                 if disk_stats:
                     size_kb = disk_stats.get("size_kb")
@@ -156,6 +172,15 @@ class GetCMLWorkersQueryHandler(
                 result[idx]["cpu_utilization"] = _clamp(cpu_util)
                 result[idx]["memory_utilization"] = _clamp(memory_util)
                 result[idx]["storage_utilization"] = _clamp(storage_util)
+
+                # Debug logging
+                logger.debug(
+                    f"Worker {worker.state.name}: cpu={result[idx]['cpu_utilization']}, "
+                    f"mem={result[idx]['memory_utilization']}, disk={result[idx]['storage_utilization']} "
+                    f"(cml_system_info={'present' if worker.state.cml_system_info else 'missing'}, "
+                    f"cloudwatch_cpu={worker.state.cloudwatch_cpu_utilization}, "
+                    f"cloudwatch_mem={worker.state.cloudwatch_memory_utilization})"
+                )
 
             logger.info(
                 f"Retrieved {len(result)} CML workers in region {request.aws_region.value}"

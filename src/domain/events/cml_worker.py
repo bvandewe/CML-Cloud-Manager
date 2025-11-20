@@ -306,3 +306,24 @@ class CMLWorkerTerminatedDomainEvent(DomainEvent):
         self.name = name
         self.terminated_at = terminated_at
         self.terminated_by = terminated_by
+
+
+@cloudevent("cml_worker.tags.updated.v1")
+@dataclass
+class CMLWorkerTagsUpdatedDomainEvent(DomainEvent):
+    """Event raised when CML Worker AWS tags are updated."""
+
+    aggregate_id: str
+    aws_tags: dict[str, str]
+    updated_at: datetime
+
+    def __init__(
+        self,
+        aggregate_id: str,
+        aws_tags: dict[str, str],
+        updated_at: datetime,
+    ) -> None:
+        super().__init__(aggregate_id)
+        self.aggregate_id = aggregate_id
+        self.aws_tags = aws_tags
+        self.updated_at = updated_at

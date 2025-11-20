@@ -9,11 +9,12 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 
-from neuroglia.mediation import DomainEventHandler
+from neuroglia.mediation import DomainEventHandler, Mediator
 
 from application.services.sse_event_relay import SSEEventRelay
 from domain.events.cml_worker import (
     CMLWorkerCreatedDomainEvent,
+    CMLWorkerImportedDomainEvent,
     CMLWorkerStatusUpdatedDomainEvent,
     CMLWorkerTelemetryUpdatedDomainEvent,
     CMLWorkerTerminatedDomainEvent,
@@ -59,6 +60,82 @@ class CMLWorkerCreatedDomainEventHandler(
         log.info(
             "Broadcasted worker.created + snapshot for %s", notification.aggregate_id
         )
+        return None
+
+
+class CMLWorkerImportedDomainEventHandler(
+    DomainEventHandler[CMLWorkerImportedDomainEvent]
+):
+    """Handle worker imported event by notifying UI and scheduling initial data refresh."""
+
+    def __init__(
+        self,
+        sse_relay: SSEEventRelay,
+        repository: CMLWorkerRepository,
+        mediator: Mediator,
+    ):
+        self._sse_relay = sse_relay
+        self._repository = repository
+        self._mediator = mediator
+
+    async def handle_async(self, notification: CMLWorkerImportedDomainEvent) -> None:  # type: ignore[override]
+        """Broadcast worker.imported SSE event and schedule immediate data collection."""
+        from application.commands.request_worker_data_refresh_command import (
+            RequestWorkerDataRefreshCommand,
+        )
+
+        # Broadcast imported event to UI
+        await self._sse_relay.broadcast_event(
+            event_type="worker.imported",
+            data={
+                "worker_id": notification.aggregate_id,
+                "name": notification.name,
+                "region": notification.aws_region,
+                "status": notification.status.value,
+                "instance_type": notification.instance_type,
+                "aws_instance_id": notification.aws_instance_id,
+                "imported_at": _utc_iso(notification.created_at),
+            },
+            source="domain.cml_worker",
+        )
+
+        # Broadcast snapshot for full worker data
+        await _broadcast_worker_snapshot(
+            self._repository,
+            self._sse_relay,
+            notification.aggregate_id,
+            reason="imported",
+        )
+
+        log.info(
+            f"Broadcasted worker.imported + snapshot for {notification.aggregate_id}, "
+            f"scheduling initial data collection"
+        )
+
+        # Schedule immediate on-demand refresh to populate worker data
+        # This follows the same flow as user-triggered refreshes
+        try:
+            refresh_command = RequestWorkerDataRefreshCommand(
+                worker_id=notification.aggregate_id, region=notification.aws_region
+            )
+            result = await self._mediator.execute_async(refresh_command)
+            if result.is_success and result.data.get("scheduled"):
+                log.info(
+                    f"✅ Scheduled initial data collection for imported worker {notification.aggregate_id}"
+                )
+            else:
+                reason = (
+                    result.data.get("reason", "unknown") if result.data else "unknown"
+                )
+                log.warning(
+                    f"⚠️ Failed to schedule data collection for imported worker {notification.aggregate_id}: {reason}"
+                )
+        except Exception as e:
+            log.error(
+                f"❌ Error scheduling data collection for imported worker {notification.aggregate_id}: {e}",
+                exc_info=True,
+            )
+
         return None
 
 
@@ -320,6 +397,7 @@ async def _broadcast_worker_snapshot(
             "aws_instance_id": s.aws_instance_id,
             "public_ip": s.public_ip,
             "private_ip": s.private_ip,
+            "aws_tags": s.aws_tags,
             "ami_id": s.ami_id,
             "ami_name": s.ami_name,
             "ami_description": s.ami_description,

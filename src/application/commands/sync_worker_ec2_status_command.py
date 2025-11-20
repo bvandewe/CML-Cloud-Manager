@@ -199,6 +199,22 @@ class SyncWorkerEC2StatusCommandHandler(
                         f"Worker {command.worker_id} CloudWatch monitoring status updated: {monitoring_state}"
                     )
 
+                # Fetch and update AWS tags
+                try:
+                    aws_tags = self.aws_ec2_client.get_tags(
+                        aws_region=aws_region,
+                        instance_id=worker.state.aws_instance_id,
+                    )
+                    if aws_tags:
+                        worker.update_aws_tags(aws_tags)
+                        log.debug(
+                            f"Updated {len(aws_tags)} AWS tags for worker {command.worker_id}"
+                        )
+                except Exception as e:
+                    log.warning(
+                        f"Failed to fetch AWS tags for worker {command.worker_id}: {e}"
+                    )
+
                 # Map EC2 state to worker status
                 ec2_state_to_worker_status = {
                     "pending": CMLWorkerStatus.PENDING,

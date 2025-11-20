@@ -4,8 +4,10 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from neuroglia.data.abstractions import DomainEvent
+from neuroglia.eventing.cloud_events.decorators import cloudevent
 
 
+@cloudevent("lab_record.created.v1")
 @dataclass
 class LabRecordCreatedDomainEvent(DomainEvent):
     """Event raised when a lab record is first created."""
@@ -61,6 +63,7 @@ class LabRecordCreatedDomainEvent(DomainEvent):
         self.first_seen_at = first_seen_at
 
 
+@cloudevent("lab_record.updated.v1")
 @dataclass
 class LabRecordUpdatedDomainEvent(DomainEvent):
     """Event raised when a lab record is updated with fresh CML data."""
@@ -110,6 +113,7 @@ class LabRecordUpdatedDomainEvent(DomainEvent):
         self.synced_at = synced_at
 
 
+@cloudevent("lab_record.state_changed.v1")
 @dataclass
 class LabStateChangedDomainEvent(DomainEvent):
     """Event raised when a lab's state changes (e.g., STARTED -> STOPPED)."""

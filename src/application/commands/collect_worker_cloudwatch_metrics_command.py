@@ -193,6 +193,14 @@ class CollectWorkerCloudWatchMetricsCommandHandler(
             # Use labs count from worker state (may be None -> treat as 0)
             active_labs_count = worker.state.cml_labs_count or 0
 
+            # Update CloudWatch metrics if we have data (stores in cloudwatch_* fields)
+            if cpu_util is not None or memory_util is not None:
+                worker.update_cloudwatch_metrics(
+                    cpu_utilization=cpu_util if cpu_util is not None else 0.0,
+                    memory_utilization=memory_util if memory_util is not None else 0.0,
+                    collected_at=datetime.now(timezone.utc),
+                )
+
             # Emit telemetry domain event (deprecated API kept for SSE compatibility)
             worker.update_telemetry(
                 last_activity_at=datetime.now(timezone.utc),

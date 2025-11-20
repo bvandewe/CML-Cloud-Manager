@@ -29,7 +29,9 @@ from .delete_cml_worker_command import (
     DeleteCMLWorkerCommand,
     DeleteCMLWorkerCommandHandler,
 )
+from .delete_lab_command import DeleteLabCommand, DeleteLabCommandHandler
 from .delete_task_command import DeleteTaskCommand, DeleteTaskCommandHandler
+from .download_lab_command import DownloadLabCommand, DownloadLabCommandHandler
 from .enable_worker_detailed_monitoring_command import (
     EnableWorkerDetailedMonitoringCommand,
     EnableWorkerDetailedMonitoringCommandHandler,
@@ -38,6 +40,7 @@ from .import_cml_worker_command import (
     ImportCMLWorkerCommand,
     ImportCMLWorkerCommandHandler,
 )
+from .import_lab_command import ImportLabCommand, ImportLabCommandHandler
 from .refresh_worker_labs_command import (
     RefreshWorkerLabsCommand,
     RefreshWorkerLabsCommandHandler,
@@ -97,12 +100,18 @@ __all__ = [
     "CreateTaskCommandHandler",
     "DeleteCMLWorkerCommand",
     "DeleteCMLWorkerCommandHandler",
+    "DeleteLabCommand",
+    "DeleteLabCommandHandler",
     "DeleteTaskCommand",
     "DeleteTaskCommandHandler",
+    "DownloadLabCommand",
+    "DownloadLabCommandHandler",
     "EnableWorkerDetailedMonitoringCommand",
     "EnableWorkerDetailedMonitoringCommandHandler",
     "ImportCMLWorkerCommand",
     "ImportCMLWorkerCommandHandler",
+    "ImportLabCommand",
+    "ImportLabCommandHandler",
     "LabAction",
     "RefreshWorkerLabsCommand",
     "RefreshWorkerLabsCommandHandler",

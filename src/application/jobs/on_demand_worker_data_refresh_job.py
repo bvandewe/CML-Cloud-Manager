@@ -19,6 +19,7 @@ from application.services.background_scheduler import (
     ScheduledBackgroundJob,
     backgroundjob,
 )
+from application.services.sse_event_relay import SSEEventRelay
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -98,15 +99,49 @@ class OnDemandWorkerDataRefreshJob(ScheduledBackgroundJob):
 
                 try:
                     mediator = scope.get_required_service(Mediator)
+                    sse_relay = scope.get_required_service(SSEEventRelay)
 
                     logger.info(
                         f"🔄 Executing on-demand data refresh for worker {self.worker_id}"
                     )
 
                     # Step 1: Refresh metrics (EC2, CloudWatch, CML system data)
+                    # initiated_by="user" ensures throttle applies (default), protecting against rapid user clicks
                     metrics_result = await mediator.execute_async(
-                        RefreshWorkerMetricsCommand(worker_id=self.worker_id)
+                        RefreshWorkerMetricsCommand(
+                            worker_id=self.worker_id, initiated_by="user"
+                        )
                     )
+
+                    # Check if refresh was skipped due to throttling
+                    if metrics_result.status == 200 and metrics_result.data.get(
+                        "refresh_skipped"
+                    ):
+                        reason = metrics_result.data.get("reason", "unknown")
+                        retry_after = metrics_result.data.get("retry_after_seconds")
+
+                        logger.info(
+                            f"⏭️ Metrics refresh skipped for worker {self.worker_id}: {reason}"
+                        )
+
+                        # Emit SSE event to inform user
+                        await sse_relay.broadcast_event(
+                            event_type="worker.refresh.throttled",
+                            data={
+                                "worker_id": self.worker_id,
+                                "reason": reason,
+                                "retry_after_seconds": retry_after,
+                                "message": (
+                                    f"Refresh {reason}. Please wait {retry_after}s before trying again."
+                                    if retry_after
+                                    else f"Refresh {reason}."
+                                ),
+                            },
+                        )
+
+                        span.set_attribute("metrics.refresh.skipped", True)
+                        span.set_attribute("metrics.skip.reason", reason)
+                        return
 
                     if metrics_result.status != 200:
                         logger.warning(
@@ -166,6 +201,19 @@ class OnDemandWorkerDataRefreshJob(ScheduledBackgroundJob):
                     if overall_success:
                         logger.info(
                             f"✅ On-demand data refresh completed for worker {self.worker_id}"
+                        )
+
+                        # Signal UI to refresh worker data from DB
+                        # This is more efficient than sending all data via SSE
+                        await sse_relay.broadcast_event(
+                            event_type="worker.data.refreshed",
+                            data={
+                                "worker_id": self.worker_id,
+                                "message": "Worker data has been refreshed, reload from server",
+                            },
+                        )
+                        logger.debug(
+                            f"📡 Broadcasted worker.data.refreshed SSE event for {self.worker_id}"
                         )
                     else:
                         logger.warning(
