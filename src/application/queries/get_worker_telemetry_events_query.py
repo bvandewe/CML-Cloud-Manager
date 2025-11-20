@@ -59,9 +59,7 @@ class GetWorkerTelemetryEventsQueryHandler(
         self._repository = worker_repository
         self._cml_client_factory = cml_api_client_factory
 
-    async def handle_async(
-        self, query: GetWorkerTelemetryEventsQuery
-    ) -> OperationResult[dict[str, Any]]:
+    async def handle_async(self, query: GetWorkerTelemetryEventsQuery) -> OperationResult[dict[str, Any]]:
         """Execute the query.
 
         Args:
@@ -70,9 +68,7 @@ class GetWorkerTelemetryEventsQueryHandler(
         Returns:
             OperationResult with filtered telemetry data
         """
-        with tracer.start_as_current_span(
-            "GetWorkerTelemetryEventsQueryHandler.handle_async"
-        ) as span:
+        with tracer.start_as_current_span("GetWorkerTelemetryEventsQueryHandler.handle_async") as span:
             span.set_attribute("worker_id", query.worker_id)
 
             try:
@@ -89,15 +85,11 @@ class GetWorkerTelemetryEventsQueryHandler(
 
                 # Check if worker has endpoint (required for CML API access)
                 if not worker.state.https_endpoint:
-                    log.warning(
-                        f"Worker {query.worker_id} has no HTTPS endpoint configured"
-                    )
+                    log.warning(f"Worker {query.worker_id} has no HTTPS endpoint configured")
                     return self.bad_request("Worker has no HTTPS endpoint")
 
                 # Create CML API client for this worker using factory
-                cml_client = self._cml_client_factory.create(
-                    base_url=worker.state.https_endpoint
-                )
+                cml_client = self._cml_client_factory.create(base_url=worker.state.https_endpoint)
 
                 # Fetch raw telemetry events from CML
                 log.info(f"Fetching telemetry events from worker {query.worker_id}")
@@ -114,9 +106,7 @@ class GetWorkerTelemetryEventsQueryHandler(
                 span.set_attribute("filtered_events_count", len(filtered_events))
 
                 # Get most recent events (limited by max_stored setting)
-                recent_events = get_most_recent_events(
-                    filtered_events, app_settings.worker_activity_events_max_stored
-                )
+                recent_events = get_most_recent_events(filtered_events, app_settings.worker_activity_events_max_stored)
 
                 # Extract latest activity timestamp
                 latest_activity = get_latest_activity_timestamp(filtered_events)
@@ -139,9 +129,7 @@ class GetWorkerTelemetryEventsQueryHandler(
                 return self.ok(result)
 
             except IntegrationException as e:
-                log.error(
-                    f"Integration error fetching telemetry for worker {query.worker_id}: {e}"
-                )
+                log.error(f"Integration error fetching telemetry for worker {query.worker_id}: {e}")
                 span.set_status(Status(StatusCode.ERROR, str(e)))
                 return self.bad_request(f"Integration error: {e}")
 

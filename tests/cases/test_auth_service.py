@@ -51,9 +51,7 @@ def test_rs256_success(monkeypatch, auth_service):
     private_key, jwk_dict = generate_rs256_keys()
 
     # Mock JWKS fetch
-    monkeypatch.setattr(
-        auth_service, "_fetch_jwks", lambda: {"keys": [jwk_dict], "fetched_at": 0}
-    )
+    monkeypatch.setattr(auth_service, "_fetch_jwks", lambda: {"keys": [jwk_dict], "fetched_at": 0})
 
     claims = {
         "sub": "user123",
@@ -81,9 +79,7 @@ def test_rs256_success(monkeypatch, auth_service):
 
 def test_rs256_issuer_mismatch(monkeypatch, auth_service):
     private_key, jwk_dict = generate_rs256_keys()
-    monkeypatch.setattr(
-        auth_service, "_fetch_jwks", lambda: {"keys": [jwk_dict], "fetched_at": 0}
-    )
+    monkeypatch.setattr(auth_service, "_fetch_jwks", lambda: {"keys": [jwk_dict], "fetched_at": 0})
 
     claims = {
         "sub": "user123",
@@ -110,9 +106,7 @@ def test_hs256_fallback(monkeypatch, auth_service):
         "roles": ["user"],
         "exp": datetime.utcnow() + timedelta(minutes=5),
     }
-    token = jwt.encode(
-        claims, app_settings.jwt_secret_key, algorithm=app_settings.jwt_algorithm
-    )
+    token = jwt.encode(claims, app_settings.jwt_secret_key, algorithm=app_settings.jwt_algorithm)
 
     user = auth_service.get_user_from_jwt(token)
     if user is None:
@@ -137,9 +131,7 @@ def test_invalid_signature_rs256(monkeypatch, auth_service):
     )
 
     # JWKS returns unrelated key (different kid)
-    monkeypatch.setattr(
-        auth_service, "_fetch_jwks", lambda: {"keys": [jwk2], "fetched_at": 0}
-    )
+    monkeypatch.setattr(auth_service, "_fetch_jwks", lambda: {"keys": [jwk2], "fetched_at": 0})
 
     user = auth_service.get_user_from_jwt(token)
     if user is not None:
@@ -148,9 +140,7 @@ def test_invalid_signature_rs256(monkeypatch, auth_service):
 
 def test_expired_rs256_token(monkeypatch, auth_service):
     private_key, jwk_dict = generate_rs256_keys()
-    monkeypatch.setattr(
-        auth_service, "_fetch_jwks", lambda: {"keys": [jwk_dict], "fetched_at": 0}
-    )
+    monkeypatch.setattr(auth_service, "_fetch_jwks", lambda: {"keys": [jwk_dict], "fetched_at": 0})
     claims = {
         "sub": "user123",
         "preferred_username": "alice",
@@ -164,13 +154,9 @@ def test_expired_rs256_token(monkeypatch, auth_service):
 
 def test_audience_mismatch_rs256(monkeypatch, auth_service):
     private_key, jwk_dict = generate_rs256_keys()
-    monkeypatch.setattr(
-        auth_service, "_fetch_jwks", lambda: {"keys": [jwk_dict], "fetched_at": 0}
-    )
+    monkeypatch.setattr(auth_service, "_fetch_jwks", lambda: {"keys": [jwk_dict], "fetched_at": 0})
     monkeypatch.setattr(app_settings, "VERIFY_AUDIENCE", True)
-    monkeypatch.setattr(
-        app_settings, "EXPECTED_AUDIENCE", ["expected-aud"]
-    )  # enforce audience
+    monkeypatch.setattr(app_settings, "EXPECTED_AUDIENCE", ["expected-aud"])  # enforce audience
     claims = {
         "sub": "user123",
         "preferred_username": "alice",

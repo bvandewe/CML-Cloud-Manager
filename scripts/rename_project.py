@@ -108,9 +108,7 @@ class NameStyles:
         snake = "_".join(w.lower() for w in clean_words)
         pascal = "".join(w.capitalize() for w in clean_words)
         upper = "_".join(w.upper() for w in clean_words)
-        return NameStyles(
-            title=title, slug=slug, snake=snake, pascal=pascal, upper=upper
-        )
+        return NameStyles(title=title, slug=slug, snake=snake, pascal=pascal, upper=upper)
 
     def replacement_map(self) -> Mapping[str, str]:
         return {
@@ -124,22 +122,14 @@ class NameStyles:
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(
-        description="Rename project occurrences of 'cml-cloud-manager' variants."
-    )
-    p.add_argument(
-        "--new-name", required=True, help="Base name for project (e.g. 'Acme Tasks')"
-    )
+    p = argparse.ArgumentParser(description="Rename project occurrences of 'cml-cloud-manager' variants.")
+    p.add_argument("--new-name", required=True, help="Base name for project (e.g. 'Acme Tasks')")
     p.add_argument("--slug", help="Override slug variant")
     p.add_argument("--snake", help="Override snake_case variant")
     p.add_argument("--pascal", help="Override PascalCase variant")
     p.add_argument("--upper", help="Override UPPER_SNAKE variant")
-    p.add_argument(
-        "--dry-run", action="store_true", help="Show changes without writing"
-    )
-    p.add_argument(
-        "--include", nargs="*", help="Limit replacements to these top-level paths"
-    )
+    p.add_argument("--dry-run", action="store_true", help="Show changes without writing")
+    p.add_argument("--include", nargs="*", help="Limit replacements to these top-level paths")
     p.add_argument("--exclude", nargs="*", help="Additional paths to exclude")
     p.add_argument(
         "--update-keycloak",
@@ -282,15 +272,11 @@ def main() -> int:
     if args.dry_run:
         print("\nDry run complete. Re-run without --dry-run to apply changes.")
     else:
-        print(
-            "\nRename applied. Review changes and adjust remaining identifiers (e.g., Docker image names) if needed."
-        )
+        print("\nRename applied. Review changes and adjust remaining identifiers (e.g., Docker image names) if needed.")
 
     print("\nNext steps (manual):")
     print("  1. Rename repository folder and remote origin if desired.")
-    print(
-        "  2. Update Keycloak realm/client to match new identifiers (if --update-keycloak used)."
-    )
+    print("  2. Update Keycloak realm/client to match new identifiers (if --update-keycloak used).")
     print("  3. Search for any lingering custom branding.")
     print("  4. Run tests to confirm functionality: 'poetry run pytest -q'.")
     return 0

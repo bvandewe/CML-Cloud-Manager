@@ -69,9 +69,7 @@ class SyncWorkerEC2StatusCommandHandler(
         self.cml_worker_repository = cml_worker_repository
         self.aws_ec2_client = aws_ec2_client
 
-    async def handle_async(
-        self, request: SyncWorkerEC2StatusCommand
-    ) -> OperationResult[dict]:
+    async def handle_async(self, request: SyncWorkerEC2StatusCommand) -> OperationResult[dict]:
         """Handle sync worker EC2 status command.
 
         Args:
@@ -93,9 +91,7 @@ class SyncWorkerEC2StatusCommandHandler(
         try:
             with tracer.start_as_current_span("retrieve_cml_worker") as span:
                 # 1. Load worker from repository
-                worker = await self.cml_worker_repository.get_by_id_async(
-                    command.worker_id
-                )
+                worker = await self.cml_worker_repository.get_by_id_async(command.worker_id)
 
                 if not worker:
                     error_msg = f"CML Worker not found: {command.worker_id}"
@@ -103,16 +99,12 @@ class SyncWorkerEC2StatusCommandHandler(
                     return self.bad_request(error_msg)
 
                 if not worker.state.aws_instance_id:
-                    error_msg = (
-                        f"CML Worker {command.worker_id} has no AWS instance assigned"
-                    )
+                    error_msg = f"CML Worker {command.worker_id} has no AWS instance assigned"
                     log.error(error_msg)
                     return self.bad_request(error_msg)
 
                 span.set_attribute("ec2.instance_id", worker.state.aws_instance_id)
-                span.set_attribute(
-                    "cml_worker.current_status", worker.state.status.value
-                )
+                span.set_attribute("cml_worker.current_status", worker.state.status.value)
 
             # 2. Query AWS EC2 for current instance status
             with tracer.start_as_current_span("query_ec2_instance_status") as span:
@@ -124,9 +116,7 @@ class SyncWorkerEC2StatusCommandHandler(
                 )
 
                 if not status_checks:
-                    error_msg = (
-                        f"EC2 instance {worker.state.aws_instance_id} not found in AWS"
-                    )
+                    error_msg = f"EC2 instance {worker.state.aws_instance_id} not found in AWS"
                     log.error(error_msg)
                     return self.bad_request(error_msg)
 
@@ -166,12 +156,8 @@ class SyncWorkerEC2StatusCommandHandler(
                         instance_type=instance_details.type,
                         ami_id=instance_details.image_id,
                         ami_name=ami_details.ami_name if ami_details else None,
-                        ami_description=(
-                            ami_details.ami_description if ami_details else None
-                        ),
-                        ami_creation_date=(
-                            ami_details.ami_creation_date if ami_details else None
-                        ),
+                        ami_description=(ami_details.ami_description if ami_details else None),
+                        ami_creation_date=(ami_details.ami_creation_date if ami_details else None),
                     )
 
                     # Auto-populate HTTPS endpoint if public IP available and not already set
@@ -190,14 +176,9 @@ class SyncWorkerEC2StatusCommandHandler(
                 monitoring_enabled = monitoring_state == "enabled"
 
                 # Update worker monitoring status if changed
-                if (
-                    worker.state.cloudwatch_detailed_monitoring_enabled
-                    != monitoring_enabled
-                ):
+                if worker.state.cloudwatch_detailed_monitoring_enabled != monitoring_enabled:
                     worker.update_cloudwatch_monitoring(monitoring_enabled)
-                    log.info(
-                        f"Worker {command.worker_id} CloudWatch monitoring status updated: {monitoring_state}"
-                    )
+                    log.info(f"Worker {command.worker_id} CloudWatch monitoring status updated: {monitoring_state}")
 
                 # Fetch and update AWS tags
                 try:
@@ -207,13 +188,9 @@ class SyncWorkerEC2StatusCommandHandler(
                     )
                     if aws_tags:
                         worker.update_aws_tags(aws_tags)
-                        log.debug(
-                            f"Updated {len(aws_tags)} AWS tags for worker {command.worker_id}"
-                        )
+                        log.debug(f"Updated {len(aws_tags)} AWS tags for worker {command.worker_id}")
                 except Exception as e:
-                    log.warning(
-                        f"Failed to fetch AWS tags for worker {command.worker_id}: {e}"
-                    )
+                    log.warning(f"Failed to fetch AWS tags for worker {command.worker_id}: {e}")
 
                 # Map EC2 state to worker status
                 ec2_state_to_worker_status = {
@@ -224,16 +201,12 @@ class SyncWorkerEC2StatusCommandHandler(
                     "shutting-down": CMLWorkerStatus.TERMINATED,
                     "terminated": CMLWorkerStatus.TERMINATED,
                 }
-                new_status = ec2_state_to_worker_status.get(
-                    ec2_state, CMLWorkerStatus.PENDING
-                )
+                new_status = ec2_state_to_worker_status.get(ec2_state, CMLWorkerStatus.PENDING)
 
                 # Update worker status if changed
                 status_changed = worker.update_status(new_status)
                 if status_changed:
-                    log.info(
-                        f"Worker {command.worker_id} status updated: {worker.state.status.value}"
-                    )
+                    log.info(f"Worker {command.worker_id} status updated: {worker.state.status.value}")
 
                 span.set_attribute("ec2.new_status", new_status.value)
                 span.set_attribute("worker.status_changed", status_changed)
@@ -254,9 +227,7 @@ class SyncWorkerEC2StatusCommandHandler(
                 "cloudwatch_monitoring_enabled": worker.state.cloudwatch_detailed_monitoring_enabled,
             }
 
-            log.info(
-                f"Synced EC2 status for worker {command.worker_id}: {ec2_state} -> {worker.state.status.value}"
-            )
+            log.info(f"Synced EC2 status for worker {command.worker_id}: {ec2_state} -> {worker.state.status.value}")
 
             return self.ok(result)
 
@@ -265,6 +236,4 @@ class SyncWorkerEC2StatusCommandHandler(
                 f"Failed to sync EC2 status for worker {command.worker_id}: {ex}",
                 exc_info=True,
             )
-            return self.internal_server_error(
-                f"Failed to sync worker EC2 status: {str(ex)}"
-            )
+            return self.internal_server_error(f"Failed to sync worker EC2 status: {str(ex)}")

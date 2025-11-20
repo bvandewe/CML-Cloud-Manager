@@ -29,9 +29,7 @@ def _utc_iso(dt: datetime) -> str:
     return dt.isoformat() + "Z"
 
 
-class CMLWorkerCreatedDomainEventHandler(
-    DomainEventHandler[CMLWorkerCreatedDomainEvent]
-):
+class CMLWorkerCreatedDomainEventHandler(DomainEventHandler[CMLWorkerCreatedDomainEvent]):
     def __init__(self, sse_relay: SSEEventRelay, repository: CMLWorkerRepository):
         self._sse_relay = sse_relay
         self._repository = repository
@@ -57,15 +55,11 @@ class CMLWorkerCreatedDomainEventHandler(
             notification.aggregate_id,
             reason="created",
         )
-        log.info(
-            "Broadcasted worker.created + snapshot for %s", notification.aggregate_id
-        )
+        log.info("Broadcasted worker.created + snapshot for %s", notification.aggregate_id)
         return None
 
 
-class CMLWorkerImportedDomainEventHandler(
-    DomainEventHandler[CMLWorkerImportedDomainEvent]
-):
+class CMLWorkerImportedDomainEventHandler(DomainEventHandler[CMLWorkerImportedDomainEvent]):
     """Handle worker imported event by notifying UI and scheduling initial data refresh."""
 
     def __init__(
@@ -120,13 +114,9 @@ class CMLWorkerImportedDomainEventHandler(
             )
             result = await self._mediator.execute_async(refresh_command)
             if result.is_success and result.data.get("scheduled"):
-                log.info(
-                    f"✅ Scheduled initial data collection for imported worker {notification.aggregate_id}"
-                )
+                log.info(f"✅ Scheduled initial data collection for imported worker {notification.aggregate_id}")
             else:
-                reason = (
-                    result.data.get("reason", "unknown") if result.data else "unknown"
-                )
+                reason = result.data.get("reason", "unknown") if result.data else "unknown"
                 log.warning(
                     f"⚠️ Failed to schedule data collection for imported worker {notification.aggregate_id}: {reason}"
                 )
@@ -139,9 +129,7 @@ class CMLWorkerImportedDomainEventHandler(
         return None
 
 
-class CMLWorkerStatusUpdatedDomainEventHandler(
-    DomainEventHandler[CMLWorkerStatusUpdatedDomainEvent]
-):
+class CMLWorkerStatusUpdatedDomainEventHandler(DomainEventHandler[CMLWorkerStatusUpdatedDomainEvent]):
     def __init__(self, sse_relay: SSEEventRelay, repository: CMLWorkerRepository):
         self._sse_relay = sse_relay
         self._repository = repository
@@ -155,9 +143,7 @@ class CMLWorkerStatusUpdatedDomainEventHandler(
             "updated_at": _utc_iso(notification.updated_at),
         }
         if getattr(notification, "transition_initiated_at", None):
-            event_data["transition_initiated_at"] = _utc_iso(
-                notification.transition_initiated_at
-            )
+            event_data["transition_initiated_at"] = _utc_iso(notification.transition_initiated_at)
         await self._sse_relay.broadcast_event(
             event_type="worker.status.updated",
             data=event_data,
@@ -176,9 +162,7 @@ class CMLWorkerStatusUpdatedDomainEventHandler(
         return None
 
 
-class CMLWorkerTerminatedDomainEventHandler(
-    DomainEventHandler[CMLWorkerTerminatedDomainEvent]
-):
+class CMLWorkerTerminatedDomainEventHandler(DomainEventHandler[CMLWorkerTerminatedDomainEvent]):
     def __init__(self, sse_relay: SSEEventRelay, repository: CMLWorkerRepository):
         self._sse_relay = sse_relay
         self._repository = repository
@@ -199,15 +183,11 @@ class CMLWorkerTerminatedDomainEventHandler(
             notification.aggregate_id,
             reason="terminated",
         )
-        log.info(
-            "Broadcasted worker.terminated + snapshot for %s", notification.aggregate_id
-        )
+        log.info("Broadcasted worker.terminated + snapshot for %s", notification.aggregate_id)
         return None
 
 
-class CMLWorkerTelemetryUpdatedDomainEventHandler(
-    DomainEventHandler[CMLWorkerTelemetryUpdatedDomainEvent]
-):
+class CMLWorkerTelemetryUpdatedDomainEventHandler(DomainEventHandler[CMLWorkerTelemetryUpdatedDomainEvent]):
     def __init__(self, sse_relay: SSEEventRelay, repository: CMLWorkerRepository):
         self._sse_relay = sse_relay
         self._repository = repository
@@ -244,9 +224,7 @@ class CMLWorkerTelemetryUpdatedDomainEventHandler(
         return None
 
 
-class CMLMetricsUpdatedDomainEventHandler(
-    DomainEventHandler[CMLMetricsUpdatedDomainEvent]
-):
+class CMLMetricsUpdatedDomainEventHandler(DomainEventHandler[CMLMetricsUpdatedDomainEvent]):
     """Broadcast SSE events when CML metrics (system stats) are updated.
 
     Domain already suppresses insignificant changes; this handler simply
@@ -285,23 +263,13 @@ class CMLMetricsUpdatedDomainEventHandler(
                             pass
                 if mem_stats:
                     total_kb = mem_stats.get("total_kb") or mem_stats.get("total")
-                    available_kb = mem_stats.get("available_kb") or mem_stats.get(
-                        "free"
-                    )
-                    if (
-                        isinstance(total_kb, (int, float))
-                        and isinstance(available_kb, (int, float))
-                        and total_kb > 0
-                    ):
+                    available_kb = mem_stats.get("available_kb") or mem_stats.get("free")
+                    if isinstance(total_kb, (int, float)) and isinstance(available_kb, (int, float)) and total_kb > 0:
                         used_kb = total_kb - available_kb
                         mem_util = (used_kb / total_kb) * 100
                 size_kb = disk_stats.get("size_kb") or disk_stats.get("used")
                 capacity_kb = disk_stats.get("capacity_kb") or disk_stats.get("total")
-                if (
-                    isinstance(size_kb, (int, float))
-                    and isinstance(capacity_kb, (int, float))
-                    and capacity_kb > 0
-                ):
+                if isinstance(size_kb, (int, float)) and isinstance(capacity_kb, (int, float)) and capacity_kb > 0:
                     storage_util = (size_kb / capacity_kb) * 100
 
         payload = {
@@ -370,21 +338,13 @@ async def _broadcast_worker_snapshot(
             if mem_stats:
                 total_kb = mem_stats.get("total_kb") or mem_stats.get("total")
                 available_kb = mem_stats.get("available_kb") or mem_stats.get("free")
-                if (
-                    isinstance(total_kb, (int, float))
-                    and isinstance(available_kb, (int, float))
-                    and total_kb > 0
-                ):
+                if isinstance(total_kb, (int, float)) and isinstance(available_kb, (int, float)) and total_kb > 0:
                     used_kb = total_kb - available_kb
                     mem_util = (used_kb / total_kb) * 100
             # Disk utilization
             size_kb = disk_stats.get("size_kb") or disk_stats.get("used")
             capacity_kb = disk_stats.get("capacity_kb") or disk_stats.get("total")
-            if (
-                isinstance(size_kb, (int, float))
-                and isinstance(capacity_kb, (int, float))
-                and capacity_kb > 0
-            ):
+            if isinstance(size_kb, (int, float)) and isinstance(capacity_kb, (int, float)) and capacity_kb > 0:
                 storage_util = (size_kb / capacity_kb) * 100
 
         snapshot = {
@@ -412,19 +372,11 @@ async def _broadcast_worker_snapshot(
             "memory_utilization": mem_util,
             "storage_utilization": storage_util,
             "poll_interval": s.poll_interval,
-            "next_refresh_at": (
-                s.next_refresh_at.isoformat() if s.next_refresh_at else None
-            ),
+            "next_refresh_at": (s.next_refresh_at.isoformat() if s.next_refresh_at else None),
             "updated_at": s.updated_at.isoformat() + "Z" if s.updated_at else None,
-            "terminated_at": (
-                s.terminated_at.isoformat() + "Z" if s.terminated_at else None
-            ),
-            "start_initiated_at": (
-                s.start_initiated_at.isoformat() + "Z" if s.start_initiated_at else None
-            ),
-            "stop_initiated_at": (
-                s.stop_initiated_at.isoformat() + "Z" if s.stop_initiated_at else None
-            ),
+            "terminated_at": (s.terminated_at.isoformat() + "Z" if s.terminated_at else None),
+            "start_initiated_at": (s.start_initiated_at.isoformat() + "Z" if s.start_initiated_at else None),
+            "stop_initiated_at": (s.stop_initiated_at.isoformat() + "Z" if s.stop_initiated_at else None),
         }
         if reason:
             snapshot["_reason"] = reason

@@ -10,9 +10,7 @@ class CreateCMLWorkerRequest(BaseModel):
 
     name: str = Field(..., description="Human-readable name for the worker")
     instance_type: str = Field(..., description="EC2 instance type")
-    ami_id: str | None = Field(
-        None, description="Optional AMI ID (uses regional default if not provided)"
-    )
+    ami_id: str | None = Field(None, description="Optional AMI ID (uses regional default if not provided)")
     ami_name: str | None = Field(None, description="Optional AMI name")
     cml_version: str | None = Field(None, description="CML version to be installed")
 
@@ -140,15 +138,12 @@ class ImportCMLWorkerRequest(BaseModel):
     def validate_search_criteria(self) -> "ImportCMLWorkerRequest":
         """Ensure at least one search criterion is provided."""
         if not any([self.aws_instance_id, self.ami_id, self.ami_name]):
-            raise ValueError(
-                "Must provide at least one of: aws_instance_id, ami_id, or ami_name"
-            )
+            raise ValueError("Must provide at least one of: aws_instance_id, ami_id, or ami_name")
 
         # Bulk import requires ami_id or ami_name (not instance_id)
         if self.import_all and self.aws_instance_id:
             raise ValueError(
-                "Cannot use 'import_all' with 'aws_instance_id'. "
-                "Use 'ami_id' or 'ami_name' for bulk import."
+                "Cannot use 'import_all' with 'aws_instance_id'. " "Use 'ami_id' or 'ami_name' for bulk import."
             )
 
         return self

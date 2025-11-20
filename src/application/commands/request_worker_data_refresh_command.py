@@ -86,9 +86,7 @@ class RequestWorkerDataRefreshCommandHandler(
         self._scheduler = background_task_scheduler
         self._sse_relay = sse_event_relay
 
-    async def handle_async(
-        self, request: RequestWorkerDataRefreshCommand
-    ) -> OperationResult[dict]:
+    async def handle_async(self, request: RequestWorkerDataRefreshCommand) -> OperationResult[dict]:
         """Handle async data refresh request by scheduling job or rejecting with reason.
 
         Args:
@@ -140,9 +138,7 @@ class RequestWorkerDataRefreshCommandHandler(
 
             # 3. Check throttling
             if not self._refresh_throttle.can_refresh(command.worker_id):
-                retry_after = self._refresh_throttle.get_time_until_next_refresh(
-                    command.worker_id
-                )
+                retry_after = self._refresh_throttle.get_time_until_next_refresh(command.worker_id)
                 retry_after_int = int(retry_after) if retry_after is not None else 0
                 reason = "rate_limited"
 
@@ -153,10 +149,7 @@ class RequestWorkerDataRefreshCommandHandler(
                     eta_seconds=retry_after_int,
                 )
 
-                log.info(
-                    f"Refresh throttled for worker {command.worker_id} - "
-                    f"retry after {retry_after:.1f}s"
-                )
+                log.info(f"Refresh throttled for worker {command.worker_id} - " f"retry after {retry_after:.1f}s")
 
                 return self.ok(
                     {
@@ -173,11 +166,7 @@ class RequestWorkerDataRefreshCommandHandler(
                 next_run_utc = global_job.next_run_time.replace(tzinfo=timezone.utc)
                 time_until_job = (next_run_utc - now_utc).total_seconds()
 
-                if (
-                    0
-                    < time_until_job
-                    <= app_settings.worker_refresh_check_upcoming_job_threshold
-                ):
+                if 0 < time_until_job <= app_settings.worker_refresh_check_upcoming_job_threshold:
                     reason = "background_job_imminent"
 
                     # Emit skip SSE event
@@ -188,8 +177,7 @@ class RequestWorkerDataRefreshCommandHandler(
                     )
 
                     log.info(
-                        f"Refresh skipped for worker {command.worker_id} - "
-                        f"background job in {time_until_job:.1f}s"
+                        f"Refresh skipped for worker {command.worker_id} - " f"background job in {time_until_job:.1f}s"
                     )
 
                     return self.ok(
@@ -222,8 +210,7 @@ class RequestWorkerDataRefreshCommandHandler(
                     )
 
                     log.info(
-                        f"Refresh already scheduled for worker {command.worker_id} - "
-                        f"pending in {time_until:.1f}s"
+                        f"Refresh already scheduled for worker {command.worker_id} - " f"pending in {time_until:.1f}s"
                     )
 
                     return self.ok(
@@ -254,10 +241,7 @@ class RequestWorkerDataRefreshCommandHandler(
                 eta_seconds=1,  # ~1s execution delay
             )
 
-            log.info(
-                f"✅ On-demand refresh scheduled for worker {command.worker_id} "
-                f"(job_id: {job_id})"
-            )
+            log.info(f"✅ On-demand refresh scheduled for worker {command.worker_id} " f"(job_id: {job_id})")
 
             return self.ok(
                 {
@@ -268,15 +252,11 @@ class RequestWorkerDataRefreshCommandHandler(
             )
 
         except Exception as e:
-            error_msg = (
-                f"Failed to schedule refresh for worker {command.worker_id}: {str(e)}"
-            )
+            error_msg = f"Failed to schedule refresh for worker {command.worker_id}: {str(e)}"
             log.exception(error_msg)
             return self.internal_server_error(error_msg)
 
-    async def _emit_refresh_requested_event(
-        self, worker_id: str, eta_seconds: int
-    ) -> None:
+    async def _emit_refresh_requested_event(self, worker_id: str, eta_seconds: int) -> None:
         """Emit worker.refresh.requested SSE event."""
         event_data = {
             "worker_id": worker_id,
@@ -289,9 +269,7 @@ class RequestWorkerDataRefreshCommandHandler(
             data=event_data,
         )
 
-    async def _emit_refresh_skipped_event(
-        self, worker_id: str, reason: str, eta_seconds: int | None
-    ) -> None:
+    async def _emit_refresh_skipped_event(self, worker_id: str, reason: str, eta_seconds: int | None) -> None:
         """Emit worker.refresh.skipped SSE event."""
         event_data = {
             "worker_id": worker_id,

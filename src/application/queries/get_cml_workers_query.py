@@ -22,34 +22,24 @@ class GetCMLWorkersQuery(Query[OperationResult[list[dict[str, Any]]]]):
     status: CMLWorkerStatus | None = None
 
 
-class GetCMLWorkersQueryHandler(
-    QueryHandler[GetCMLWorkersQuery, OperationResult[list[dict[str, Any]]]]
-):
+class GetCMLWorkersQueryHandler(QueryHandler[GetCMLWorkersQuery, OperationResult[list[dict[str, Any]]]]):
     """Handle retrieving CML Workers with optional filtering."""
 
     def __init__(self, worker_repository: CMLWorkerRepository):
         super().__init__()
         self.worker_repository = worker_repository
 
-    async def handle_async(
-        self, request: GetCMLWorkersQuery
-    ) -> OperationResult[list[dict[str, Any]]]:
+    async def handle_async(self, request: GetCMLWorkersQuery) -> OperationResult[list[dict[str, Any]]]:
         """Handle get CML workers query."""
         try:
             # Get workers based on status filter
             if request.status:
-                workers = await self.worker_repository.get_by_status_async(
-                    request.status
-                )
+                workers = await self.worker_repository.get_by_status_async(request.status)
             else:
                 workers = await self.worker_repository.get_active_workers_async()
 
             # Filter by AWS region
-            filtered_workers = [
-                worker
-                for worker in workers
-                if worker.state.aws_region == request.aws_region.value
-            ]
+            filtered_workers = [worker for worker in workers if worker.state.aws_region == request.aws_region.value]
 
             # Convert to dict representations
             result = [
@@ -71,14 +61,10 @@ class GetCMLWorkersQueryHandler(
                     "created_at": worker.state.created_at.isoformat(),
                     "updated_at": worker.state.updated_at.isoformat(),
                     "start_initiated_at": (
-                        worker.state.start_initiated_at.isoformat()
-                        if worker.state.start_initiated_at
-                        else None
+                        worker.state.start_initiated_at.isoformat() if worker.state.start_initiated_at else None
                     ),
                     "stop_initiated_at": (
-                        worker.state.stop_initiated_at.isoformat()
-                        if worker.state.stop_initiated_at
-                        else None
+                        worker.state.stop_initiated_at.isoformat() if worker.state.stop_initiated_at else None
                     ),
                     # Include raw system info so UI can derive additional metrics/fallbacks
                     "cml_system_info": worker.state.cml_system_info,
@@ -119,10 +105,7 @@ class GetCMLWorkersQueryHandler(
                                 cpu_util = None
 
                 # Fallback to CloudWatch CPU if CML not available
-                if (
-                    cpu_util is None
-                    and worker.state.cloudwatch_cpu_utilization is not None
-                ):
+                if cpu_util is None and worker.state.cloudwatch_cpu_utilization is not None:
                     cpu_util = worker.state.cloudwatch_cpu_utilization
 
                 # Derive Memory utilization from CML (require both total_kb & available_kb)
@@ -140,10 +123,7 @@ class GetCMLWorkersQueryHandler(
                         memory_util = (used_kb / total_kb) * 100
 
                 # Fallback to CloudWatch memory if CML not available
-                if (
-                    memory_util is None
-                    and worker.state.cloudwatch_memory_utilization is not None
-                ):
+                if memory_util is None and worker.state.cloudwatch_memory_utilization is not None:
                     memory_util = worker.state.cloudwatch_memory_utilization
 
                 # Derive Storage utilization from CML (require both size_kb & capacity_kb)
@@ -182,9 +162,7 @@ class GetCMLWorkersQueryHandler(
                     f"cloudwatch_mem={worker.state.cloudwatch_memory_utilization})"
                 )
 
-            logger.info(
-                f"Retrieved {len(result)} CML workers in region {request.aws_region.value}"
-            )
+            logger.info(f"Retrieved {len(result)} CML workers in region {request.aws_region.value}")
             return self.ok(result)
 
         except Exception as e:

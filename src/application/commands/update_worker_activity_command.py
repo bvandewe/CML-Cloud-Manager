@@ -36,9 +36,7 @@ class UpdateWorkerActivityCommand(Command[OperationResult[None]]):
     target_pause_at: datetime | None = None
 
 
-class UpdateWorkerActivityCommandHandler(
-    CommandHandler[UpdateWorkerActivityCommand, OperationResult[None]]
-):
+class UpdateWorkerActivityCommandHandler(CommandHandler[UpdateWorkerActivityCommand, OperationResult[None]]):
     """Handler for UpdateWorkerActivityCommand.
 
     Updates worker aggregate with latest activity data from telemetry.
@@ -52,9 +50,7 @@ class UpdateWorkerActivityCommandHandler(
         """
         self._repository = worker_repository
 
-    async def handle_async(
-        self, command: UpdateWorkerActivityCommand
-    ) -> OperationResult[None]:
+    async def handle_async(self, command: UpdateWorkerActivityCommand) -> OperationResult[None]:
         """Execute the command.
 
         Args:
@@ -63,9 +59,7 @@ class UpdateWorkerActivityCommandHandler(
         Returns:
             OperationResult indicating success or failure
         """
-        with tracer.start_as_current_span(
-            "UpdateWorkerActivityCommandHandler.handle_async"
-        ) as span:
+        with tracer.start_as_current_span("UpdateWorkerActivityCommandHandler.handle_async") as span:
             span.set_attribute("worker_id", command.worker_id)
 
             try:

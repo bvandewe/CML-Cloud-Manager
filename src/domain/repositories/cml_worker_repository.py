@@ -20,9 +20,7 @@ class CMLWorkerRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_by_aws_instance_id_async(
-        self, aws_instance_id: str
-    ) -> CMLWorker | None:
+    async def get_by_aws_instance_id_async(self, aws_instance_id: str) -> CMLWorker | None:
         """Retrieve a CML worker by AWS EC2 instance ID."""
         pass
 
@@ -37,9 +35,7 @@ class CMLWorkerRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_idle_workers_async(
-        self, idle_threshold_minutes: int
-    ) -> list[CMLWorker]:
+    async def get_idle_workers_async(self, idle_threshold_minutes: int) -> list[CMLWorker]:
         """Retrieve workers that have been idle beyond the threshold.
 
         Args:
@@ -73,9 +69,7 @@ class CMLWorkerRepository(ABC):
         pass
 
     @abstractmethod
-    async def delete_async(
-        self, worker_id: str, worker: CMLWorker | None = None
-    ) -> bool:
+    async def delete_async(self, worker_id: str, worker: CMLWorker | None = None) -> bool:
         """Delete a CML worker by ID.
 
         Args:

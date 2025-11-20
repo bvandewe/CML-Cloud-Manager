@@ -26,9 +26,7 @@ class GetWorkerActivityQuery(Query[OperationResult[dict[str, Any]]]):
     worker_id: str
 
 
-class GetWorkerActivityQueryHandler(
-    QueryHandler[GetWorkerActivityQuery, OperationResult[dict[str, Any]]]
-):
+class GetWorkerActivityQueryHandler(QueryHandler[GetWorkerActivityQuery, OperationResult[dict[str, Any]]]):
     """Handler for GetWorkerActivityQuery.
 
     Returns aggregated activity data including recent events and lifecycle timestamps.
@@ -42,9 +40,7 @@ class GetWorkerActivityQueryHandler(
         """
         self._repository = worker_repository
 
-    async def handle_async(
-        self, query: GetWorkerActivityQuery
-    ) -> OperationResult[dict[str, Any]]:
+    async def handle_async(self, query: GetWorkerActivityQuery) -> OperationResult[dict[str, Any]]:
         """Execute the query.
 
         Args:
@@ -53,9 +49,7 @@ class GetWorkerActivityQueryHandler(
         Returns:
             OperationResult with activity tracking data
         """
-        with tracer.start_as_current_span(
-            "GetWorkerActivityQueryHandler.handle_async"
-        ) as span:
+        with tracer.start_as_current_span("GetWorkerActivityQueryHandler.handle_async") as span:
             span.set_attribute("worker_id", query.worker_id)
 
             try:

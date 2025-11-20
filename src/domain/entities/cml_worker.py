@@ -103,9 +103,7 @@ class CMLWorkerState(AggregateState[str]):
     # Activity tracking
     last_activity_at: datetime | None  # Last relevant user activity detected
     last_activity_check_at: datetime | None  # Last time telemetry was checked
-    recent_activity_events: list[
-        dict
-    ]  # Last N relevant events (category, timestamp, data)
+    recent_activity_events: list[dict]  # Last N relevant events (category, timestamp, data)
 
     # Pause/Resume lifecycle tracking
     auto_pause_count: int  # Count of automatic pauses by idle detection
@@ -579,10 +577,7 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
         Returns:
             True if status was changed, False if already at that status
         """
-        if (
-            self.state.service_status == new_service_status
-            and self.state.https_endpoint == https_endpoint
-        ):
+        if self.state.service_status == new_service_status and self.state.https_endpoint == https_endpoint:
             return False
 
         old_service_status = self.state.service_status
@@ -638,10 +633,7 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
         Returns:
             True if license was updated, False if unchanged
         """
-        if (
-            self.state.license_status == license_status
-            and self.state.license_token == license_token
-        ):
+        if self.state.license_status == license_status and self.state.license_token == license_token:
             return False
 
         self.state.on(
@@ -811,9 +803,7 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
                                 cpu_util = None
                     if mem_stats:
                         total_kb = mem_stats.get("total_kb") or mem_stats.get("total")
-                        available_kb = mem_stats.get("available_kb") or mem_stats.get(
-                            "free"
-                        )
+                        available_kb = mem_stats.get("available_kb") or mem_stats.get("free")
                         if (
                             isinstance(total_kb, (int, float))
                             and isinstance(available_kb, (int, float))
@@ -823,9 +813,7 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
                             mem_util = (used_kb / total_kb) * 100
                     if disk_stats:
                         size_kb = disk_stats.get("size_kb") or disk_stats.get("used")
-                        capacity_kb = disk_stats.get("capacity_kb") or disk_stats.get(
-                            "total"
-                        )
+                        capacity_kb = disk_stats.get("capacity_kb") or disk_stats.get("total")
                         if (
                             isinstance(size_kb, (int, float))
                             and isinstance(capacity_kb, (int, float))
@@ -934,9 +922,7 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
         Returns:
             True if endpoint was updated, False if unchanged
         """
-        if self.state.https_endpoint == https_endpoint and (
-            public_ip is None or self.state.public_ip == public_ip
-        ):
+        if self.state.https_endpoint == https_endpoint and (public_ip is None or self.state.public_ip == public_ip):
             return False
 
         self.state.on(
@@ -1001,9 +987,7 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
             True if worker is idle beyond threshold, False otherwise
         """
         # Check last activity from either CloudWatch or CML metrics
-        last_activity = (
-            self.state.cloudwatch_last_collected_at or self.state.cml_last_synced_at
-        )
+        last_activity = self.state.cloudwatch_last_collected_at or self.state.cml_last_synced_at
         if not last_activity:
             return False
 

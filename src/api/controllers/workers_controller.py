@@ -46,9 +46,7 @@ logger = logging.getLogger(__name__)
 
 aws_region_annotation = Annotated[
     AwsRegion,
-    Path(
-        description="The identifier of the AWS Region where the CML Worker instance is hosted."
-    ),
+    Path(description="The identifier of the AWS Region where the CML Worker instance is hosted."),
 ]
 instance_id_annotation = Annotated[
     str,
@@ -64,9 +62,7 @@ worker_id_annotation = Annotated[str, Path(description="The CML Worker UUID.")]
 
 
 class WorkersController(ControllerBase):
-    def __init__(
-        self, service_provider: ServiceProviderBase, mapper: Mapper, mediator: Mediator
-    ):
+    def __init__(self, service_provider: ServiceProviderBase, mapper: Mapper, mediator: Mediator):
         """Runs API Calls to AWS EC2."""
         ControllerBase.__init__(self, service_provider, mapper, mediator)
 
@@ -206,9 +202,7 @@ class WorkersController(ControllerBase):
 
         # Check if bulk import requested
         if request.import_all:
-            logger.info(
-                f"Bulk importing all matching EC2 instances as CML workers in region {aws_region}"
-            )
+            logger.info(f"Bulk importing all matching EC2 instances as CML workers in region {aws_region}")
             command = BulkImportCMLWorkersCommand(
                 aws_region=aws_region,
                 ami_id=request.ami_id,
@@ -217,9 +211,7 @@ class WorkersController(ControllerBase):
             )
             return self.process(await self.mediator.execute_async(command))
         else:
-            logger.info(
-                f"Importing existing EC2 instance as CML worker in region {aws_region}"
-            )
+            logger.info(f"Importing existing EC2 instance as CML worker in region {aws_region}")
             command = ImportCMLWorkerCommand(
                 aws_region=aws_region,
                 aws_instance_id=request.aws_instance_id,
@@ -378,12 +370,8 @@ class WorkersController(ControllerBase):
         - retry_after_seconds: if rate_limited, seconds until next allowed refresh
 
         (**Requires valid token.**)"""
-        logger.info(
-            f"Requesting async refresh for CML worker {worker_id} in region {aws_region}"
-        )
-        command = RequestWorkerDataRefreshCommand(
-            worker_id=worker_id, region=aws_region
-        )
+        logger.info(f"Requesting async refresh for CML worker {worker_id} in region {aws_region}")
+        command = RequestWorkerDataRefreshCommand(worker_id=worker_id, region=aws_region)
         result = await self.mediator.execute_async(command)
 
         return self.process(result)
@@ -405,19 +393,13 @@ class WorkersController(ControllerBase):
         This enables 1-minute metric granularity instead of 5-minute (costs ~$2.10/month).
 
         (**Requires `admin` role!**)"""
-        logger.info(
-            f"Enabling detailed monitoring for CML worker {worker_id} in region {aws_region}"
-        )
+        logger.info(f"Enabling detailed monitoring for CML worker {worker_id} in region {aws_region}")
         command = EnableWorkerDetailedMonitoringCommand(worker_id=worker_id)
         result = await self.mediator.execute_async(command)
 
         if not result or not result.is_success:
-            logger.error(
-                f"Failed to enable monitoring for worker {worker_id}: {result}"
-            )
-            raise HTTPException(
-                status_code=500, detail="Failed to enable detailed monitoring"
-            )
+            logger.error(f"Failed to enable monitoring for worker {worker_id}: {result}")
+            raise HTTPException(status_code=500, detail="Failed to enable detailed monitoring")
 
         logger.info(f"✅ Successfully enabled monitoring for worker {worker_id}")
         return self.process(result)
@@ -438,13 +420,9 @@ class WorkersController(ControllerBase):
         """Registers a license for a CML Worker instance.
 
         (**Requires `admin` role!**)"""
-        logger.info(
-            f"Registering license for CML worker {worker_id} in region {aws_region}"
-        )
+        logger.info(f"Registering license for CML worker {worker_id} in region {aws_region}")
         # TODO: Implement RegisterCMLWorkerLicenseCommand when ready
-        raise HTTPException(
-            status_code=501, detail="License registration endpoint not yet implemented"
-        )
+        raise HTTPException(status_code=501, detail="License registration endpoint not yet implemented")
 
     @get(
         "/{aws_region}/{worker_id}/activity",
@@ -464,20 +442,14 @@ class WorkersController(ControllerBase):
         and idle detection state.
 
         (**Requires authentication!**)"""
-        logger.info(
-            f"Fetching activity data for worker {worker_id} in region {aws_region}"
-        )
+        logger.info(f"Fetching activity data for worker {worker_id} in region {aws_region}")
 
         from application.queries.get_worker_activity_query import GetWorkerActivityQuery
 
-        result = await self.mediator.execute_async(
-            GetWorkerActivityQuery(worker_id=worker_id)
-        )
+        result = await self.mediator.execute_async(GetWorkerActivityQuery(worker_id=worker_id))
 
         if not result.is_successful:
-            logger.warning(
-                f"Failed to retrieve activity for worker {worker_id}: {result.errors}"
-            )
+            logger.warning(f"Failed to retrieve activity for worker {worker_id}: {result.errors}")
             raise HTTPException(status_code=404, detail=str(result.errors))
 
         return result.content
@@ -500,22 +472,16 @@ class WorkersController(ControllerBase):
         and timing information for next checks.
 
         (**Requires authentication!**)"""
-        logger.info(
-            f"Checking idle status for worker {worker_id} in region {aws_region}"
-        )
+        logger.info(f"Checking idle status for worker {worker_id} in region {aws_region}")
 
         from application.queries.get_worker_idle_status_query import (
             GetWorkerIdleStatusQuery,
         )
 
-        result = await self.mediator.execute_async(
-            GetWorkerIdleStatusQuery(worker_id=worker_id)
-        )
+        result = await self.mediator.execute_async(GetWorkerIdleStatusQuery(worker_id=worker_id))
 
         if not result.is_successful:
-            logger.warning(
-                f"Failed to check idle status for worker {worker_id}: {result.errors}"
-            )
+            logger.warning(f"Failed to check idle status for worker {worker_id}: {result.errors}")
             raise HTTPException(status_code=404, detail=str(result.errors))
 
         return result.content

@@ -89,9 +89,7 @@ class BulkImportCMLWorkersCommandHandler(
         self.aws_ec2_client = aws_ec2_client
         self.settings = settings
 
-    async def handle_async(
-        self, request: BulkImportCMLWorkersCommand
-    ) -> OperationResult[BulkImportResult]:
+    async def handle_async(self, request: BulkImportCMLWorkersCommand) -> OperationResult[BulkImportResult]:
         """Handle bulk import CML Workers command.
 
         Args:
@@ -127,9 +125,7 @@ class BulkImportCMLWorkersCommandHandler(
 
             with tracer.start_as_current_span("discover_ec2_instances") as span:
                 # Search by AMI ID or name
-                log.info(
-                    f"Searching for EC2 instances by AMI in region {command.aws_region}"
-                )
+                log.info(f"Searching for EC2 instances by AMI in region {command.aws_region}")
                 filters = {}
 
                 if command.ami_id:
@@ -144,9 +140,7 @@ class BulkImportCMLWorkersCommandHandler(
                         ami_name=command.ami_name,
                     )
                     if not ami_ids:
-                        error_msg = (
-                            f"No AMIs found matching name pattern '{command.ami_name}'"
-                        )
+                        error_msg = f"No AMIs found matching name pattern '{command.ami_name}'"
                         log.error(error_msg)
                         return self.bad_request(error_msg)
 
@@ -154,9 +148,7 @@ class BulkImportCMLWorkersCommandHandler(
                     span.set_attribute("ec2.lookup_method", "ami_name")
                     span.set_attribute("ec2.ami_name", command.ami_name)
                     span.set_attribute("ec2.resolved_ami_ids", ",".join(ami_ids))
-                    log.info(
-                        f"Resolved AMI name to {len(ami_ids)} AMI ID(s): {ami_ids}"
-                    )
+                    log.info(f"Resolved AMI name to {len(ami_ids)} AMI ID(s): {ami_ids}")
 
                 instances = self.aws_ec2_client.list_instances(
                     region_name=aws_region,
@@ -176,23 +168,15 @@ class BulkImportCMLWorkersCommandHandler(
                         )
                     )
 
-                log.info(
-                    f"Found {len(instances)} instance(s) matching criteria in {aws_region.value}"
-                )
+                log.info(f"Found {len(instances)} instance(s) matching criteria in {aws_region.value}")
                 span.set_attribute("ec2.instances_found", len(instances))
 
             with tracer.start_as_current_span("filter_existing_workers") as span:
                 # Get all existing workers to filter out duplicates
                 existing_workers = await self.cml_worker_repository.get_all_async()
-                existing_instance_ids = {
-                    w.state.aws_instance_id
-                    for w in existing_workers
-                    if w.state.aws_instance_id
-                }
+                existing_instance_ids = {w.state.aws_instance_id for w in existing_workers if w.state.aws_instance_id}
 
-                log.info(
-                    f"Found {len(existing_instance_ids)} existing workers in database"
-                )
+                log.info(f"Found {len(existing_instance_ids)} existing workers in database")
                 span.set_attribute("workers.existing_count", len(existing_instance_ids))
 
             imported_workers = []
@@ -202,9 +186,7 @@ class BulkImportCMLWorkersCommandHandler(
                 for instance in instances:
                     # Skip if already registered
                     if instance.id in existing_instance_ids:
-                        log.info(
-                            f"Skipping instance {instance.id} - already registered"
-                        )
+                        log.info(f"Skipping instance {instance.id} - already registered")
                         skipped_instances.append(
                             {
                                 "instance_id": instance.id,
@@ -214,50 +196,31 @@ class BulkImportCMLWorkersCommandHandler(
                         continue
 
                     try:
-                        with tracer.start_as_current_span(
-                            "import_single_instance"
-                        ) as instance_span:
+                        with tracer.start_as_current_span("import_single_instance") as instance_span:
                             instance_span.set_attribute("ec2.instance_id", instance.id)
-                            instance_span.set_attribute(
-                                "ec2.instance_type", instance.type
-                            )
-                            instance_span.set_attribute(
-                                "ec2.instance_state", instance.state
-                            )
+                            instance_span.set_attribute("ec2.instance_type", instance.type)
+                            instance_span.set_attribute("ec2.instance_state", instance.state)
 
                             # Determine worker name
                             worker_name = instance.name or f"worker-{instance.id}"
 
                             if instance.name:
-                                log.info(
-                                    f"Using AWS instance name for {instance.id}: {instance.name}"
-                                )
+                                log.info(f"Using AWS instance name for {instance.id}: {instance.name}")
                             else:
-                                log.info(
-                                    f"No AWS instance name, generating for {instance.id}: {worker_name}"
-                                )
+                                log.info(f"No AWS instance name, generating for {instance.id}: {worker_name}")
 
                             # Fetch AMI details from AWS
                             ami_details = self.aws_ec2_client.get_ami_details(
                                 aws_region=aws_region, ami_id=instance.image_id
                             )
                             ami_name = ami_details.ami_name if ami_details else None
-                            ami_description = (
-                                ami_details.ami_description if ami_details else None
-                            )
-                            ami_creation_date = (
-                                ami_details.ami_creation_date if ami_details else None
-                            )
+                            ami_description = ami_details.ami_description if ami_details else None
+                            ami_creation_date = ami_details.ami_creation_date if ami_details else None
 
                             if ami_details:
-                                log.debug(
-                                    f"Retrieved AMI details for {instance.image_id}: "
-                                    f"name={ami_name}"
-                                )
+                                log.debug(f"Retrieved AMI details for {instance.image_id}: " f"name={ami_name}")
                             else:
-                                log.warning(
-                                    f"Failed to retrieve AMI details for {instance.image_id}"
-                                )
+                                log.warning(f"Failed to retrieve AMI details for {instance.image_id}")
 
                             # Create CML Worker aggregate
                             worker = CMLWorker.import_from_existing_instance(
@@ -279,9 +242,7 @@ class BulkImportCMLWorkersCommandHandler(
                             instance_span.set_attribute("cml_worker.name", worker_name)
 
                             # Save worker (will publish all domain events)
-                            saved_worker = await self.cml_worker_repository.add_async(
-                                worker
-                            )
+                            saved_worker = await self.cml_worker_repository.add_async(worker)
 
                             log.info(
                                 f"✅ CML Worker imported: id={saved_worker.id()}, "
@@ -319,12 +280,8 @@ class BulkImportCMLWorkersCommandHandler(
                             }
                         )
 
-                import_span.set_attribute(
-                    "workers.imported_count", len(imported_workers)
-                )
-                import_span.set_attribute(
-                    "workers.skipped_count", len(skipped_instances)
-                )
+                import_span.set_attribute("workers.imported_count", len(imported_workers))
+                import_span.set_attribute("workers.skipped_count", len(skipped_instances))
 
             result = BulkImportResult(
                 imported=imported_workers,
@@ -346,9 +303,7 @@ class BulkImportCMLWorkersCommandHandler(
             return self.bad_request(f"Invalid parameters: {str(e)}")
 
         except EC2AuthenticationException as e:
-            log.error(
-                f"AWS authentication failed while bulk importing CML Workers: {e}"
-            )
+            log.error(f"AWS authentication failed while bulk importing CML Workers: {e}")
             return self.bad_request(f"Authentication failed: {str(e)}")
 
         except IntegrationException as e:
@@ -356,7 +311,5 @@ class BulkImportCMLWorkersCommandHandler(
             return self.bad_request(f"Integration error: {str(e)}")
 
         except Exception as e:
-            log.error(
-                f"Unexpected error bulk importing CML Workers: {e}", exc_info=True
-            )
+            log.error(f"Unexpected error bulk importing CML Workers: {e}", exc_info=True)
             return self.bad_request(f"Unexpected error: {str(e)}")

@@ -19,9 +19,7 @@ class SystemController(ControllerBase):
     # Class-level prefix so decorators pick it up reliably
     prefix = "system"
 
-    def __init__(
-        self, service_provider: ServiceProviderBase, mapper: Mapper, mediator: Mediator
-    ):
+    def __init__(self, service_provider: ServiceProviderBase, mapper: Mapper, mediator: Mediator):
         ControllerBase.__init__(self, service_provider, mapper, mediator)
 
     @get(
@@ -39,9 +37,7 @@ class SystemController(ControllerBase):
         try:
             from application.services import BackgroundTaskScheduler
 
-            scheduler: BackgroundTaskScheduler = (
-                self.service_provider.get_required_service(BackgroundTaskScheduler)
-            )
+            scheduler: BackgroundTaskScheduler = self.service_provider.get_required_service(BackgroundTaskScheduler)
 
             jobs: list[dict] = []
             if scheduler and scheduler._scheduler:
@@ -55,11 +51,7 @@ class SystemController(ControllerBase):
                         {
                             "id": job.id,
                             "name": job.name,
-                            "next_run_time": (
-                                job.next_run_time.isoformat()
-                                if job.next_run_time
-                                else None
-                            ),
+                            "next_run_time": (job.next_run_time.isoformat() if job.next_run_time else None),
                             "trigger": str(job.trigger),
                             "command": command_name,
                             "pending": job.pending,
@@ -94,9 +86,7 @@ class SystemController(ControllerBase):
         try:
             from application.services import BackgroundTaskScheduler
 
-            scheduler: BackgroundTaskScheduler = (
-                self.service_provider.get_required_service(BackgroundTaskScheduler)
-            )
+            scheduler: BackgroundTaskScheduler = self.service_provider.get_required_service(BackgroundTaskScheduler)
             if not scheduler or not scheduler._scheduler:
                 raise HTTPException(status_code=503, detail="Scheduler not available")
 
@@ -118,9 +108,7 @@ class SystemController(ControllerBase):
             raise
         except Exception as e:
             logger.error(f"Failed to trigger job '{job_id}': {e}")
-            raise HTTPException(
-                status_code=500, detail=f"Failed to trigger job: {str(e)}"
-            )
+            raise HTTPException(status_code=500, detail=f"Failed to trigger job: {str(e)}")
 
     @delete(
         "/scheduler/jobs/{job_id}",
@@ -138,9 +126,7 @@ class SystemController(ControllerBase):
         try:
             from application.services import BackgroundTaskScheduler
 
-            scheduler: BackgroundTaskScheduler = (
-                self.service_provider.get_required_service(BackgroundTaskScheduler)
-            )
+            scheduler: BackgroundTaskScheduler = self.service_provider.get_required_service(BackgroundTaskScheduler)
             if not scheduler or not scheduler._scheduler:
                 raise HTTPException(status_code=503, detail="Scheduler not available")
             job = scheduler._scheduler.get_job(job_id)
@@ -157,9 +143,7 @@ class SystemController(ControllerBase):
             raise
         except Exception as e:
             logger.error(f"Failed to delete job '{job_id}': {e}")
-            raise HTTPException(
-                status_code=500, detail=f"Failed to delete job: {str(e)}"
-            )
+            raise HTTPException(status_code=500, detail=f"Failed to delete job: {str(e)}")
 
     @get(
         "/health",
@@ -176,9 +160,7 @@ class SystemController(ControllerBase):
         """Return aggregated system health using `SystemHealthService`."""
         from application.services.system_health_service import SystemHealthService
 
-        svc: SystemHealthService = self.service_provider.get_required_service(
-            SystemHealthService
-        )
+        svc: SystemHealthService = self.service_provider.get_required_service(SystemHealthService)
         return await svc.get_system_health(self.mediator, self.service_provider)
 
     @get(
@@ -196,9 +178,7 @@ class SystemController(ControllerBase):
         try:
             from application.services import BackgroundTaskScheduler
 
-            scheduler: BackgroundTaskScheduler = (
-                self.service_provider.get_required_service(BackgroundTaskScheduler)
-            )
+            scheduler: BackgroundTaskScheduler = self.service_provider.get_required_service(BackgroundTaskScheduler)
             if scheduler and scheduler._scheduler:
                 jobs = scheduler._scheduler.get_jobs()
                 return {
@@ -209,11 +189,7 @@ class SystemController(ControllerBase):
                         {
                             "id": job.id,
                             "name": job.name,
-                            "next_run_time": (
-                                job.next_run_time.isoformat()
-                                if job.next_run_time
-                                else None
-                            ),
+                            "next_run_time": (job.next_run_time.isoformat() if job.next_run_time else None),
                         }
                         for job in jobs
                     ],

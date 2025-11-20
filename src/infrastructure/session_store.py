@@ -131,11 +131,7 @@ class InMemorySessionStore(SessionStore):
             Number of sessions cleaned up
         """
         now = datetime.now(timezone.utc)
-        expired = [
-            sid
-            for sid, session in self._sessions.items()
-            if session["expires_at"] < now
-        ]
+        expired = [sid for sid, session in self._sessions.items() if session["expires_at"] < now]
 
         for sid in expired:
             self.delete_session(sid)
@@ -168,15 +164,10 @@ class RedisSessionStore(SessionStore):
             RuntimeError: If redis package is not installed
         """
         if not REDIS_AVAILABLE:
-            raise RuntimeError(
-                "redis package is required for RedisSessionStore. "
-                "Install with: pip install redis"
-            )
+            raise RuntimeError("redis package is required for RedisSessionStore. " "Install with: pip install redis")
 
         self._client = redis.from_url(redis_url, decode_responses=True)  # type: ignore[union-attr]
-        self._session_timeout_seconds = int(
-            timedelta(minutes=session_timeout_minutes).total_seconds()
-        )
+        self._session_timeout_seconds = int(timedelta(minutes=session_timeout_minutes).total_seconds())
         self._key_prefix = key_prefix
 
     def _make_key(self, session_id: str) -> str:
@@ -192,9 +183,7 @@ class RedisSessionStore(SessionStore):
             "tokens": tokens,
             "user_info": user_info,
             "created_at": now.isoformat(),
-            "expires_at": (
-                now + timedelta(seconds=self._session_timeout_seconds)
-            ).isoformat(),
+            "expires_at": (now + timedelta(seconds=self._session_timeout_seconds)).isoformat(),
         }
 
         # Store session in Redis with automatic expiration

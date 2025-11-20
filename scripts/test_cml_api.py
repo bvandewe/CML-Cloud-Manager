@@ -36,9 +36,7 @@ from integration.repositories.motor_cml_worker_repository import (  # noqa: E402
 )
 from integration.services.cml_api_client import CMLApiClient  # noqa: E402
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 log = logging.getLogger(__name__)
 
 
@@ -102,9 +100,7 @@ async def test_endpoint(endpoint: str, username: str, password: str):
         if stats:
             log.info("✅ Successfully retrieved system stats!")
             log.info("\n=== System Statistics ===")
-            log.info(
-                f"CPU: {stats.all_cpu_count} cores @ {stats.all_cpu_percent:.2f}% utilization"
-            )
+            log.info(f"CPU: {stats.all_cpu_count} cores @ {stats.all_cpu_percent:.2f}% utilization")
             log.info(
                 f"Memory: {stats.all_memory_used / (1024**3):.2f} GB used / {stats.all_memory_total / (1024**3):.2f} GB total"
             )
@@ -165,9 +161,7 @@ async def test_worker_by_id(worker_id: str, username: str, password: str):
         return False
 
     if worker.state.service_status != CMLServiceStatus.AVAILABLE:
-        log.warning(
-            f"⚠️  Worker service is not AVAILABLE (status: {worker.state.service_status.value})"
-        )
+        log.warning(f"⚠️  Worker service is not AVAILABLE (status: {worker.state.service_status.value})")
 
     return await test_endpoint(worker.state.https_endpoint, username, password)
 
@@ -184,11 +178,7 @@ async def test_all_workers(username: str, password: str):
     repo = await setup_repository()
     workers = await repo.get_all_async()
 
-    running_workers = [
-        w
-        for w in workers
-        if w.state.status == CMLWorkerStatus.RUNNING and w.state.https_endpoint
-    ]
+    running_workers = [w for w in workers if w.state.status == CMLWorkerStatus.RUNNING and w.state.https_endpoint]
 
     if not running_workers:
         log.warning("⚠️  No RUNNING workers with HTTPS endpoints found")
@@ -217,30 +207,18 @@ async def test_all_workers(username: str, password: str):
 
 def main():
     parser = argparse.ArgumentParser(description="Test CML API Client")
-    parser.add_argument(
-        "--endpoint", help="CML HTTPS endpoint URL (e.g., https://52.1.2.3)"
-    )
+    parser.add_argument("--endpoint", help="CML HTTPS endpoint URL (e.g., https://52.1.2.3)")
     parser.add_argument("--worker-id", help="Worker UUID to test")
-    parser.add_argument(
-        "--test-all", action="store_true", help="Test all RUNNING workers"
-    )
-    parser.add_argument(
-        "--username", default="admin", help="CML username (default: admin)"
-    )
-    parser.add_argument(
-        "--password", default="admin", help="CML password (default: admin)"
-    )
+    parser.add_argument("--test-all", action="store_true", help="Test all RUNNING workers")
+    parser.add_argument("--username", default="admin", help="CML username (default: admin)")
+    parser.add_argument("--password", default="admin", help="CML password (default: admin)")
 
     args = parser.parse_args()
 
     if args.endpoint:
-        success = asyncio.run(
-            test_endpoint(args.endpoint, args.username, args.password)
-        )
+        success = asyncio.run(test_endpoint(args.endpoint, args.username, args.password))
     elif args.worker_id:
-        success = asyncio.run(
-            test_worker_by_id(args.worker_id, args.username, args.password)
-        )
+        success = asyncio.run(test_worker_by_id(args.worker_id, args.username, args.password))
     elif args.test_all:
         success = asyncio.run(test_all_workers(args.username, args.password))
     else:

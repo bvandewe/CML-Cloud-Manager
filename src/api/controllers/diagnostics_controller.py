@@ -19,9 +19,7 @@ log = logging.getLogger(__name__)
 class DiagnosticsController(ControllerBase):
     """Controller providing operational diagnostics for background jobs and intervals."""
 
-    def __init__(
-        self, service_provider: ServiceProviderBase, mapper: Mapper, mediator: Mediator
-    ):
+    def __init__(self, service_provider: ServiceProviderBase, mapper: Mapper, mediator: Mediator):
         super().__init__(service_provider, mapper, mediator)
         # Prefix override to serve under /api/diagnostics
         self.prefix = "diagnostics"
@@ -41,9 +39,7 @@ class DiagnosticsController(ControllerBase):
                     {
                         "id": job.id,
                         "name": job.name,
-                        "next_run_time": (
-                            job.next_run_time.isoformat() if job.next_run_time else None
-                        ),
+                        "next_run_time": (job.next_run_time.isoformat() if job.next_run_time else None),
                         "trigger": str(job.trigger),
                         "interval_seconds": job.kwargs.get("interval"),
                     }
@@ -54,12 +50,8 @@ class DiagnosticsController(ControllerBase):
         return {
             "settings": {
                 "worker_metrics_poll_interval": app_settings.worker_metrics_poll_interval,
-                "labs_refresh_interval": getattr(
-                    app_settings, "labs_refresh_interval", None
-                ),
-                "auto_import_workers_interval": getattr(
-                    app_settings, "auto_import_workers_interval", None
-                ),
+                "labs_refresh_interval": getattr(app_settings, "labs_refresh_interval", None),
+                "auto_import_workers_interval": getattr(app_settings, "auto_import_workers_interval", None),
             },
             "jobs": job_summaries,
         }
@@ -75,9 +67,7 @@ class DiagnosticsController(ControllerBase):
                 {
                     "id": job.id,
                     "name": job.name,
-                    "next_run_time": (
-                        job.next_run_time.isoformat() if job.next_run_time else None
-                    ),
+                    "next_run_time": (job.next_run_time.isoformat() if job.next_run_time else None),
                     "trigger": str(job.trigger),
                     "args": job.args,
                     "kwargs": job.kwargs,

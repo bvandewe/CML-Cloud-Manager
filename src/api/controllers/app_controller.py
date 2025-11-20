@@ -14,9 +14,7 @@ log = logging.getLogger(__name__)
 class AppController(ControllerBase):
     """Controller for application health checks."""
 
-    def __init__(
-        self, service_provider: ServiceProviderBase, mapper: Mapper, mediator: Mediator
-    ):
+    def __init__(self, service_provider: ServiceProviderBase, mapper: Mapper, mediator: Mediator):
         super().__init__(service_provider, mapper, mediator)
 
     @get("/health")

@@ -31,9 +31,7 @@ def configure_mounted_apps_openapi_prefix(app: FastAPI) -> None:
             # Normalize to leading slash, but treat root mount as empty prefix
             if mount_path and not mount_path.startswith("/"):
                 mount_path = f"/{mount_path}"
-            normalized_prefix = (
-                mount_path.rstrip("/") if mount_path not in ("", "/") else ""
-            )
+            normalized_prefix = mount_path.rstrip("/") if mount_path not in ("", "/") else ""
             log.debug(f"Mounted sub-app '{route}' at '{normalized_prefix}'")
             route.app.state.openapi_path_prefix = normalized_prefix  # type: ignore[attr-defined]
 
@@ -178,9 +176,7 @@ class OpenAPIConfigService:
                     method_lower = method.lower()
                     if method_lower in {"head", "options"}:
                         continue
-                    operations_security[(route.path_format, method_lower)] = (
-                        requirement_dicts
-                    )
+                    operations_security[(route.path_format, method_lower)] = requirement_dicts
 
             paths = openapi_schema.get("paths", {})
             http_methods = {
@@ -208,9 +204,9 @@ class OpenAPIConfigService:
             # Set client_id in Swagger UI
             if "swagger-ui-parameters" not in openapi_schema:
                 openapi_schema["swagger-ui-parameters"] = {}
-            swagger_client_id = getattr(
-                settings, "keycloak_public_client_id", ""
-            ) or getattr(settings, "keycloak_client_id", "")
+            swagger_client_id = getattr(settings, "keycloak_public_client_id", "") or getattr(
+                settings, "keycloak_client_id", ""
+            )
             if swagger_client_id:
                 openapi_schema["swagger-ui-parameters"]["client_id"] = swagger_client_id
 

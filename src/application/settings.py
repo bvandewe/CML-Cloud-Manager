@@ -21,9 +21,7 @@ class Settings(ApplicationSettings):
     app_name: str = "Cml Cloud Manager"
     app_version: str = "1.0.0"
     app_url: str = "http://localhost:8020"  # External URL for callbacks
-    app_host: str = (
-        "127.0.0.1"  # Uvicorn bind address (override in production as needed)
-    )
+    app_host: str = "127.0.0.1"  # Uvicorn bind address (override in production as needed)
     app_port: int = 8080  # Uvicorn port
 
     # Observability Configuration
@@ -73,24 +71,16 @@ class Settings(ApplicationSettings):
     cors_origins: list[str] = ["http://localhost:8020", "http://localhost:3000"]
 
     # Keycloak OAuth2/OIDC Configuration
-    keycloak_url: str = (
-        "http://localhost:8031"  # External URL (browser/Swagger accessible)
-    )
-    keycloak_url_internal: str | None = (
-        None  # Internal Docker network URL (auto-populated if not set)
-    )
+    keycloak_url: str = "http://localhost:8031"  # External URL (browser/Swagger accessible)
+    keycloak_url_internal: str | None = None  # Internal Docker network URL (auto-populated if not set)
     keycloak_realm: str = "cml-cloud-manager"
 
     # Backend confidential client for secure token exchange
     keycloak_client_id: str = "cml-cloud-manager-backend"
-    keycloak_client_secret: str = (
-        "cml-cloud-manager-backend-secret-change-in-production"
-    )
+    keycloak_client_secret: str = "cml-cloud-manager-backend-secret-change-in-production"
 
     # Legacy public client (deprecated)
-    keycloak_public_client_id: str = (
-        "cml-cloud-manager-public"  # Using existing client from realm config
-    )
+    keycloak_public_client_id: str = "cml-cloud-manager-public"  # Using existing client from realm config
 
     # Legacy JWT (deprecated - will be removed)
     jwt_secret_key: str = "your-secret-key-change-in-production"
@@ -101,9 +91,7 @@ class Settings(ApplicationSettings):
     verify_issuer: bool = False  # Set True to enforce 'iss' claim
     expected_issuer: str = ""  # e.g. "http://localhost:8031/realms/cml-cloud-manager"
     verify_audience: bool = False  # Set True to enforce 'aud' claim
-    expected_audience: list[str] = [
-        "cml-cloud-manager"
-    ]  # Audience claim expected in tokens
+    expected_audience: list[str] = ["cml-cloud-manager"]  # Audience claim expected in tokens
     refresh_auto_leeway_seconds: int = 60  # Auto-refresh if exp is within this window
 
     # Persistence Configuration
@@ -151,9 +139,7 @@ class Settings(ApplicationSettings):
 
     # Worker Monitoring Configuration
     worker_monitoring_enabled: bool = True
-    worker_metrics_poll_interval: int = (
-        300  # 5 minutes (must match WorkerMetricsCollectionJob)
-    )
+    worker_metrics_poll_interval: int = 300  # 5 minutes (must match WorkerMetricsCollectionJob)
 
     # Worker Activity Detection & Idle Timeout Configuration
     worker_activity_detection_enabled: bool = True  # Feature flag
@@ -176,37 +162,23 @@ class Settings(ApplicationSettings):
         "boot_node",
         "user_activity",  # Filtered further by user_id pattern
     ]
-    worker_activity_excluded_user_pattern: str = (
-        "^00000000-0000-.*"  # Admin UUID pattern (automated API calls)
-    )
-    worker_notification_webhooks: list[str] = (
-        []
-    )  # List of webhook URLs for notifications
+    worker_activity_excluded_user_pattern: str = "^00000000-0000-.*"  # Admin UUID pattern (automated API calls)
+    worker_notification_webhooks: list[str] = []  # List of webhook URLs for notifications
     # Metrics Change Threshold (percentage delta required to broadcast utilization updates)
-    metrics_change_threshold_percent: float = (
-        1.0  # Override via METRICS_CHANGE_THRESHOLD_PERCENT
-    )
+    metrics_change_threshold_percent: float = 1.0  # Override via METRICS_CHANGE_THRESHOLD_PERCENT
     # Labs Refresh Background Job Configuration
-    labs_refresh_interval: int = (
-        1800  # Seconds between labs refresh runs (default: 30 minutes)
-    )
+    labs_refresh_interval: int = 1800  # Seconds between labs refresh runs (default: 30 minutes)
 
     # Worker Refresh Rate Limiting
-    worker_refresh_min_interval: int = (
-        10  # Seconds - minimum time between manual refresh requests
-    )
+    worker_refresh_min_interval: int = 10  # Seconds - minimum time between manual refresh requests
     worker_refresh_check_upcoming_job_threshold: int = (
         10  # Seconds - skip manual refresh if background job is within this threshold
     )
     # Auto-Import Workers Configuration
     auto_import_workers_enabled: bool = False  # Enable/disable auto-import job
-    auto_import_workers_interval: int = (
-        3600  # Seconds between auto-import runs (default: 1 hour)
-    )
+    auto_import_workers_interval: int = 3600  # Seconds between auto-import runs (default: 1 hour)
     auto_import_workers_region: str = "us-east-1"  # AWS region to scan for workers
-    auto_import_workers_ami_name: str = (
-        ""  # AMI name pattern to search for (e.g., "CML-2.7.0-*")
-    )
+    auto_import_workers_ami_name: str = ""  # AMI name pattern to search for (e.g., "CML-2.7.0-*")
 
     # Background Job Store Configuration (APScheduler persistence)
     background_job_store: dict[str, Any] = {

@@ -52,14 +52,10 @@ class EventsController(ControllerBase):
         Yields:
             SSE-formatted event strings
         """
-        client_id, event_queue = await self._sse_relay.register_client(
-            worker_ids=worker_ids, event_types=event_types
-        )
+        client_id, event_queue = await self._sse_relay.register_client(worker_ids=worker_ids, event_types=event_types)
 
         try:
-            logger.info(
-                f"SSE client connected - user: {user_info.get('username', 'unknown')}, client_id: {client_id}"
-            )
+            logger.info(f"SSE client connected - user: {user_info.get('username', 'unknown')}, client_id: {client_id}")
 
             # Send initial connection event
             yield f"event: connected\ndata: {json.dumps({'status': 'connected', 'user': user_info.get('username'), 'client_id': client_id})}\n\n"
@@ -73,16 +69,12 @@ class EventsController(ControllerBase):
                     if worker_ids:
                         # Specific workers only
                         for wid in worker_ids:
-                            await _broadcast_worker_snapshot(
-                                worker_repo, self._sse_relay, wid, reason="initial"
-                            )
+                            await _broadcast_worker_snapshot(worker_repo, self._sse_relay, wid, reason="initial")
                     else:
                         # All active workers
                         workers = await worker_repo.get_active_workers_async()
                         for w in workers:
-                            await _broadcast_worker_snapshot(
-                                worker_repo, self._sse_relay, w.id(), reason="initial"
-                            )
+                            await _broadcast_worker_snapshot(worker_repo, self._sse_relay, w.id(), reason="initial")
             except Exception as e:
                 logger.warning(f"Failed to send initial worker snapshots: {e}")
 
@@ -101,9 +93,7 @@ class EventsController(ControllerBase):
 
                 try:
                     # Wait for event with timeout (for heartbeat)
-                    event_message = await asyncio.wait_for(
-                        event_queue.get(), timeout=heartbeat_interval
-                    )
+                    event_message = await asyncio.wait_for(event_queue.get(), timeout=heartbeat_interval)
 
                     # Format event as SSE
                     event_type = event_message.get("type", "message")
@@ -180,16 +170,8 @@ class EventsController(ControllerBase):
             GET /api/events/stream?worker_ids=abc123,def456&event_types=worker.metrics.updated
         """
         # Parse comma-separated filters
-        worker_ids_set = (
-            set(wid.strip() for wid in worker_ids.split(",") if wid.strip())
-            if worker_ids
-            else None
-        )
-        event_types_set = (
-            set(et.strip() for et in event_types.split(",") if et.strip())
-            if event_types
-            else None
-        )
+        worker_ids_set = set(wid.strip() for wid in worker_ids.split(",") if wid.strip()) if worker_ids else None
+        event_types_set = set(et.strip() for et in event_types.split(",") if et.strip()) if event_types else None
 
         return StreamingResponse(
             self._event_generator(request, user_info, worker_ids_set, event_types_set),

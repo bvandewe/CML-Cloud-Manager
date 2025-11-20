@@ -31,9 +31,7 @@ class AuthController(ControllerBase):
     6. User accesses app with cookie automatically sent
     """
 
-    def __init__(
-        self, service_provider: ServiceProviderBase, mapper: Mapper, mediator: Mediator
-    ):
+    def __init__(self, service_provider: ServiceProviderBase, mapper: Mapper, mediator: Mediator):
         super().__init__(service_provider, mapper, mediator)
 
         # Initialize Keycloak client with CONFIDENTIAL backend client
@@ -98,14 +96,10 @@ class AuthController(ControllerBase):
             # but userinfo endpoint may not return them by default
             try:
                 # Decode access token to extract realm roles (already validated by Keycloak)
-                access_token_decoded = jwt.decode(
-                    tokens["access_token"], options={"verify_signature": False}
-                )
+                access_token_decoded = jwt.decode(tokens["access_token"], options={"verify_signature": False})
 
                 # Get realm roles from token
-                realm_roles = access_token_decoded.get("realm_access", {}).get(
-                    "roles", []
-                )
+                realm_roles = access_token_decoded.get("realm_access", {}).get("roles", [])
 
                 # Add roles to user_info if present in token
                 if realm_roles:
@@ -129,10 +123,7 @@ class AuthController(ControllerBase):
             # Create server-side session
             session_id = self.session_store.create_session(tokens, user_info)
             aggregate_id = str(
-                user_info.get("sub")
-                or user_info.get("user_id")
-                or user_info.get("preferred_username")
-                or session_id
+                user_info.get("sub") or user_info.get("user_id") or user_info.get("preferred_username") or session_id
             )
             if self.mediator:
                 await self.mediator.publish_async(
@@ -152,8 +143,7 @@ class AuthController(ControllerBase):
                 httponly=True,
                 secure=app_settings.environment == "production",
                 samesite="lax",
-                max_age=app_settings.session_timeout_minutes
-                * 60,  # Convert minutes to seconds
+                max_age=app_settings.session_timeout_minutes * 60,  # Convert minutes to seconds
                 path="/",
             )
 
@@ -162,9 +152,7 @@ class AuthController(ControllerBase):
         except Exception as e:
             # Log error and redirect to login
             print(f"OAuth2 callback error: {e}")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication failed"
-            )
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication failed")
 
     @get("/session")
     async def get_session_info(self, session_id: str | None = Cookie(None)):
@@ -233,9 +221,7 @@ class AuthController(ControllerBase):
         try:
             new_tokens = self.keycloak.refresh_token(refresh_token)
         except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Refresh failed: {e}"
-            )
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Refresh failed: {e}")
 
         if "refresh_token" not in new_tokens:
             new_tokens["refresh_token"] = refresh_token
@@ -286,9 +272,7 @@ class AuthController(ControllerBase):
         )
 
         # Create redirect and clear cookie
-        redirect = RedirectResponse(
-            url=logout_url, status_code=status.HTTP_303_SEE_OTHER
-        )
+        redirect = RedirectResponse(url=logout_url, status_code=status.HTTP_303_SEE_OTHER)
         redirect.delete_cookie("session_id", path="/")
 
         return redirect
@@ -307,17 +291,13 @@ class AuthController(ControllerBase):
             HTTPException: 401 if not authenticated or session expired
         """
         if not session_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"
-            )
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
         # Retrieve session
         session = self.session_store.get_session(session_id)
 
         if not session:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired"
-            )
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired")
 
         # Return user info (never expose tokens to browser)
         return session["user_info"]

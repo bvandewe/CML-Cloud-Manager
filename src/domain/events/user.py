@@ -21,9 +21,7 @@ class UserLoggedInDomainEvent(DomainEvent):
         super().__init__(aggregate_id)
         self.username = username
         # Convert datetime to ISO8601 string for CloudEvent compatibility
-        self.login_at = (
-            login_at.isoformat() if isinstance(login_at, datetime) else login_at
-        )
+        self.login_at = login_at.isoformat() if isinstance(login_at, datetime) else login_at
 
     aggregate_id: str
     username: str

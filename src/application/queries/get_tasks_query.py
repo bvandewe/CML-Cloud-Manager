@@ -58,9 +58,7 @@ class GetTasksQueryHandler(QueryHandler[GetTasksQuery, OperationResult[list[Any]
                 "description": task.state.description,
                 "status": task.state.status,
                 "priority": task.state.priority,
-                "assignee_id": (
-                    str(task.state.assignee_id) if task.state.assignee_id else None
-                ),
+                "assignee_id": (str(task.state.assignee_id) if task.state.assignee_id else None),
                 "department": task.state.department,
                 "created_at": task.state.created_at.isoformat(),
                 "updated_at": task.state.updated_at.isoformat(),

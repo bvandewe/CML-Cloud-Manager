@@ -61,10 +61,7 @@ class WorkerTelemetry:
             raise ValueError("active_labs_count cannot be negative")
         if self.cpu_utilization is not None and not 0 <= self.cpu_utilization <= 100:
             raise ValueError("cpu_utilization must be between 0 and 100")
-        if (
-            self.memory_utilization is not None
-            and not 0 <= self.memory_utilization <= 100
-        ):
+        if self.memory_utilization is not None and not 0 <= self.memory_utilization <= 100:
             raise ValueError("memory_utilization must be between 0 and 100")
         if self.disk_utilization is not None and not 0 <= self.disk_utilization <= 100:
             raise ValueError("disk_utilization must be between 0 and 100")

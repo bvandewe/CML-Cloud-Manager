@@ -40,9 +40,7 @@ class UpdateTaskRequest(BaseModel):
 class TasksController(ControllerBase):
     """Controller for task management endpoints with dual authentication."""
 
-    def __init__(
-        self, service_provider: ServiceProviderBase, mapper: Mapper, mediator: Mediator
-    ):
+    def __init__(self, service_provider: ServiceProviderBase, mapper: Mapper, mediator: Mediator):
         super().__init__(service_provider, mapper, mediator)
 
     @get("/")
@@ -70,9 +68,7 @@ class TasksController(ControllerBase):
         return self.process(result)
 
     @post("/")
-    async def create_task(
-        self, request: CreateTaskRequest, user: dict = Depends(get_current_user)
-    ):
+    async def create_task(self, request: CreateTaskRequest, user: dict = Depends(get_current_user)):
         """Create a new task.
 
         Supports authentication via:
@@ -120,9 +116,7 @@ class TasksController(ControllerBase):
         return self.process(result)
 
     @delete("/{task_id}")
-    async def delete_task(
-        self, task_id: str, user: dict = Depends(require_roles("admin", "manager"))
-    ):
+    async def delete_task(self, task_id: str, user: dict = Depends(require_roles("admin", "manager"))):
         """Delete an existing task.
 
         **RBAC Protected**: Only users with 'admin' or 'manager' roles can delete tasks.

@@ -25,18 +25,14 @@ logger = logging.getLogger(__name__)
 
 aws_region_annotation = Annotated[
     AwsRegion,
-    Path(
-        description="The identifier of the AWS Region where the CML Worker instance is hosted."
-    ),
+    Path(description="The identifier of the AWS Region where the CML Worker instance is hosted."),
 ]
 worker_id_annotation = Annotated[str, Path(description="The CML Worker UUID.")]
 lab_id_annotation = Annotated[str, Path(description="The Lab ID.")]
 
 
 class LabsController(ControllerBase):
-    def __init__(
-        self, service_provider: ServiceProviderBase, mapper: Mapper, mediator: Mediator
-    ):
+    def __init__(self, service_provider: ServiceProviderBase, mapper: Mapper, mediator: Mediator):
         """Handles lab management operations for CML Workers."""
         ControllerBase.__init__(self, service_provider, mapper, mediator)
 
@@ -84,9 +80,7 @@ class LabsController(ControllerBase):
 
         (**Requires valid token.**)
         """
-        logger.info(
-            f"Refreshing labs for CML worker {worker_id} in region {aws_region}"
-        )
+        logger.info(f"Refreshing labs for CML worker {worker_id} in region {aws_region}")
         command = RefreshWorkerLabsCommand(worker_id=worker_id)
         return self.process(await self.mediator.execute_async(command))
 
@@ -108,9 +102,7 @@ class LabsController(ControllerBase):
         (**Requires `admin` or `manager` role!**)
         """
         logger.info(f"Starting lab {lab_id} on worker {worker_id}")
-        command = ControlLabCommand(
-            worker_id=worker_id, lab_id=lab_id, action=LabAction.START
-        )
+        command = ControlLabCommand(worker_id=worker_id, lab_id=lab_id, action=LabAction.START)
         return self.process(await self.mediator.execute_async(command))
 
     @post(
@@ -131,9 +123,7 @@ class LabsController(ControllerBase):
         (**Requires `admin` or `manager` role!**)
         """
         logger.info(f"Stopping lab {lab_id} on worker {worker_id}")
-        command = ControlLabCommand(
-            worker_id=worker_id, lab_id=lab_id, action=LabAction.STOP
-        )
+        command = ControlLabCommand(worker_id=worker_id, lab_id=lab_id, action=LabAction.STOP)
         return self.process(await self.mediator.execute_async(command))
 
     @post(
@@ -154,9 +144,7 @@ class LabsController(ControllerBase):
         (**Requires `admin` or `manager` role!**)
         """
         logger.info(f"Wiping lab {lab_id} on worker {worker_id}")
-        command = ControlLabCommand(
-            worker_id=worker_id, lab_id=lab_id, action=LabAction.WIPE
-        )
+        command = ControlLabCommand(worker_id=worker_id, lab_id=lab_id, action=LabAction.WIPE)
         return self.process(await self.mediator.execute_async(command))
 
     @get(
@@ -215,9 +203,7 @@ class LabsController(ControllerBase):
             yaml_str = yaml_content.decode("utf-8")
         except Exception as e:
             logger.error(f"Failed to read uploaded file: {e}")
-            raise HTTPException(
-                status_code=400, detail=f"Failed to read file: {str(e)}"
-            )
+            raise HTTPException(status_code=400, detail=f"Failed to read file: {str(e)}")
 
         # Execute import command
         command = ImportLabCommand(worker_id=worker_id, yaml_content=yaml_str)

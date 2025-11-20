@@ -28,9 +28,7 @@ class GetWorkerIdleStatusQuery(Query[OperationResult[dict[str, Any]]]):
     worker_id: str
 
 
-class GetWorkerIdleStatusQueryHandler(
-    QueryHandler[GetWorkerIdleStatusQuery, OperationResult[dict[str, Any]]]
-):
+class GetWorkerIdleStatusQueryHandler(QueryHandler[GetWorkerIdleStatusQuery, OperationResult[dict[str, Any]]]):
     """Handler for GetWorkerIdleStatusQuery.
 
     Evaluates idle conditions and determines if worker should be auto-paused.
@@ -44,9 +42,7 @@ class GetWorkerIdleStatusQueryHandler(
         """
         self._repository = worker_repository
 
-    async def handle_async(
-        self, request: GetWorkerIdleStatusQuery
-    ) -> OperationResult[dict[str, Any]]:
+    async def handle_async(self, request: GetWorkerIdleStatusQuery) -> OperationResult[dict[str, Any]]:
         """Execute the query.
 
         Args:
@@ -55,9 +51,7 @@ class GetWorkerIdleStatusQueryHandler(
         Returns:
             OperationResult with idle status and eligibility information
         """
-        with tracer.start_as_current_span(
-            "GetWorkerIdleStatusQueryHandler.handle_async"
-        ) as span:
+        with tracer.start_as_current_span("GetWorkerIdleStatusQueryHandler.handle_async") as span:
             span.set_attribute("worker_id", request.worker_id)
 
             try:
@@ -76,28 +70,17 @@ class GetWorkerIdleStatusQueryHandler(
                 idle_minutes = worker.calculate_idle_duration()
 
                 # Check if currently in snooze period
-                in_snooze = worker.in_snooze_period(
-                    app_settings.worker_auto_pause_snooze_minutes
-                )
+                in_snooze = worker.in_snooze_period(app_settings.worker_auto_pause_snooze_minutes)
 
                 # Determine if worker is idle based on threshold
-                is_idle = (
-                    idle_minutes is not None
-                    and idle_minutes >= app_settings.worker_idle_timeout_minutes
-                )
+                is_idle = idle_minutes is not None and idle_minutes >= app_settings.worker_idle_timeout_minutes
 
                 # Check if auto-pause is enabled (globally and for this worker)
-                auto_pause_enabled = (
-                    app_settings.worker_auto_pause_enabled
-                    and worker.state.is_idle_detection_enabled
-                )
+                auto_pause_enabled = app_settings.worker_auto_pause_enabled and worker.state.is_idle_detection_enabled
 
                 # Determine if eligible for auto-pause
                 eligible_for_pause = (
-                    is_idle
-                    and auto_pause_enabled
-                    and not in_snooze
-                    and worker.state.status.value == "running"
+                    is_idle and auto_pause_enabled and not in_snooze and worker.state.status.value == "running"
                 )
 
                 # Build status response

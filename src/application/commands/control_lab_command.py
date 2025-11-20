@@ -96,9 +96,7 @@ class ControlLabCommandHandler(
 
             try:
                 # Get worker from repository
-                worker = await self.cml_worker_repository.get_by_id_async(
-                    command.worker_id
-                )
+                worker = await self.cml_worker_repository.get_by_id_async(command.worker_id)
                 if not worker:
                     error_msg = f"Worker {command.worker_id} not found"
                     log.error(error_msg)
@@ -106,33 +104,23 @@ class ControlLabCommandHandler(
 
                 # Validate worker has CML endpoint
                 if not worker.state.https_endpoint:
-                    error_msg = (
-                        f"Worker {command.worker_id} has no HTTPS endpoint configured"
-                    )
+                    error_msg = f"Worker {command.worker_id} has no HTTPS endpoint configured"
                     log.error(error_msg)
                     return self.bad_request(error_msg)
 
                 # Create CML API client using factory
-                cml_client = self.cml_client_factory.create(
-                    base_url=worker.state.https_endpoint
-                )
+                cml_client = self.cml_client_factory.create(base_url=worker.state.https_endpoint)
 
                 # Perform the requested action
                 success = False
                 if command.action == LabAction.START:
-                    log.info(
-                        f"Starting lab {command.lab_id} on worker {command.worker_id}"
-                    )
+                    log.info(f"Starting lab {command.lab_id} on worker {command.worker_id}")
                     success = await cml_client.start_lab(command.lab_id)
                 elif command.action == LabAction.STOP:
-                    log.info(
-                        f"Stopping lab {command.lab_id} on worker {command.worker_id}"
-                    )
+                    log.info(f"Stopping lab {command.lab_id} on worker {command.worker_id}")
                     success = await cml_client.stop_lab(command.lab_id)
                 elif command.action == LabAction.WIPE:
-                    log.info(
-                        f"Wiping lab {command.lab_id} on worker {command.worker_id}"
-                    )
+                    log.info(f"Wiping lab {command.lab_id} on worker {command.worker_id}")
                     success = await cml_client.wipe_lab(command.lab_id)
                 else:
                     error_msg = f"Unknown action: {command.action}"
@@ -140,9 +128,7 @@ class ControlLabCommandHandler(
                     return self.bad_request(error_msg)
 
                 if success:
-                    log.info(
-                        f"Successfully performed {command.action.value} on lab {command.lab_id}"
-                    )
+                    log.info(f"Successfully performed {command.action.value} on lab {command.lab_id}")
 
                     # Schedule on-demand worker data refresh after lab operation
                     await self._schedule_worker_refresh(command.worker_id)
@@ -183,9 +169,7 @@ class ControlLabCommandHandler(
             # Enqueue via scheduler
             await self.background_task_scheduler.enqueue_task_async(job)
 
-            log.info(
-                f"Scheduled on-demand refresh for worker {worker_id} after lab operation"
-            )
+            log.info(f"Scheduled on-demand refresh for worker {worker_id} after lab operation")
         except Exception as ex:
             # Log but don't fail the lab operation if refresh scheduling fails
             log.warning(

@@ -26,9 +26,7 @@ class TestGetTasksQuery(BaseTestCase):
         return GetTasksQueryHandler(task_repository=mock_repository)
 
     @pytest.mark.asyncio
-    async def test_admin_sees_all_tasks(
-        self, handler: GetTasksQueryHandler, mock_repository: MagicMock
-    ) -> None:
+    async def test_admin_sees_all_tasks(self, handler: GetTasksQueryHandler, mock_repository: MagicMock) -> None:
         """Test admin users can see all tasks."""
         # Arrange
         tasks: list[Task] = [
@@ -38,9 +36,7 @@ class TestGetTasksQuery(BaseTestCase):
         ]
         mock_repository.get_all_async = self.create_async_mock(return_value=tasks)
 
-        query: GetTasksQuery = GetTasksQuery(
-            user_info={"roles": ["admin"], "sub": "admin1"}
-        )
+        query: GetTasksQuery = GetTasksQuery(user_info={"roles": ["admin"], "sub": "admin1"})
 
         # Act
         result: OperationResult[Any] = await handler.handle_async(query)
@@ -60,9 +56,7 @@ class TestGetTasksQuery(BaseTestCase):
             TaskFactory.create(title="Task 1", department=department),
             TaskFactory.create(title="Task 2", department=department),
         ]
-        mock_repository.get_by_department_async = self.create_async_mock(
-            return_value=tasks
-        )
+        mock_repository.get_by_department_async = self.create_async_mock(return_value=tasks)
 
         query: GetTasksQuery = GetTasksQuery(
             user_info={
@@ -85,9 +79,7 @@ class TestGetTasksQuery(BaseTestCase):
     ) -> None:
         """Test manager without department sees no tasks."""
         # Arrange
-        query: GetTasksQuery = GetTasksQuery(
-            user_info={"roles": ["manager"], "sub": "manager1"}
-        )
+        query: GetTasksQuery = GetTasksQuery(user_info={"roles": ["manager"], "sub": "manager1"})
 
         # Act
         result: OperationResult[Any] = await handler.handle_async(query)
@@ -108,13 +100,9 @@ class TestGetTasksQuery(BaseTestCase):
             TaskFactory.create(title="My Task 1", assignee_id=user_id),
             TaskFactory.create(title="My Task 2", assignee_id=user_id),
         ]
-        mock_repository.get_by_assignee_async = self.create_async_mock(
-            return_value=tasks
-        )
+        mock_repository.get_by_assignee_async = self.create_async_mock(return_value=tasks)
 
-        query: GetTasksQuery = GetTasksQuery(
-            user_info={"roles": ["user"], "sub": user_id}
-        )
+        query: GetTasksQuery = GetTasksQuery(user_info={"roles": ["user"], "sub": user_id})
 
         # Act
         result: OperationResult[Any] = await handler.handle_async(query)
@@ -154,9 +142,7 @@ class TestGetTasksQuery(BaseTestCase):
         )
         mock_repository.get_all_async = self.create_async_mock(return_value=[task])
 
-        query: GetTasksQuery = GetTasksQuery(
-            user_info={"roles": ["admin"], "sub": "admin1"}
-        )
+        query: GetTasksQuery = GetTasksQuery(user_info={"roles": ["admin"], "sub": "admin1"})
 
         # Act
         result: OperationResult[Any] = await handler.handle_async(query)
@@ -176,20 +162,14 @@ class TestGetTaskByIdQuery(BaseTestCase):
         return GetTaskByIdQueryHandler(task_repository=mock_repository)
 
     @pytest.mark.asyncio
-    async def test_admin_can_view_any_task(
-        self, handler: GetTaskByIdQueryHandler, mock_repository: MagicMock
-    ) -> None:
+    async def test_admin_can_view_any_task(self, handler: GetTaskByIdQueryHandler, mock_repository: MagicMock) -> None:
         """Test admin can view any task."""
         # Arrange
         task_id: str = "task123"
-        task: Task = TaskFactory.create(
-            task_id=task_id, department="Engineering", assignee_id="other_user"
-        )
+        task: Task = TaskFactory.create(task_id=task_id, department="Engineering", assignee_id="other_user")
         mock_repository.get_by_id_async = self.create_async_mock(return_value=task)
 
-        query: GetTaskByIdQuery = GetTaskByIdQuery(
-            task_id=task_id, user_info={"roles": ["admin"], "sub": "admin1"}
-        )
+        query: GetTaskByIdQuery = GetTaskByIdQuery(task_id=task_id, user_info={"roles": ["admin"], "sub": "admin1"})
 
         # Act
         result: OperationResult[Any] = await handler.handle_async(query)
@@ -206,9 +186,7 @@ class TestGetTaskByIdQuery(BaseTestCase):
         # Arrange
         task_id: str = "task123"
         department: str = "Engineering"
-        task: Task = TaskFactory.create(
-            task_id=task_id, department=department, assignee_id="other_user"
-        )
+        task: Task = TaskFactory.create(task_id=task_id, department=department, assignee_id="other_user")
         mock_repository.get_by_id_async = self.create_async_mock(return_value=task)
 
         query: GetTaskByIdQuery = GetTaskByIdQuery(
@@ -233,9 +211,7 @@ class TestGetTaskByIdQuery(BaseTestCase):
         """Test manager cannot view tasks from other departments."""
         # Arrange
         task_id: str = "task123"
-        task: Task = TaskFactory.create(
-            task_id=task_id, department="Engineering", assignee_id="other_user"
-        )
+        task: Task = TaskFactory.create(task_id=task_id, department="Engineering", assignee_id="other_user")
         mock_repository.get_by_id_async = self.create_async_mock(return_value=task)
 
         query: GetTaskByIdQuery = GetTaskByIdQuery(
@@ -265,9 +241,7 @@ class TestGetTaskByIdQuery(BaseTestCase):
         task: Task = TaskFactory.create(task_id=task_id, assignee_id=user_id)
         mock_repository.get_by_id_async = self.create_async_mock(return_value=task)
 
-        query: GetTaskByIdQuery = GetTaskByIdQuery(
-            task_id=task_id, user_info={"roles": ["user"], "sub": user_id}
-        )
+        query: GetTaskByIdQuery = GetTaskByIdQuery(task_id=task_id, user_info={"roles": ["user"], "sub": user_id})
 
         # Act
         result: OperationResult[Any] = await handler.handle_async(query)
@@ -330,9 +304,7 @@ class TestGetTaskByIdQuery(BaseTestCase):
         )
         mock_repository.get_by_id_async = self.create_async_mock(return_value=task)
 
-        query: GetTaskByIdQuery = GetTaskByIdQuery(
-            task_id=task_id, user_info={"roles": ["admin"], "sub": "admin1"}
-        )
+        query: GetTaskByIdQuery = GetTaskByIdQuery(task_id=task_id, user_info={"roles": ["admin"], "sub": "admin1"})
 
         # Act
         result: OperationResult[Any] = await handler.handle_async(query)

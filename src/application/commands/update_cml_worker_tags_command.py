@@ -71,9 +71,7 @@ class UpdateCMLWorkerTagsCommandHandler(
         self.cml_worker_repository = cml_worker_repository
         self.aws_ec2_client = aws_ec2_client
 
-    async def handle_async(
-        self, request: UpdateCMLWorkerTagsCommand
-    ) -> OperationResult[dict[str, str]]:
+    async def handle_async(self, request: UpdateCMLWorkerTagsCommand) -> OperationResult[dict[str, str]]:
         """Handle update CML Worker tags command.
 
         Args:
@@ -106,9 +104,7 @@ class UpdateCMLWorkerTagsCommandHandler(
         try:
             with tracer.start_as_current_span("retrieve_cml_worker") as span:
                 # Retrieve worker from repository
-                worker = await self.cml_worker_repository.get_by_id_async(
-                    command.worker_id
-                )
+                worker = await self.cml_worker_repository.get_by_id_async(command.worker_id)
 
                 if not worker:
                     error_msg = f"CML Worker not found: {command.worker_id}"
@@ -116,9 +112,7 @@ class UpdateCMLWorkerTagsCommandHandler(
                     return self.bad_request(error_msg)
 
                 if not worker.state.aws_instance_id:
-                    error_msg = (
-                        f"CML Worker {command.worker_id} has no AWS instance assigned"
-                    )
+                    error_msg = f"CML Worker {command.worker_id} has no AWS instance assigned"
                     log.error(error_msg)
                     return self.bad_request(error_msg)
 

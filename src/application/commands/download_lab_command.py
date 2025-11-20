@@ -20,9 +20,7 @@ class DownloadLabCommand(Command[OperationResult[str]]):
     lab_id: str
 
 
-class DownloadLabCommandHandler(
-    CommandHandler[DownloadLabCommand, OperationResult[str]]
-):
+class DownloadLabCommandHandler(CommandHandler[DownloadLabCommand, OperationResult[str]]):
     """Handler for DownloadLabCommand - retrieves lab YAML from CML API."""
 
     def __init__(
@@ -39,9 +37,7 @@ class DownloadLabCommandHandler(
         self._worker_repository = worker_repository
         self._cml_client_factory = cml_api_client_factory
 
-    async def handle_async(
-        self, request: DownloadLabCommand, cancellation_token=None
-    ) -> OperationResult[str]:
+    async def handle_async(self, request: DownloadLabCommand, cancellation_token=None) -> OperationResult[str]:
         """Download lab topology as YAML.
 
         Args:
@@ -64,16 +60,12 @@ class DownloadLabCommandHandler(
 
         try:
             # Create CML API client using factory
-            cml_client = self._cml_client_factory.create(
-                base_url=worker.state.https_endpoint
-            )
+            cml_client = self._cml_client_factory.create(base_url=worker.state.https_endpoint)
 
             # Download lab YAML
             yaml_content = await cml_client.download_lab(request.lab_id)
 
-            log.info(
-                f"Successfully downloaded lab {request.lab_id} ({len(yaml_content)} bytes)"
-            )
+            log.info(f"Successfully downloaded lab {request.lab_id} ({len(yaml_content)} bytes)")
             return self.ok(yaml_content)
 
         except Exception as e:

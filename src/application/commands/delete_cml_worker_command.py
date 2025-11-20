@@ -75,9 +75,7 @@ class DeleteCMLWorkerCommandHandler(
         self.cml_worker_repository = cml_worker_repository
         self.aws_ec2_client = aws_ec2_client
 
-    async def handle_async(
-        self, request: DeleteCMLWorkerCommand
-    ) -> OperationResult[bool]:
+    async def handle_async(self, request: DeleteCMLWorkerCommand) -> OperationResult[bool]:
         """Handle delete CML Worker command.
 
         Args:
@@ -105,21 +103,15 @@ class DeleteCMLWorkerCommandHandler(
         try:
             with tracer.start_as_current_span("retrieve_cml_worker") as span:
                 # Retrieve worker from repository
-                worker = await self.cml_worker_repository.get_by_id_async(
-                    command.worker_id
-                )
+                worker = await self.cml_worker_repository.get_by_id_async(command.worker_id)
 
                 if not worker:
                     error_msg = f"CML Worker not found: {command.worker_id}"
                     log.error(error_msg)
                     return self.bad_request(error_msg)
 
-                span.set_attribute(
-                    "ec2.instance_id", worker.state.aws_instance_id or "none"
-                )
-                span.set_attribute(
-                    "cml_worker.current_status", worker.state.status.value
-                )
+                span.set_attribute("ec2.instance_id", worker.state.aws_instance_id or "none")
+                span.set_attribute("cml_worker.current_status", worker.state.status.value)
 
             # Terminate EC2 instance if requested and instance exists
             if command.terminate_instance and worker.state.aws_instance_id:
@@ -161,9 +153,7 @@ class DeleteCMLWorkerCommandHandler(
                         log.error(error_msg)
                         return self.bad_request(error_msg)
             elif command.terminate_instance and not worker.state.aws_instance_id:
-                log.info(
-                    f"CML Worker {command.worker_id} has no AWS instance to terminate"
-                )
+                log.info(f"CML Worker {command.worker_id} has no AWS instance to terminate")
 
             # Mark worker as terminated in domain before deletion
             with tracer.start_as_current_span("mark_worker_terminated") as span:
@@ -176,14 +166,10 @@ class DeleteCMLWorkerCommandHandler(
             # Delete worker from repository
             with tracer.start_as_current_span("delete_from_repository") as span:
                 # Pass the worker to allow domain events to be published before deletion
-                deleted = await self.cml_worker_repository.delete_async(
-                    command.worker_id, worker
-                )
+                deleted = await self.cml_worker_repository.delete_async(command.worker_id, worker)
 
                 if not deleted:
-                    error_msg = (
-                        f"Failed to delete CML Worker {command.worker_id} from database"
-                    )
+                    error_msg = f"Failed to delete CML Worker {command.worker_id} from database"
                     log.error(error_msg)
                     return self.bad_request(error_msg)
 

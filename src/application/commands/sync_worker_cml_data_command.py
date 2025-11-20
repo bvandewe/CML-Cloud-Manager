@@ -72,9 +72,7 @@ class SyncWorkerCMLDataCommandHandler(
         self.cml_client_factory = cml_api_client_factory
         self.settings = settings
 
-    async def handle_async(
-        self, request: SyncWorkerCMLDataCommand
-    ) -> OperationResult[dict]:
+    async def handle_async(self, request: SyncWorkerCMLDataCommand) -> OperationResult[dict]:
         """Handle sync worker CML data command.
 
         Args:
@@ -96,24 +94,16 @@ class SyncWorkerCMLDataCommandHandler(
         try:
             with tracer.start_as_current_span("retrieve_cml_worker") as span:
                 # 1. Load worker from repository
-                worker = await self.cml_worker_repository.get_by_id_async(
-                    command.worker_id
-                )
+                worker = await self.cml_worker_repository.get_by_id_async(command.worker_id)
 
                 if not worker:
                     error_msg = f"CML Worker not found: {command.worker_id}"
                     log.error(error_msg)
                     return self.bad_request(error_msg)
 
-                span.set_attribute(
-                    "cml_worker.current_status", worker.state.status.value
-                )
-                span.set_attribute(
-                    "cml_worker.has_endpoint", bool(worker.state.https_endpoint)
-                )
-                span.set_attribute(
-                    "cml_worker.service_status", worker.state.service_status.value
-                )
+                span.set_attribute("cml_worker.current_status", worker.state.status.value)
+                span.set_attribute("cml_worker.has_endpoint", bool(worker.state.https_endpoint))
+                span.set_attribute("cml_worker.service_status", worker.state.service_status.value)
 
             # 2. Skip if worker not running or has no endpoint
             if worker.state.status != CMLWorkerStatus.RUNNING:
@@ -131,10 +121,7 @@ class SyncWorkerCMLDataCommandHandler(
                 )
 
             if not worker.state.https_endpoint:
-                log.warning(
-                    f"Skipping CML data sync for worker {command.worker_id} - "
-                    f"no HTTPS endpoint configured"
-                )
+                log.warning(f"Skipping CML data sync for worker {command.worker_id} - " f"no HTTPS endpoint configured")
                 return self.ok(
                     {
                         "worker_id": command.worker_id,
@@ -148,10 +135,7 @@ class SyncWorkerCMLDataCommandHandler(
             # Resilient approach: Try to collect as much data as possible without failing fast
             # Service status is determined based on what APIs respond successfully
             with tracer.start_as_current_span("query_cml_api") as span:
-                log.info(
-                    f"Querying CML API for worker {command.worker_id} "
-                    f"at {worker.state.https_endpoint}"
-                )
+                log.info(f"Querying CML API for worker {command.worker_id} " f"at {worker.state.https_endpoint}")
 
                 # Create CML API client for this worker using factory
                 cml_client = self.cml_client_factory.create(
@@ -176,9 +160,7 @@ class SyncWorkerCMLDataCommandHandler(
                             f"version={system_info.version}, ready={system_info.ready}"
                         )
                 except IntegrationException as e:
-                    log.warning(
-                        f"⚠️ Could not fetch system info for worker {command.worker_id}: {e}"
-                    )
+                    log.warning(f"⚠️ Could not fetch system info for worker {command.worker_id}: {e}")
                     span.set_attribute("system_info.error", str(e))
 
                 # Try system_health (requires auth)
@@ -191,9 +173,7 @@ class SyncWorkerCMLDataCommandHandler(
                             f"valid={system_health.valid}, licensed={system_health.is_licensed}"
                         )
                 except IntegrationException as e:
-                    log.warning(
-                        f"⚠️ Could not fetch system health for worker {command.worker_id}: {e}"
-                    )
+                    log.warning(f"⚠️ Could not fetch system health for worker {command.worker_id}: {e}")
                     span.set_attribute("system_health.error", str(e))
 
                 # Try system_stats (requires auth)
@@ -206,9 +186,7 @@ class SyncWorkerCMLDataCommandHandler(
                             f"running_nodes={system_stats.running_nodes}"
                         )
                 except IntegrationException as e:
-                    log.warning(
-                        f"⚠️ Could not fetch system stats for worker {command.worker_id}: {e}"
-                    )
+                    log.warning(f"⚠️ Could not fetch system stats for worker {command.worker_id}: {e}")
                     span.set_attribute("system_stats.error", str(e))
 
                 # Try licensing info (requires auth)
@@ -221,9 +199,7 @@ class SyncWorkerCMLDataCommandHandler(
                             f"{license_info.active_license} ({license_info.registration_status})"
                         )
                 except Exception as e:
-                    log.warning(
-                        f"⚠️ Could not fetch CML licensing info for worker {command.worker_id}: {e}"
-                    )
+                    log.warning(f"⚠️ Could not fetch CML licensing info for worker {command.worker_id}: {e}")
                     span.set_attribute("licensing.error", str(e))
 
                 # Determine service status based on what we successfully retrieved
@@ -233,10 +209,7 @@ class SyncWorkerCMLDataCommandHandler(
                         new_service_status=CMLServiceStatus.UNAVAILABLE,
                         https_endpoint=worker.state.https_endpoint,
                     )
-                    log.info(
-                        f"❌ CML service not accessible for worker {command.worker_id} - "
-                        f"all API calls failed"
-                    )
+                    log.info(f"❌ CML service not accessible for worker {command.worker_id} - " f"all API calls failed")
                     # Save and return - don't bail completely, just mark unavailable
                     await self.cml_worker_repository.update_async(worker)
                     return self.ok(
@@ -254,10 +227,7 @@ class SyncWorkerCMLDataCommandHandler(
                         new_service_status=CMLServiceStatus.AVAILABLE,
                         https_endpoint=worker.state.https_endpoint,
                     )
-                    log.info(
-                        f"✅ CML service healthy for worker {command.worker_id} - "
-                        f"marked as AVAILABLE"
-                    )
+                    log.info(f"✅ CML service healthy for worker {command.worker_id} - " f"marked as AVAILABLE")
                 elif system_info:
                     # System info worked but health didn't - mark as AVAILABLE anyway
                     worker.update_service_status(
@@ -274,10 +244,7 @@ class SyncWorkerCMLDataCommandHandler(
                         new_service_status=CMLServiceStatus.ERROR,
                         https_endpoint=worker.state.https_endpoint,
                     )
-                    log.warning(
-                        f"⚠️ CML service status unclear for worker {command.worker_id} - "
-                        f"marked as ERROR"
-                    )
+                    log.warning(f"⚠️ CML service status unclear for worker {command.worker_id} - " f"marked as ERROR")
 
                 # Update CML metrics with whatever data we have
                 cml_version = system_info.version if system_info else None
@@ -311,9 +278,7 @@ class SyncWorkerCMLDataCommandHandler(
                     "cml.licensed",
                     system_health.is_licensed if system_health else False,
                 )
-                span.set_attribute(
-                    "cml.valid", system_health.valid if system_health else False
-                )
+                span.set_attribute("cml.valid", system_health.valid if system_health else False)
                 span.set_attribute(
                     "cml.nodes_running",
                     system_stats.running_nodes if system_stats else 0,
@@ -351,6 +316,4 @@ class SyncWorkerCMLDataCommandHandler(
                 f"Failed to sync CML data for worker {command.worker_id}: {ex}",
                 exc_info=True,
             )
-            return self.internal_server_error(
-                f"Failed to sync worker CML data: {str(ex)}"
-            )
+            return self.internal_server_error(f"Failed to sync worker CML data: {str(ex)}")

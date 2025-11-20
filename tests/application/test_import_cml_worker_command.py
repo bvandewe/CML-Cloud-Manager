@@ -88,9 +88,7 @@ class TestImportCMLWorkerCommandHandler:
     """Tests for ImportCMLWorkerCommandHandler."""
 
     @pytest.mark.asyncio
-    async def test_import_by_instance_id_success(
-        self, mock_dependencies, sample_instance_descriptor
-    ):
+    async def test_import_by_instance_id_success(self, mock_dependencies, sample_instance_descriptor):
         """Test successful import by instance ID."""
         # Arrange
         handler = ImportCMLWorkerCommandHandler(**mock_dependencies)
@@ -102,21 +100,15 @@ class TestImportCMLWorkerCommandHandler:
         )
 
         # Mock AWS client to return instance
-        mock_dependencies["aws_ec2_client"].get_instance_details.return_value = (
-            sample_instance_descriptor
-        )
+        mock_dependencies["aws_ec2_client"].get_instance_details.return_value = sample_instance_descriptor
 
         # Mock repository to return no existing worker
-        mock_dependencies["cml_worker_repository"].get_by_aws_instance_id_async = (
-            AsyncMock(return_value=None)
-        )
+        mock_dependencies["cml_worker_repository"].get_by_aws_instance_id_async = AsyncMock(return_value=None)
 
         # Mock repository add
         mock_worker = Mock()
         mock_worker.id.return_value = "test-worker-id"
-        mock_dependencies["cml_worker_repository"].add_async = AsyncMock(
-            return_value=mock_worker
-        )
+        mock_dependencies["cml_worker_repository"].add_async = AsyncMock(return_value=mock_worker)
 
         # Act
         result = await handler.handle_async(command)
@@ -133,9 +125,9 @@ class TestImportCMLWorkerCommandHandler:
         assert call_args[1]["instance_id"] == "i-0abcdef1234567890"
 
         # Verify repository methods called
-        mock_dependencies[
-            "cml_worker_repository"
-        ].get_by_aws_instance_id_async.assert_called_once_with("i-0abcdef1234567890")
+        mock_dependencies["cml_worker_repository"].get_by_aws_instance_id_async.assert_called_once_with(
+            "i-0abcdef1234567890"
+        )
         mock_dependencies["cml_worker_repository"].add_async.assert_called_once()
 
     @pytest.mark.asyncio
@@ -178,9 +170,7 @@ class TestImportCMLWorkerCommandHandler:
         assert "no matching ec2 instance" in result.errors[0].message.lower()
 
     @pytest.mark.asyncio
-    async def test_import_fails_when_instance_already_registered(
-        self, mock_dependencies, sample_instance_descriptor
-    ):
+    async def test_import_fails_when_instance_already_registered(self, mock_dependencies, sample_instance_descriptor):
         """Test import fails when instance is already registered."""
         # Arrange
         handler = ImportCMLWorkerCommandHandler(**mock_dependencies)
@@ -190,15 +180,13 @@ class TestImportCMLWorkerCommandHandler:
         )
 
         # Mock AWS client to return instance
-        mock_dependencies["aws_ec2_client"].get_instance_details.return_value = (
-            sample_instance_descriptor
-        )
+        mock_dependencies["aws_ec2_client"].get_instance_details.return_value = sample_instance_descriptor
 
         # Mock repository to return existing worker
         existing_worker = Mock()
         existing_worker.id.return_value = "existing-worker-id"
-        mock_dependencies["cml_worker_repository"].get_by_aws_instance_id_async = (
-            AsyncMock(return_value=existing_worker)
+        mock_dependencies["cml_worker_repository"].get_by_aws_instance_id_async = AsyncMock(
+            return_value=existing_worker
         )
 
         # Act
@@ -209,9 +197,7 @@ class TestImportCMLWorkerCommandHandler:
         assert "already registered" in result.errors[0].message.lower()
 
     @pytest.mark.asyncio
-    async def test_import_by_ami_id_success(
-        self, mock_dependencies, sample_instance_descriptor
-    ):
+    async def test_import_by_ami_id_success(self, mock_dependencies, sample_instance_descriptor):
         """Test successful import by AMI ID."""
         # Arrange
         handler = ImportCMLWorkerCommandHandler(**mock_dependencies)
@@ -222,21 +208,15 @@ class TestImportCMLWorkerCommandHandler:
         )
 
         # Mock AWS client to return list of instances
-        mock_dependencies["aws_ec2_client"].list_instances.return_value = [
-            sample_instance_descriptor
-        ]
+        mock_dependencies["aws_ec2_client"].list_instances.return_value = [sample_instance_descriptor]
 
         # Mock repository to return no existing worker
-        mock_dependencies["cml_worker_repository"].get_by_aws_instance_id_async = (
-            AsyncMock(return_value=None)
-        )
+        mock_dependencies["cml_worker_repository"].get_by_aws_instance_id_async = AsyncMock(return_value=None)
 
         # Mock repository add
         mock_worker = Mock()
         mock_worker.id.return_value = "test-worker-id"
-        mock_dependencies["cml_worker_repository"].add_async = AsyncMock(
-            return_value=mock_worker
-        )
+        mock_dependencies["cml_worker_repository"].add_async = AsyncMock(return_value=mock_worker)
 
         # Act
         result = await handler.handle_async(command)

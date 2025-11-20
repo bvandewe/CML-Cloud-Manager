@@ -25,9 +25,7 @@ class SystemHealthService:
     @staticmethod
     def configure(builder: "WebApplicationBuilder") -> None:  # type: ignore[name-defined]
         builder.services.add_singleton(SystemHealthService)
-        logging.getLogger(__name__).info(
-            "✅ SystemHealthService configured as singleton"
-        )
+        logging.getLogger(__name__).info("✅ SystemHealthService configured as singleton")
 
     async def get_system_health(self, mediator, service_provider) -> dict[str, Any]:
         """Run all health checks and return aggregated result."""
@@ -62,9 +60,7 @@ class SystemHealthService:
         try:
             from application.services import BackgroundTaskScheduler
 
-            scheduler: BackgroundTaskScheduler = service_provider.get_required_service(
-                BackgroundTaskScheduler
-            )
+            scheduler: BackgroundTaskScheduler = service_provider.get_required_service(BackgroundTaskScheduler)
             if scheduler and scheduler._scheduler and scheduler._scheduler.running:
                 health_status["components"]["background_scheduler"] = {
                     "status": "healthy",
@@ -135,10 +131,7 @@ class SystemHealthService:
                 async with httpx.AsyncClient(timeout=5) as client:
                     event_id = str(uuid.uuid4())
                     now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-                    ce_source = (
-                        app_settings.cloud_event_source
-                        or "https://cml-cloud-manager.io"
-                    )
+                    ce_source = app_settings.cloud_event_source or "https://cml-cloud-manager.io"
                     cloudevent_body = {
                         "specversion": "1.0",
                         "id": event_id,
@@ -151,9 +144,7 @@ class SystemHealthService:
                     }
                     headers = {"Content-Type": "application/cloudevents+json"}
                     t0 = time.perf_counter()
-                    resp = await client.post(
-                        sink, json=cloudevent_body, headers=headers
-                    )
+                    resp = await client.post(sink, json=cloudevent_body, headers=headers)
                     latency_ms = (time.perf_counter() - t0) * 1000.0
                     if 200 <= resp.status_code < 300:
                         health_status["components"]["cloudevent_sink"] = {
@@ -187,13 +178,9 @@ class SystemHealthService:
 
         # Keycloak
         try:
-            keycloak_base = (
-                app_settings.keycloak_url_internal or app_settings.keycloak_url
-            )
+            keycloak_base = app_settings.keycloak_url_internal or app_settings.keycloak_url
             realm = app_settings.keycloak_realm
-            openid_config = (
-                f"{keycloak_base}/realms/{realm}/.well-known/openid-configuration"
-            )
+            openid_config = f"{keycloak_base}/realms/{realm}/.well-known/openid-configuration"
             async with httpx.AsyncClient(timeout=5) as client:
                 t0 = time.perf_counter()
                 resp = await client.get(openid_config)
@@ -201,9 +188,7 @@ class SystemHealthService:
             if resp.status_code == 200:
                 issuer = (
                     resp.json().get("issuer")
-                    if resp.headers.get("content-type", "").startswith(
-                        "application/json"
-                    )
+                    if resp.headers.get("content-type", "").startswith("application/json")
                     else None
                 )
                 health_status["components"]["keycloak"] = {
@@ -244,9 +229,7 @@ class SystemHealthService:
                 try:
                     await writer.wait_closed()
                 except Exception:
-                    log.warning(
-                        "failed writing to OTEL collector connection", exc_info=True
-                    )
+                    log.warning("failed writing to OTEL collector connection", exc_info=True)
                 health_status["components"]["otel_collector"] = {
                     "status": "healthy",
                     "endpoint": endpoint,

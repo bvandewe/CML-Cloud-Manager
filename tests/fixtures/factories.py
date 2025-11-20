@@ -46,9 +46,7 @@ class TaskFactory:
     @staticmethod
     def create_many(count: int, **kwargs: Any) -> list[Task]:
         """Create multiple tasks with incrementing titles."""
-        tasks: list[Task] = [
-            TaskFactory.create(title=f"Test Task {i+1}", **kwargs) for i in range(count)
-        ]
+        tasks: list[Task] = [TaskFactory.create(title=f"Test Task {i+1}", **kwargs) for i in range(count)]
         return tasks
 
     @staticmethod

@@ -56,15 +56,11 @@ async def analyze_duplicates(collection):
 
     log.info(f"⚠️  Found {len(duplicates)} sets of duplicate records:")
     for (worker_id, lab_id), records_list in duplicates.items():
-        log.info(
-            f"  • Worker {worker_id[:8]}... + Lab {lab_id[:8]}...: {len(records_list)} duplicates"
-        )
+        log.info(f"  • Worker {worker_id[:8]}... + Lab {lab_id[:8]}...: {len(records_list)} duplicates")
         for rec in records_list:
             last_synced = rec.get("last_synced_at", "unknown")
             state_version = rec.get("state_version", 0)
-            log.info(
-                f"    - ID: {rec['id'][:8]}... | Version: {state_version} | Last synced: {last_synced}"
-            )
+            log.info(f"    - ID: {rec['id'][:8]}... | Version: {state_version} | Last synced: {last_synced}")
 
     return duplicates
 
@@ -100,15 +96,11 @@ async def remove_duplicates(collection, duplicates, dry_run=True):
         for rec in remove_records:
             rec_id = rec["id"]
             if dry_run:
-                log.info(
-                    f"  [DRY RUN] Would remove ID {rec_id[:8]}... (v{rec.get('state_version', 0)})"
-                )
+                log.info(f"  [DRY RUN] Would remove ID {rec_id[:8]}... (v{rec.get('state_version', 0)})")
             else:
                 result = await collection.delete_one({"id": rec_id})
                 if result.deleted_count > 0:
-                    log.info(
-                        f"  ✅ Removed ID {rec_id[:8]}... (v{rec.get('state_version', 0)})"
-                    )
+                    log.info(f"  ✅ Removed ID {rec_id[:8]}... (v{rec.get('state_version', 0)})")
                     removed_count += 1
                 else:
                     log.error(f"  ❌ Failed to remove ID {rec_id[:8]}...")
@@ -116,9 +108,7 @@ async def remove_duplicates(collection, duplicates, dry_run=True):
     if not dry_run:
         log.info(f"✅ Removed {removed_count} duplicate records")
     else:
-        log.info(
-            f"[DRY RUN] Would remove {sum(len(v) - 1 for v in duplicates.values())} duplicate records"
-        )
+        log.info(f"[DRY RUN] Would remove {sum(len(v) - 1 for v in duplicates.values())} duplicate records")
 
 
 async def ensure_unique_index(collection):
@@ -135,9 +125,7 @@ async def ensure_unique_index(collection):
         # Check if unique index exists
         has_unique_index = False
         for idx in existing_indexes:
-            if "worker_id" in str(idx.get("key", {})) and "lab_id" in str(
-                idx.get("key", {})
-            ):
+            if "worker_id" in str(idx.get("key", {})) and "lab_id" in str(idx.get("key", {})):
                 if idx.get("unique"):
                     has_unique_index = True
                     log.info(f"✅ Found existing unique index: {idx['name']}")

@@ -81,9 +81,7 @@ class MongoCMLWorkerRepository(TracedRepositoryMixin, MotorRepository[CMLWorker,
         """Retrieve a CML worker by ID."""
         return cast(CMLWorker | None, await self.get_async(worker_id))
 
-    async def get_by_aws_instance_id_async(
-        self, aws_instance_id: str
-    ) -> CMLWorker | None:
+    async def get_by_aws_instance_id_async(self, aws_instance_id: str) -> CMLWorker | None:
         """Retrieve a CML worker by AWS EC2 instance ID."""
         document = await self.collection.find_one({"aws_instance_id": aws_instance_id})
         if document:
@@ -101,18 +99,14 @@ class MongoCMLWorkerRepository(TracedRepositoryMixin, MotorRepository[CMLWorker,
 
     async def get_active_workers_async(self) -> list[CMLWorker]:
         """Retrieve all active (non-terminated) CML workers."""
-        cursor = self.collection.find(
-            {"status": {"$ne": CMLWorkerStatus.TERMINATED.value}}
-        )
+        cursor = self.collection.find({"status": {"$ne": CMLWorkerStatus.TERMINATED.value}})
         workers = []
         async for document in cursor:
             worker = self._deserialize_entity(document)
             workers.append(worker)
         return workers
 
-    async def get_idle_workers_async(
-        self, idle_threshold_minutes: int
-    ) -> list[CMLWorker]:
+    async def get_idle_workers_async(self, idle_threshold_minutes: int) -> list[CMLWorker]:
         """Retrieve workers that have been idle beyond the threshold.
 
         Args:
@@ -121,9 +115,7 @@ class MongoCMLWorkerRepository(TracedRepositoryMixin, MotorRepository[CMLWorker,
         Returns:
             List of idle workers (running but inactive)
         """
-        threshold_time = datetime.now(timezone.utc) - timedelta(
-            minutes=idle_threshold_minutes
-        )
+        threshold_time = datetime.now(timezone.utc) - timedelta(minutes=idle_threshold_minutes)
         cursor = self.collection.find(
             {
                 "status": CMLWorkerStatus.RUNNING.value,
@@ -164,9 +156,7 @@ class MongoCMLWorkerRepository(TracedRepositoryMixin, MotorRepository[CMLWorker,
         # Ensure unique index on aws_instance_id (sparse to allow None values)
         if not self._indexes_initialized:
             try:
-                await self.collection.create_index(
-                    "aws_instance_id", unique=True, sparse=True
-                )
+                await self.collection.create_index("aws_instance_id", unique=True, sparse=True)
             except Exception:
                 # Index creation failures should not block normal operation
                 log.warning("Failed to create index on aws_instance_id", exc_info=True)
@@ -248,9 +238,7 @@ class MongoCMLWorkerRepository(TracedRepositoryMixin, MotorRepository[CMLWorker,
 
         return result.modified_count
 
-    async def delete_async(
-        self, worker_id: str, worker: CMLWorker | None = None
-    ) -> bool:
+    async def delete_async(self, worker_id: str, worker: CMLWorker | None = None) -> bool:
         """Delete a CML worker by ID.
 
         Args:

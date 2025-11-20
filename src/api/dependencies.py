@@ -35,10 +35,7 @@ def get_auth_service(request: Request) -> DualAuthService:
     """
     auth_service = getattr(request.state, "auth_service", None)
     if auth_service is None:
-        raise RuntimeError(
-            "AuthService not found in request state. "
-            "Ensure DI middleware is properly configured."
-        )
+        raise RuntimeError("AuthService not found in request state. " "Ensure DI middleware is properly configured.")
     return auth_service
 
 
@@ -92,9 +89,7 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid bearer token format.",
-            headers={
-                "WWW-Authenticate": 'Bearer error="invalid_token", error_description="Malformed token"'
-            },
+            headers={"WWW-Authenticate": 'Bearer error="invalid_token", error_description="Malformed token"'},
         )
 
     # Authenticate via session or JWT (session auto-refresh logic handled in AuthService)

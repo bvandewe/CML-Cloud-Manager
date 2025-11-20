@@ -53,13 +53,9 @@ class TestCreateTaskCommand(BaseTestCase):
     ) -> None:
         """Test creating a task with only required fields."""
         # Arrange
-        command: CreateTaskCommand = CreateTaskCommand(
-            title="Test Task", description="Test Description"
-        )
+        command: CreateTaskCommand = CreateTaskCommand(title="Test Task", description="Test Description")
 
-        created_task: Task = TaskFactory.create(
-            title="Test Task", description="Test Description"
-        )
+        created_task: Task = TaskFactory.create(title="Test Task", description="Test Description")
         mock_repository.add_async = self.create_async_mock(return_value=created_task)
 
         # Act
@@ -124,9 +120,7 @@ class TestCreateTaskCommand(BaseTestCase):
             status="invalid_status",
         )
 
-        created_task: Task = TaskFactory.create(
-            title="Task", description="Description", status=TaskStatus.PENDING
-        )
+        created_task: Task = TaskFactory.create(title="Task", description="Description", status=TaskStatus.PENDING)
         mock_repository.add_async = self.create_async_mock(return_value=created_task)
 
         # Act
@@ -151,9 +145,7 @@ class TestCreateTaskCommand(BaseTestCase):
             priority="invalid_priority",
         )
 
-        created_task: Task = TaskFactory.create(
-            title="Task", description="Description", priority=TaskPriority.MEDIUM
-        )
+        created_task: Task = TaskFactory.create(title="Task", description="Description", priority=TaskPriority.MEDIUM)
         mock_repository.add_async = self.create_async_mock(return_value=created_task)
 
         # Act
@@ -177,9 +169,7 @@ class TestCreateTaskCommand(BaseTestCase):
             user_info={"sub": "user1", "department": "Marketing"},
         )
 
-        created_task: Task = TaskFactory.create(
-            title="Task", description="Description", department="Marketing"
-        )
+        created_task: Task = TaskFactory.create(title="Task", description="Description", department="Marketing")
         mock_repository.add_async = self.create_async_mock(return_value=created_task)
 
         # Act
@@ -204,9 +194,7 @@ class TestCreateTaskCommand(BaseTestCase):
             user_info={"sub": "user1", "department": "Marketing"},
         )
 
-        created_task: Task = TaskFactory.create(
-            title="Task", description="Description", department="Sales"
-        )
+        created_task: Task = TaskFactory.create(title="Task", description="Description", department="Sales")
         mock_repository.add_async = self.create_async_mock(return_value=created_task)
 
         # Act
@@ -228,21 +216,13 @@ class TestUpdateTaskCommand(BaseTestCase):
         return UpdateTaskCommandHandler(task_repository=mock_repository)
 
     @pytest.mark.asyncio
-    async def test_update_task_title(
-        self, handler: UpdateTaskCommandHandler, mock_repository: MagicMock
-    ) -> None:
+    async def test_update_task_title(self, handler: UpdateTaskCommandHandler, mock_repository: MagicMock) -> None:
         """Test updating task title."""
         # Arrange
         task_id: str = "task123"
-        existing_task: Task = TaskFactory.create(
-            task_id=task_id, title="Old Title", assignee_id="user1"
-        )
-        mock_repository.get_by_id_async = self.create_async_mock(
-            return_value=existing_task
-        )
-        mock_repository.update_async = self.create_async_mock(
-            return_value=existing_task
-        )
+        existing_task: Task = TaskFactory.create(task_id=task_id, title="Old Title", assignee_id="user1")
+        mock_repository.get_by_id_async = self.create_async_mock(return_value=existing_task)
+        mock_repository.update_async = self.create_async_mock(return_value=existing_task)
 
         command: UpdateTaskCommand = UpdateTaskCommand(
             task_id=task_id,
@@ -259,21 +239,13 @@ class TestUpdateTaskCommand(BaseTestCase):
         mock_repository.update_async.assert_called_once_with(existing_task)
 
     @pytest.mark.asyncio
-    async def test_update_task_status(
-        self, handler: UpdateTaskCommandHandler, mock_repository: MagicMock
-    ) -> None:
+    async def test_update_task_status(self, handler: UpdateTaskCommandHandler, mock_repository: MagicMock) -> None:
         """Test updating task status."""
         # Arrange
         task_id: str = "task123"
-        existing_task: Task = TaskFactory.create(
-            task_id=task_id, status=TaskStatus.PENDING, assignee_id="user1"
-        )
-        mock_repository.get_by_id_async = self.create_async_mock(
-            return_value=existing_task
-        )
-        mock_repository.update_async = self.create_async_mock(
-            return_value=existing_task
-        )
+        existing_task: Task = TaskFactory.create(task_id=task_id, status=TaskStatus.PENDING, assignee_id="user1")
+        mock_repository.get_by_id_async = self.create_async_mock(return_value=existing_task)
+        mock_repository.update_async = self.create_async_mock(return_value=existing_task)
 
         command: UpdateTaskCommand = UpdateTaskCommand(
             task_id=task_id,
@@ -289,9 +261,7 @@ class TestUpdateTaskCommand(BaseTestCase):
         assert existing_task.state.status == TaskStatus.COMPLETED
 
     @pytest.mark.asyncio
-    async def test_update_task_not_found(
-        self, handler: UpdateTaskCommandHandler, mock_repository: MagicMock
-    ) -> None:
+    async def test_update_task_not_found(self, handler: UpdateTaskCommandHandler, mock_repository: MagicMock) -> None:
         """Test updating non-existent task returns not found."""
         # Arrange
         mock_repository.get_by_id_async = self.create_async_mock(return_value=None)
@@ -316,12 +286,8 @@ class TestUpdateTaskCommand(BaseTestCase):
         """Test non-admin cannot update tasks assigned to others."""
         # Arrange
         task_id: str = "task123"
-        existing_task: Task = TaskFactory.create(
-            task_id=task_id, assignee_id="other_user"
-        )
-        mock_repository.get_by_id_async = self.create_async_mock(
-            return_value=existing_task
-        )
+        existing_task: Task = TaskFactory.create(task_id=task_id, assignee_id="other_user")
+        mock_repository.get_by_id_async = self.create_async_mock(return_value=existing_task)
 
         command: UpdateTaskCommand = UpdateTaskCommand(
             task_id=task_id,
@@ -344,15 +310,9 @@ class TestUpdateTaskCommand(BaseTestCase):
         """Test admin can update any task."""
         # Arrange
         task_id: str = "task123"
-        existing_task: Task = TaskFactory.create(
-            task_id=task_id, assignee_id="other_user", title="Old Title"
-        )
-        mock_repository.get_by_id_async = self.create_async_mock(
-            return_value=existing_task
-        )
-        mock_repository.update_async = self.create_async_mock(
-            return_value=existing_task
-        )
+        existing_task: Task = TaskFactory.create(task_id=task_id, assignee_id="other_user", title="Old Title")
+        mock_repository.get_by_id_async = self.create_async_mock(return_value=existing_task)
+        mock_repository.update_async = self.create_async_mock(return_value=existing_task)
 
         command: UpdateTaskCommand = UpdateTaskCommand(
             task_id=task_id,
@@ -382,12 +342,8 @@ class TestUpdateTaskCommand(BaseTestCase):
             priority=TaskPriority.LOW,
             assignee_id="user1",
         )
-        mock_repository.get_by_id_async = self.create_async_mock(
-            return_value=existing_task
-        )
-        mock_repository.update_async = self.create_async_mock(
-            return_value=existing_task
-        )
+        mock_repository.get_by_id_async = self.create_async_mock(return_value=existing_task)
+        mock_repository.update_async = self.create_async_mock(return_value=existing_task)
 
         command: UpdateTaskCommand = UpdateTaskCommand(
             task_id=task_id,
@@ -416,9 +372,7 @@ class TestUpdateTaskCommand(BaseTestCase):
         # Arrange
         task_id: str = "task123"
         existing_task: Task = TaskFactory.create(task_id=task_id, assignee_id="user1")
-        mock_repository.get_by_id_async = self.create_async_mock(
-            return_value=existing_task
-        )
+        mock_repository.get_by_id_async = self.create_async_mock(return_value=existing_task)
 
         command: UpdateTaskCommand = UpdateTaskCommand(
             task_id=task_id,
@@ -443,18 +397,12 @@ class TestDeleteTaskCommand(BaseTestCase):
         return DeleteTaskCommandHandler(task_repository=mock_repository)
 
     @pytest.mark.asyncio
-    async def test_delete_task_success(
-        self, handler: DeleteTaskCommandHandler, mock_repository: MagicMock
-    ) -> None:
+    async def test_delete_task_success(self, handler: DeleteTaskCommandHandler, mock_repository: MagicMock) -> None:
         """Test successfully deleting a task."""
         # Arrange
         task_id: str = "task123"
-        existing_task: Task = TaskFactory.create(
-            task_id=task_id, title="Task to Delete"
-        )
-        mock_repository.get_by_id_async = self.create_async_mock(
-            return_value=existing_task
-        )
+        existing_task: Task = TaskFactory.create(task_id=task_id, title="Task to Delete")
+        mock_repository.get_by_id_async = self.create_async_mock(return_value=existing_task)
         mock_repository.delete_async = self.create_async_mock(return_value=True)
 
         command: DeleteTaskCommand = DeleteTaskCommand(
@@ -475,9 +423,7 @@ class TestDeleteTaskCommand(BaseTestCase):
         assert len(events) > 0
 
     @pytest.mark.asyncio
-    async def test_delete_task_not_found(
-        self, handler: DeleteTaskCommandHandler, mock_repository: MagicMock
-    ) -> None:
+    async def test_delete_task_not_found(self, handler: DeleteTaskCommandHandler, mock_repository: MagicMock) -> None:
         """Test deleting non-existent task returns not found."""
         # Arrange
         mock_repository.get_by_id_async = self.create_async_mock(return_value=None)
@@ -493,16 +439,12 @@ class TestDeleteTaskCommand(BaseTestCase):
         mock_repository.delete_async.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_delete_task_failure(
-        self, handler: DeleteTaskCommandHandler, mock_repository: MagicMock
-    ) -> None:
+    async def test_delete_task_failure(self, handler: DeleteTaskCommandHandler, mock_repository: MagicMock) -> None:
         """Test handling deletion failure at repository level."""
         # Arrange
         task_id: str = "task123"
         existing_task: Task = TaskFactory.create(task_id=task_id)
-        mock_repository.get_by_id_async = self.create_async_mock(
-            return_value=existing_task
-        )
+        mock_repository.get_by_id_async = self.create_async_mock(return_value=existing_task)
         mock_repository.delete_async = self.create_async_mock(return_value=False)
 
         command: DeleteTaskCommand = DeleteTaskCommand(task_id=task_id)
@@ -523,9 +465,7 @@ class TestDeleteTaskCommand(BaseTestCase):
         task_id: str = "task123"
         user_id: str = "user123"
         existing_task: Task = TaskFactory.create(task_id=task_id)
-        mock_repository.get_by_id_async = self.create_async_mock(
-            return_value=existing_task
-        )
+        mock_repository.get_by_id_async = self.create_async_mock(return_value=existing_task)
         mock_repository.delete_async = self.create_async_mock(return_value=True)
 
         command: DeleteTaskCommand = DeleteTaskCommand(

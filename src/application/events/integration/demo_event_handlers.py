@@ -27,9 +27,7 @@ class TestRequestedIntegrationEventV1(IntegrationEvent[str]):
     """Additional data."""
 
 
-class TestIntegrationEventHandler(
-    IntegrationEventHandler[TestRequestedIntegrationEventV1]
-):
+class TestIntegrationEventHandler(IntegrationEventHandler[TestRequestedIntegrationEventV1]):
     def __init__(self) -> None:
         pass
 

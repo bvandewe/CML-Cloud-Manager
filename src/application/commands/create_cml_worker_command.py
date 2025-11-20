@@ -80,9 +80,7 @@ class CreateCMLWorkerCommandHandler(
         self.aws_ec2_client = aws_ec2_client
         self.settings = settings
 
-    async def handle_async(
-        self, request: CreateCMLWorkerCommand
-    ) -> OperationResult[CMLWorkerInstanceDto]:
+    async def handle_async(self, request: CreateCMLWorkerCommand) -> OperationResult[CMLWorkerInstanceDto]:
         """Handle create CML Worker command with EC2 provisioning.
 
         Args:
@@ -129,16 +127,12 @@ class CreateCMLWorkerCommandHandler(
 
                     # Get AMI name from settings
                     region_ami_names = self.settings.cml_worker_ami_names
-                    ami_name = region_ami_names.get(
-                        command.aws_region, "CML Worker AMI"
-                    )
+                    ami_name = region_ami_names.get(command.aws_region, "CML Worker AMI")
 
                 # Fetch full AMI details from AWS
                 if ami_id:
                     aws_region = AwsRegion(command.aws_region)
-                    ami_details = self.aws_ec2_client.get_ami_details(
-                        aws_region=aws_region, ami_id=ami_id
-                    )
+                    ami_details = self.aws_ec2_client.get_ami_details(aws_region=aws_region, ami_id=ami_id)
                     if ami_details:
                         ami_name = ami_details.ami_name or ami_name
                         ami_description = ami_details.ami_description
@@ -149,9 +143,7 @@ class CreateCMLWorkerCommandHandler(
                             f"created={ami_creation_date}"
                         )
                     else:
-                        log.warning(
-                            f"Failed to retrieve AMI details for {ami_id} in {aws_region.value}"
-                        )
+                        log.warning(f"Failed to retrieve AMI details for {ami_id} in {aws_region.value}")
 
                 # Create CML Worker domain aggregate first (pending state)
                 worker = CMLWorker(
@@ -192,16 +184,12 @@ class CreateCMLWorkerCommandHandler(
                     return self.bad_request(error_msg)
 
                 span.set_attribute("ec2.instance_id", instance_dto.aws_instance_id)
-                span.set_attribute(
-                    "ec2.instance_state", instance_dto.instance_state or "unknown"
-                )
+                span.set_attribute("ec2.instance_state", instance_dto.instance_state or "unknown")
 
             with tracer.start_as_current_span("check_duplicate_worker") as span:
                 # Check if instance already registered as a worker
-                existing_worker = (
-                    await self.cml_worker_repository.get_by_aws_instance_id_async(
-                        instance_dto.aws_instance_id
-                    )
+                existing_worker = await self.cml_worker_repository.get_by_aws_instance_id_async(
+                    instance_dto.aws_instance_id
                 )
                 if existing_worker:
                     error_msg = (

@@ -298,9 +298,7 @@ class CMLApiClient:
         auth_url = f"{self.base_url}/api/v0/authenticate"
 
         try:
-            async with httpx.AsyncClient(
-                verify=self.verify_ssl, timeout=self.timeout
-            ) as client:
+            async with httpx.AsyncClient(verify=self.verify_ssl, timeout=self.timeout) as client:
                 response = await client.post(
                     auth_url,
                     json={"username": self.username, "password": self.password},
@@ -308,17 +306,11 @@ class CMLApiClient:
 
                 if response.status_code == 401 or response.status_code == 403:
                     log.error(f"CML API authentication failed for {self.base_url}")
-                    raise IntegrationException(
-                        "CML API authentication failed: Invalid credentials"
-                    )
+                    raise IntegrationException("CML API authentication failed: Invalid credentials")
 
                 if response.status_code != 200:
-                    log.error(
-                        f"CML API auth request failed: {response.status_code} {response.text}"
-                    )
-                    raise IntegrationException(
-                        f"CML API auth request failed: HTTP {response.status_code}"
-                    )
+                    log.error(f"CML API auth request failed: {response.status_code} {response.text}")
+                    raise IntegrationException(f"CML API auth request failed: HTTP {response.status_code}")
 
                 # Response is the JWT token as a string
                 token = response.json()
@@ -337,9 +329,7 @@ class CMLApiClient:
             raise IntegrationException(f"CML API auth request timed out: {e}") from e
 
         except Exception as e:
-            log.error(
-                f"Unexpected error during CML authentication at {self.base_url}: {e}"
-            )
+            log.error(f"Unexpected error during CML authentication at {self.base_url}: {e}")
             raise IntegrationException(f"Unexpected CML API auth error: {e}") from e
 
     async def _get_token(self) -> str:
@@ -367,12 +357,8 @@ class CMLApiClient:
             # Get JWT token
             token = await self._get_token()
 
-            async with httpx.AsyncClient(
-                verify=self.verify_ssl, timeout=self.timeout
-            ) as client:
-                response = await client.get(
-                    endpoint, headers={"Authorization": f"Bearer {token}"}
-                )
+            async with httpx.AsyncClient(verify=self.verify_ssl, timeout=self.timeout) as client:
+                response = await client.get(endpoint, headers={"Authorization": f"Bearer {token}"})
 
                 if response.status_code == 401:
                     # Token expired, re-authenticate
@@ -381,29 +367,19 @@ class CMLApiClient:
                     token = await self._get_token()
 
                     # Retry with new token
-                    response = await client.get(
-                        endpoint, headers={"Authorization": f"Bearer {token}"}
-                    )
+                    response = await client.get(endpoint, headers={"Authorization": f"Bearer {token}"})
 
                 if response.status_code == 401 or response.status_code == 403:
                     log.error(f"CML API authorization failed for {self.base_url}")
-                    raise IntegrationException(
-                        "CML API authorization failed: Invalid token"
-                    )
+                    raise IntegrationException("CML API authorization failed: Invalid token")
 
                 if response.status_code == 404:
-                    log.warning(
-                        f"CML API endpoint not found: {endpoint} (CML may be older version)"
-                    )
+                    log.warning(f"CML API endpoint not found: {endpoint} (CML may be older version)")
                     return None
 
                 if response.status_code != 200:
-                    log.error(
-                        f"CML API request failed: {response.status_code} {response.text}"
-                    )
-                    raise IntegrationException(
-                        f"CML API request failed: HTTP {response.status_code}"
-                    )
+                    log.error(f"CML API request failed: {response.status_code} {response.text}")
+                    raise IntegrationException(f"CML API request failed: HTTP {response.status_code}")
 
                 data = response.json()
                 return CMLSystemStats.from_api_response(data)
@@ -437,12 +413,8 @@ class CMLApiClient:
             # Get JWT token
             token = await self._get_token()
 
-            async with httpx.AsyncClient(
-                verify=self.verify_ssl, timeout=self.timeout
-            ) as client:
-                response = await client.get(
-                    endpoint, headers={"Authorization": f"Bearer {token}"}
-                )
+            async with httpx.AsyncClient(verify=self.verify_ssl, timeout=self.timeout) as client:
+                response = await client.get(endpoint, headers={"Authorization": f"Bearer {token}"})
 
                 if response.status_code == 401:
                     # Token expired, re-authenticate
@@ -451,29 +423,19 @@ class CMLApiClient:
                     token = await self._get_token()
 
                     # Retry with new token
-                    response = await client.get(
-                        endpoint, headers={"Authorization": f"Bearer {token}"}
-                    )
+                    response = await client.get(endpoint, headers={"Authorization": f"Bearer {token}"})
 
                 if response.status_code == 401 or response.status_code == 403:
                     log.error(f"CML API authorization failed for {self.base_url}")
-                    raise IntegrationException(
-                        "CML API authorization failed: Invalid token"
-                    )
+                    raise IntegrationException("CML API authorization failed: Invalid token")
 
                 if response.status_code == 404:
-                    log.warning(
-                        f"CML API endpoint not found: {endpoint} (CML may be older version)"
-                    )
+                    log.warning(f"CML API endpoint not found: {endpoint} (CML may be older version)")
                     return None
 
                 if response.status_code != 200:
-                    log.error(
-                        f"CML API request failed: {response.status_code} {response.text}"
-                    )
-                    raise IntegrationException(
-                        f"CML API request failed: HTTP {response.status_code}"
-                    )
+                    log.error(f"CML API request failed: {response.status_code} {response.text}")
+                    raise IntegrationException(f"CML API request failed: HTTP {response.status_code}")
 
                 data = response.json()
                 return CMLSystemHealth.from_api_response(data)
@@ -504,24 +466,16 @@ class CMLApiClient:
         endpoint = f"{self.base_url}/api/v0/system_information"
 
         try:
-            async with httpx.AsyncClient(
-                verify=self.verify_ssl, timeout=self.timeout
-            ) as client:
+            async with httpx.AsyncClient(verify=self.verify_ssl, timeout=self.timeout) as client:
                 response = await client.get(endpoint)
 
                 if response.status_code == 404:
-                    log.warning(
-                        f"CML API endpoint not found: {endpoint} (CML may be older version)"
-                    )
+                    log.warning(f"CML API endpoint not found: {endpoint} (CML may be older version)")
                     return None
 
                 if response.status_code != 200:
-                    log.error(
-                        f"CML API request failed: {response.status_code} {response.text}"
-                    )
-                    raise IntegrationException(
-                        f"CML API request failed: HTTP {response.status_code}"
-                    )
+                    log.error(f"CML API request failed: {response.status_code} {response.text}")
+                    raise IntegrationException(f"CML API request failed: HTTP {response.status_code}")
 
                 data = response.json()
                 return CMLSystemInformation.from_api_response(data)
@@ -571,9 +525,7 @@ class CMLApiClient:
             # Get JWT token
             token = await self._get_token()
 
-            async with httpx.AsyncClient(
-                verify=self.verify_ssl, timeout=self.timeout
-            ) as client:
+            async with httpx.AsyncClient(verify=self.verify_ssl, timeout=self.timeout) as client:
                 response = await client.get(
                     endpoint,
                     headers={"Authorization": f"Bearer {token}"},
@@ -595,23 +547,15 @@ class CMLApiClient:
 
                 if response.status_code == 401 or response.status_code == 403:
                     log.error(f"CML API authorization failed for {self.base_url}")
-                    raise IntegrationException(
-                        "CML API authorization failed: Invalid token"
-                    )
+                    raise IntegrationException("CML API authorization failed: Invalid token")
 
                 if response.status_code == 404:
-                    log.warning(
-                        f"CML API endpoint not found: {endpoint} (CML may be older version)"
-                    )
+                    log.warning(f"CML API endpoint not found: {endpoint} (CML may be older version)")
                     return None
 
                 if response.status_code != 200:
-                    log.error(
-                        f"CML API request failed: {response.status_code} {response.text}"
-                    )
-                    raise IntegrationException(
-                        f"CML API request failed: HTTP {response.status_code}"
-                    )
+                    log.error(f"CML API request failed: {response.status_code} {response.text}")
+                    raise IntegrationException(f"CML API request failed: HTTP {response.status_code}")
 
                 data = response.json()
                 return data if isinstance(data, list) else []
@@ -630,9 +574,7 @@ class CMLApiClient:
 
         except (ValueError, TypeError) as e:
             log.error(f"Invalid JSON response from CML API at {self.base_url}: {e}")
-            raise IntegrationException(
-                f"Invalid JSON response from CML API: {e}"
-            ) from e
+            raise IntegrationException(f"Invalid JSON response from CML API: {e}") from e
 
         except Exception as e:
             log.error(f"Unexpected error querying CML API at {self.base_url}: {e}")
@@ -658,12 +600,8 @@ class CMLApiClient:
             # Get JWT token
             token = await self._get_token()
 
-            async with httpx.AsyncClient(
-                verify=self.verify_ssl, timeout=self.timeout
-            ) as client:
-                response = await client.get(
-                    endpoint, headers={"Authorization": f"Bearer {token}"}
-                )
+            async with httpx.AsyncClient(verify=self.verify_ssl, timeout=self.timeout) as client:
+                response = await client.get(endpoint, headers={"Authorization": f"Bearer {token}"})
 
                 if response.status_code == 401:
                     # Token expired, re-authenticate
@@ -672,27 +610,19 @@ class CMLApiClient:
                     token = await self._get_token()
 
                     # Retry with new token
-                    response = await client.get(
-                        endpoint, headers={"Authorization": f"Bearer {token}"}
-                    )
+                    response = await client.get(endpoint, headers={"Authorization": f"Bearer {token}"})
 
                 if response.status_code == 401 or response.status_code == 403:
                     log.error(f"CML API authorization failed for {self.base_url}")
-                    raise IntegrationException(
-                        "CML API authorization failed: Invalid token"
-                    )
+                    raise IntegrationException("CML API authorization failed: Invalid token")
 
                 if response.status_code == 404:
                     log.warning(f"Lab {lab_id} not found")
                     return None
 
                 if response.status_code != 200:
-                    log.error(
-                        f"CML API request failed: {response.status_code} {response.text}"
-                    )
-                    raise IntegrationException(
-                        f"CML API request failed: HTTP {response.status_code}"
-                    )
+                    log.error(f"CML API request failed: {response.status_code} {response.text}")
+                    raise IntegrationException(f"CML API request failed: HTTP {response.status_code}")
 
                 data = response.json()
                 return CMLLabDetails.from_api_response(data)
@@ -727,12 +657,8 @@ class CMLApiClient:
             # Get JWT token
             token = await self._get_token()
 
-            async with httpx.AsyncClient(
-                verify=self.verify_ssl, timeout=self.timeout
-            ) as client:
-                response = await client.get(
-                    endpoint, headers={"Authorization": f"Bearer {token}"}
-                )
+            async with httpx.AsyncClient(verify=self.verify_ssl, timeout=self.timeout) as client:
+                response = await client.get(endpoint, headers={"Authorization": f"Bearer {token}"})
 
                 if response.status_code == 401:
                     # Token expired, re-authenticate
@@ -741,29 +667,19 @@ class CMLApiClient:
                     token = await self._get_token()
 
                     # Retry with new token
-                    response = await client.get(
-                        endpoint, headers={"Authorization": f"Bearer {token}"}
-                    )
+                    response = await client.get(endpoint, headers={"Authorization": f"Bearer {token}"})
 
                 if response.status_code == 401 or response.status_code == 403:
                     log.error(f"CML API authorization failed for {self.base_url}")
-                    raise IntegrationException(
-                        "CML API authorization failed: Invalid token"
-                    )
+                    raise IntegrationException("CML API authorization failed: Invalid token")
 
                 if response.status_code == 404:
-                    log.warning(
-                        f"CML API endpoint not found: {endpoint} (CML may be older version)"
-                    )
+                    log.warning(f"CML API endpoint not found: {endpoint} (CML may be older version)")
                     return None
 
                 if response.status_code != 200:
-                    log.error(
-                        f"CML API request failed: {response.status_code} {response.text}"
-                    )
-                    raise IntegrationException(
-                        f"CML API request failed: HTTP {response.status_code}"
-                    )
+                    log.error(f"CML API request failed: {response.status_code} {response.text}")
+                    raise IntegrationException(f"CML API request failed: HTTP {response.status_code}")
 
                 data = response.json()
                 return CMLLicenseInfo.from_api_response(data)
@@ -797,29 +713,19 @@ class CMLApiClient:
         try:
             token = await self._get_token()
 
-            async with httpx.AsyncClient(
-                verify=self.verify_ssl, timeout=self.timeout
-            ) as client:
-                response = await client.put(
-                    endpoint, headers={"Authorization": f"Bearer {token}"}
-                )
+            async with httpx.AsyncClient(verify=self.verify_ssl, timeout=self.timeout) as client:
+                response = await client.put(endpoint, headers={"Authorization": f"Bearer {token}"})
 
                 if response.status_code == 401:
                     # Token expired, re-authenticate
                     log.info("Token expired, re-authenticating")
                     self._token = None
                     token = await self._get_token()
-                    response = await client.put(
-                        endpoint, headers={"Authorization": f"Bearer {token}"}
-                    )
+                    response = await client.put(endpoint, headers={"Authorization": f"Bearer {token}"})
 
                 if response.status_code not in [200, 204]:
-                    log.error(
-                        f"Failed to start lab {lab_id}: {response.status_code} {response.text}"
-                    )
-                    raise IntegrationException(
-                        f"Failed to start lab: HTTP {response.status_code}"
-                    )
+                    log.error(f"Failed to start lab {lab_id}: {response.status_code} {response.text}")
+                    raise IntegrationException(f"Failed to start lab: HTTP {response.status_code}")
 
                 log.info(f"Successfully started lab {lab_id}")
                 return True
@@ -845,29 +751,19 @@ class CMLApiClient:
         try:
             token = await self._get_token()
 
-            async with httpx.AsyncClient(
-                verify=self.verify_ssl, timeout=self.timeout
-            ) as client:
-                response = await client.put(
-                    endpoint, headers={"Authorization": f"Bearer {token}"}
-                )
+            async with httpx.AsyncClient(verify=self.verify_ssl, timeout=self.timeout) as client:
+                response = await client.put(endpoint, headers={"Authorization": f"Bearer {token}"})
 
                 if response.status_code == 401:
                     # Token expired, re-authenticate
                     log.info("Token expired, re-authenticating")
                     self._token = None
                     token = await self._get_token()
-                    response = await client.put(
-                        endpoint, headers={"Authorization": f"Bearer {token}"}
-                    )
+                    response = await client.put(endpoint, headers={"Authorization": f"Bearer {token}"})
 
                 if response.status_code not in [200, 204]:
-                    log.error(
-                        f"Failed to stop lab {lab_id}: {response.status_code} {response.text}"
-                    )
-                    raise IntegrationException(
-                        f"Failed to stop lab: HTTP {response.status_code}"
-                    )
+                    log.error(f"Failed to stop lab {lab_id}: {response.status_code} {response.text}")
+                    raise IntegrationException(f"Failed to stop lab: HTTP {response.status_code}")
 
                 log.info(f"Successfully stopped lab {lab_id}")
                 return True
@@ -893,29 +789,19 @@ class CMLApiClient:
         try:
             token = await self._get_token()
 
-            async with httpx.AsyncClient(
-                verify=self.verify_ssl, timeout=self.timeout
-            ) as client:
-                response = await client.put(
-                    endpoint, headers={"Authorization": f"Bearer {token}"}
-                )
+            async with httpx.AsyncClient(verify=self.verify_ssl, timeout=self.timeout) as client:
+                response = await client.put(endpoint, headers={"Authorization": f"Bearer {token}"})
 
                 if response.status_code == 401:
                     # Token expired, re-authenticate
                     log.info("Token expired, re-authenticating")
                     self._token = None
                     token = await self._get_token()
-                    response = await client.put(
-                        endpoint, headers={"Authorization": f"Bearer {token}"}
-                    )
+                    response = await client.put(endpoint, headers={"Authorization": f"Bearer {token}"})
 
                 if response.status_code not in [200, 204]:
-                    log.error(
-                        f"Failed to wipe lab {lab_id}: {response.status_code} {response.text}"
-                    )
-                    raise IntegrationException(
-                        f"Failed to wipe lab: HTTP {response.status_code}"
-                    )
+                    log.error(f"Failed to wipe lab {lab_id}: {response.status_code} {response.text}")
+                    raise IntegrationException(f"Failed to wipe lab: HTTP {response.status_code}")
 
                 log.info(f"Successfully wiped lab {lab_id}")
                 return True
@@ -941,29 +827,19 @@ class CMLApiClient:
         try:
             token = await self._get_token()
 
-            async with httpx.AsyncClient(
-                verify=self.verify_ssl, timeout=self.timeout
-            ) as client:
-                response = await client.get(
-                    endpoint, headers={"Authorization": f"Bearer {token}"}
-                )
+            async with httpx.AsyncClient(verify=self.verify_ssl, timeout=self.timeout) as client:
+                response = await client.get(endpoint, headers={"Authorization": f"Bearer {token}"})
 
                 if response.status_code == 401:
                     # Token expired, re-authenticate
                     log.info("Token expired, re-authenticating")
                     self._token = None
                     token = await self._get_token()
-                    response = await client.get(
-                        endpoint, headers={"Authorization": f"Bearer {token}"}
-                    )
+                    response = await client.get(endpoint, headers={"Authorization": f"Bearer {token}"})
 
                 if response.status_code != 200:
-                    log.error(
-                        f"Failed to download lab {lab_id}: {response.status_code} {response.text}"
-                    )
-                    raise IntegrationException(
-                        f"Failed to download lab: HTTP {response.status_code}"
-                    )
+                    log.error(f"Failed to download lab {lab_id}: {response.status_code} {response.text}")
+                    raise IntegrationException(f"Failed to download lab: HTTP {response.status_code}")
 
                 log.info(f"Successfully downloaded lab {lab_id}")
                 return response.text
@@ -998,12 +874,8 @@ class CMLApiClient:
                 "Content-Type": "application/json",
             }
 
-            async with httpx.AsyncClient(
-                verify=self.verify_ssl, timeout=self.timeout
-            ) as client:
-                response = await client.post(
-                    endpoint, content=yaml_content, headers=headers
-                )
+            async with httpx.AsyncClient(verify=self.verify_ssl, timeout=self.timeout) as client:
+                response = await client.post(endpoint, content=yaml_content, headers=headers)
 
                 if response.status_code == 401:
                     # Token expired, re-authenticate
@@ -1011,17 +883,11 @@ class CMLApiClient:
                     self._token = None
                     token = await self._get_token()
                     headers["Authorization"] = f"Bearer {token}"
-                    response = await client.post(
-                        endpoint, content=yaml_content, headers=headers
-                    )
+                    response = await client.post(endpoint, content=yaml_content, headers=headers)
 
                 if response.status_code != 200:
-                    log.error(
-                        f"Failed to import lab: {response.status_code} {response.text}"
-                    )
-                    raise IntegrationException(
-                        f"Failed to import lab: HTTP {response.status_code}"
-                    )
+                    log.error(f"Failed to import lab: {response.status_code} {response.text}")
+                    raise IntegrationException(f"Failed to import lab: HTTP {response.status_code}")
 
                 result = response.json()
                 log.info(f"Successfully imported lab: {result.get('id')}")
@@ -1048,29 +914,19 @@ class CMLApiClient:
         try:
             token = await self._get_token()
 
-            async with httpx.AsyncClient(
-                verify=self.verify_ssl, timeout=self.timeout
-            ) as client:
-                response = await client.delete(
-                    endpoint, headers={"Authorization": f"Bearer {token}"}
-                )
+            async with httpx.AsyncClient(verify=self.verify_ssl, timeout=self.timeout) as client:
+                response = await client.delete(endpoint, headers={"Authorization": f"Bearer {token}"})
 
                 if response.status_code == 401:
                     # Token expired, re-authenticate
                     log.info("Token expired, re-authenticating")
                     self._token = None
                     token = await self._get_token()
-                    response = await client.delete(
-                        endpoint, headers={"Authorization": f"Bearer {token}"}
-                    )
+                    response = await client.delete(endpoint, headers={"Authorization": f"Bearer {token}"})
 
                 if response.status_code not in [200, 204]:
-                    log.error(
-                        f"Failed to delete lab {lab_id}: {response.status_code} {response.text}"
-                    )
-                    raise IntegrationException(
-                        f"Failed to delete lab: HTTP {response.status_code}"
-                    )
+                    log.error(f"Failed to delete lab {lab_id}: {response.status_code} {response.text}")
+                    raise IntegrationException(f"Failed to delete lab: HTTP {response.status_code}")
 
                 log.info(f"Successfully deleted lab {lab_id}")
                 return True
@@ -1098,29 +954,19 @@ class CMLApiClient:
         try:
             token = await self._get_token()
 
-            async with httpx.AsyncClient(
-                verify=self.verify_ssl, timeout=self.timeout
-            ) as client:
-                response = await client.get(
-                    endpoint, headers={"Authorization": f"Bearer {token}"}
-                )
+            async with httpx.AsyncClient(verify=self.verify_ssl, timeout=self.timeout) as client:
+                response = await client.get(endpoint, headers={"Authorization": f"Bearer {token}"})
 
                 if response.status_code == 401:
                     # Token expired, re-authenticate
                     log.info("Token expired for telemetry events, re-authenticating")
                     self._token = None
                     token = await self._get_token()
-                    response = await client.get(
-                        endpoint, headers={"Authorization": f"Bearer {token}"}
-                    )
+                    response = await client.get(endpoint, headers={"Authorization": f"Bearer {token}"})
 
                 if response.status_code != 200:
-                    log.error(
-                        f"Failed to get telemetry events: {response.status_code} {response.text}"
-                    )
-                    raise IntegrationException(
-                        f"Failed to get telemetry events: HTTP {response.status_code}"
-                    )
+                    log.error(f"Failed to get telemetry events: {response.status_code} {response.text}")
+                    raise IntegrationException(f"Failed to get telemetry events: HTTP {response.status_code}")
 
                 events = response.json()
                 log.debug(f"Retrieved {len(events)} telemetry events")
@@ -1139,12 +985,8 @@ class CMLApiClient:
             raise IntegrationException(f"CML API request timed out: {e}") from e
 
         except (ValueError, TypeError) as e:
-            log.error(
-                f"Invalid JSON response from telemetry API at {self.base_url}: {e}"
-            )
-            raise IntegrationException(
-                f"Invalid JSON response from telemetry API: {e}"
-            ) from e
+            log.error(f"Invalid JSON response from telemetry API at {self.base_url}: {e}")
+            raise IntegrationException(f"Invalid JSON response from telemetry API: {e}") from e
 
         except Exception as e:
             log.error(f"Error getting telemetry events: {e}")

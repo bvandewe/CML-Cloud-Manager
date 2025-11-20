@@ -20,9 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class GetCMLWorkerResourcesQuery(
-    Query[OperationResult[Ec2InstanceResourcesUtilization]]
-):
+class GetCMLWorkerResourcesQuery(Query[OperationResult[Ec2InstanceResourcesUtilization]]):
     """Query to retrieve CML Worker CloudWatch resource utilization metrics."""
 
     worker_id: str | None = None
@@ -34,9 +32,7 @@ class GetCMLWorkerResourcesQuery(
 
 
 class GetCMLWorkerResourcesQueryHandler(
-    QueryHandler[
-        GetCMLWorkerResourcesQuery, OperationResult[Ec2InstanceResourcesUtilization]
-    ]
+    QueryHandler[GetCMLWorkerResourcesQuery, OperationResult[Ec2InstanceResourcesUtilization]]
 ):
     """Handle retrieving CML Worker CloudWatch metrics."""
 
@@ -70,15 +66,10 @@ class GetCMLWorkerResourcesQueryHandler(
                 return self.bad_request("Worker has no assigned AWS instance ID")
 
             if not region:
-                return self.bad_request(
-                    "AWS region must be provided or resolved from worker"
-                )
+                return self.bad_request("AWS region must be provided or resolved from worker")
 
             # Query CloudWatch metrics
-            logger.info(
-                f"Querying CloudWatch metrics for instance {instance_id} "
-                f"in region {region.value}"
-            )
+            logger.info(f"Querying CloudWatch metrics for instance {instance_id} " f"in region {region.value}")
 
             metrics = self.ec2_client.get_instance_resources_utilization(
                 aws_region=region,

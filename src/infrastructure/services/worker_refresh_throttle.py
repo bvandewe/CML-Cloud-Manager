@@ -29,9 +29,7 @@ class WorkerRefreshThrottle:
         """
         self._min_interval = timedelta(seconds=min_interval_seconds)
         self._last_refresh: dict[str, datetime] = {}
-        log.info(
-            f"WorkerRefreshThrottle initialized with {min_interval_seconds}s min interval"
-        )
+        log.info(f"WorkerRefreshThrottle initialized with {min_interval_seconds}s min interval")
 
     @staticmethod
     def configure(builder: "WebApplicationBuilder") -> None:
@@ -43,9 +41,7 @@ class WorkerRefreshThrottle:
         from application.settings import app_settings
 
         # Create instance with settings
-        instance = WorkerRefreshThrottle(
-            min_interval_seconds=app_settings.worker_refresh_min_interval
-        )
+        instance = WorkerRefreshThrottle(min_interval_seconds=app_settings.worker_refresh_min_interval)
 
         # Register as singleton
         builder.services.add_singleton(WorkerRefreshThrottle, singleton=instance)
@@ -72,10 +68,7 @@ class WorkerRefreshThrottle:
 
         if not can_refresh:
             remaining = self._min_interval - time_since_last
-            log.debug(
-                f"Worker {worker_id} refresh throttled - "
-                f"{remaining.total_seconds():.1f}s remaining"
-            )
+            log.debug(f"Worker {worker_id} refresh throttled - " f"{remaining.total_seconds():.1f}s remaining")
 
         return can_refresh
 
@@ -135,17 +128,13 @@ class WorkerRefreshThrottle:
         max_age = timedelta(hours=max_age_hours)
 
         old_entries = [
-            worker_id
-            for worker_id, last_refresh in self._last_refresh.items()
-            if now - last_refresh > max_age
+            worker_id for worker_id, last_refresh in self._last_refresh.items() if now - last_refresh > max_age
         ]
 
         for worker_id in old_entries:
             del self._last_refresh[worker_id]
 
         if old_entries:
-            log.info(
-                f"Cleaned up {len(old_entries)} throttle entries older than {max_age_hours}h"
-            )
+            log.info(f"Cleaned up {len(old_entries)} throttle entries older than {max_age_hours}h")
 
         return len(old_entries)

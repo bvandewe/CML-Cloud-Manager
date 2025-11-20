@@ -182,9 +182,7 @@ class TestDeleteCMLWorkerCommand:
         # Arrange
         mock_repository.get_by_id_async.return_value = sample_worker
         mock_repository.delete_async.return_value = True
-        mock_aws_client.terminate_instance.side_effect = EC2InstanceNotFoundException(
-            "Instance not found"
-        )
+        mock_aws_client.terminate_instance.side_effect = EC2InstanceNotFoundException("Instance not found")
 
         command = DeleteCMLWorkerCommand(
             worker_id=sample_worker.id(),
@@ -205,9 +203,7 @@ class TestDeleteCMLWorkerCommand:
         """Test deletion stops if EC2 termination fails."""
         # Arrange
         mock_repository.get_by_id_async.return_value = sample_worker
-        mock_aws_client.terminate_instance.side_effect = EC2InstanceOperationException(
-            "Termination failed"
-        )
+        mock_aws_client.terminate_instance.side_effect = EC2InstanceOperationException("Termination failed")
 
         command = DeleteCMLWorkerCommand(
             worker_id=sample_worker.id(),
@@ -270,9 +266,7 @@ class TestDeleteCMLWorkerCommand:
         # Worker should be marked as terminated
         assert sample_worker.state.status == CMLWorkerStatus.TERMINATED
 
-    async def test_delete_already_terminated_worker(
-        self, command_handler, mock_repository, sample_worker
-    ):
+    async def test_delete_already_terminated_worker(self, command_handler, mock_repository, sample_worker):
         """Test deleting a worker that's already terminated."""
         # Arrange
         sample_worker.state.status = CMLWorkerStatus.TERMINATED

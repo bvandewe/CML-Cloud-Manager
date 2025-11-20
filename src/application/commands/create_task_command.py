@@ -62,9 +62,7 @@ class CreateTaskCommandHandler(
         )
         self.task_repository = task_repository
 
-    async def handle_async(
-        self, request: CreateTaskCommand
-    ) -> OperationResult[TaskCreatedDto]:
+    async def handle_async(self, request: CreateTaskCommand) -> OperationResult[TaskCreatedDto]:
         """Handle create task command with custom instrumentation."""
         command = request
         start_time = time.time()
@@ -94,11 +92,7 @@ class CreateTaskCommandHandler(
                 priority = TaskPriority.MEDIUM
 
             # Determine department: use explicit department if provided, otherwise from user_info
-            department = (
-                command.department
-                if command.department
-                else command.user_info.get("department")
-            )
+            department = command.department if command.department else command.user_info.get("department")
 
             # Get user ID from various possible fields in user_info
             # Keycloak uses 'sub' (subject) as the primary user identifier
@@ -143,9 +137,7 @@ class CreateTaskCommandHandler(
                 "has_department": bool(task.state.department),
             },
         )
-        task_processing_time.record(
-            processing_time_ms, {"operation": "create", "priority": priority.value}
-        )
+        task_processing_time.record(processing_time_ms, {"operation": "create", "priority": priority.value})
 
         # This is deprecated (was for Entity, not AggregateRoot)
         # ev = TaskCreatedIntegrationEventV1(

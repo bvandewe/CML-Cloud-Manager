@@ -26,9 +26,7 @@ class Ec2InstanceResourcesUtilizationRelativeStartTime(Enum):
     TEN_MIN_AGO = "10m"
 
     @classmethod
-    def to_timedelta(
-        cls, value: Union[str, "Ec2InstanceResourcesUtilizationRelativeStartTime"]
-    ) -> datetime.timedelta:
+    def to_timedelta(cls, value: Union[str, "Ec2InstanceResourcesUtilizationRelativeStartTime"]) -> datetime.timedelta:
         """Converts the enum value to a timedelta object."""
         if isinstance(value, cls):
             value = value.value

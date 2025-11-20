@@ -83,9 +83,7 @@ class ImportCMLWorkerCommandHandler(
         self.aws_ec2_client = aws_ec2_client
         self.settings = settings
 
-    async def handle_async(
-        self, request: ImportCMLWorkerCommand
-    ) -> OperationResult[CMLWorkerInstanceDto]:
+    async def handle_async(self, request: ImportCMLWorkerCommand) -> OperationResult[CMLWorkerInstanceDto]:
         """Handle import CML Worker command.
 
         Args:
@@ -103,16 +101,13 @@ class ImportCMLWorkerCommandHandler(
 
         # Validate search criteria
         if not any([command.aws_instance_id, command.ami_id, command.ami_name]):
-            return self.bad_request(
-                "Must provide at least one of: aws_instance_id, ami_id, or ami_name"
-            )
+            return self.bad_request("Must provide at least one of: aws_instance_id, ami_id, or ami_name")
 
         # Add tracing context
         add_span_attributes(
             {
                 "cml_worker.import.region": command.aws_region,
-                "cml_worker.import.has_instance_id": command.aws_instance_id
-                is not None,
+                "cml_worker.import.has_instance_id": command.aws_instance_id is not None,
                 "cml_worker.import.has_ami_id": command.ami_id is not None,
                 "cml_worker.import.has_ami_name": command.ami_name is not None,
                 "cml_worker.import.has_created_by": command.created_by is not None,
@@ -127,9 +122,7 @@ class ImportCMLWorkerCommandHandler(
             with tracer.start_as_current_span("discover_ec2_instance") as span:
                 if command.aws_instance_id:
                     # Direct lookup by instance ID
-                    log.info(
-                        f"Looking up EC2 instance by ID: {command.aws_instance_id}"
-                    )
+                    log.info(f"Looking up EC2 instance by ID: {command.aws_instance_id}")
                     instance = self.aws_ec2_client.get_instance_details(
                         aws_region=aws_region,
                         instance_id=command.aws_instance_id,
@@ -137,9 +130,7 @@ class ImportCMLWorkerCommandHandler(
                     span.set_attribute("ec2.lookup_method", "instance_id")
                 else:
                     # Search by AMI ID or name
-                    log.info(
-                        f"Searching for EC2 instances by AMI in region {command.aws_region}"
-                    )
+                    log.info(f"Searching for EC2 instances by AMI in region {command.aws_region}")
                     filters = {}
 
                     if command.ami_id:
@@ -148,9 +139,7 @@ class ImportCMLWorkerCommandHandler(
                         span.set_attribute("ec2.ami_id", command.ami_id)
                     elif command.ami_name:
                         # Resolve AMI name to AMI IDs first
-                        log.info(
-                            f"Resolving AMI name '{command.ami_name}' to AMI IDs..."
-                        )
+                        log.info(f"Resolving AMI name '{command.ami_name}' to AMI IDs...")
                         ami_ids = self.aws_ec2_client.get_ami_ids_by_name(
                             aws_region=aws_region,
                             ami_name=command.ami_name,
@@ -164,9 +153,7 @@ class ImportCMLWorkerCommandHandler(
                         span.set_attribute("ec2.lookup_method", "ami_name")
                         span.set_attribute("ec2.ami_name", command.ami_name)
                         span.set_attribute("ec2.resolved_ami_ids", ",".join(ami_ids))
-                        log.info(
-                            f"Resolved AMI name to {len(ami_ids)} AMI ID(s): {ami_ids}"
-                        )
+                        log.info(f"Resolved AMI name to {len(ami_ids)} AMI ID(s): {ami_ids}")
 
                     instances = self.aws_ec2_client.list_instances(
                         region_name=aws_region,
@@ -191,11 +178,7 @@ class ImportCMLWorkerCommandHandler(
 
             with tracer.start_as_current_span("check_duplicate_worker") as span:
                 # Check if instance already imported
-                existing_worker = (
-                    await self.cml_worker_repository.get_by_aws_instance_id_async(
-                        instance.id
-                    )
-                )
+                existing_worker = await self.cml_worker_repository.get_by_aws_instance_id_async(instance.id)
                 if existing_worker:
                     error_msg = (
                         f"Instance {instance.id} is already registered "
@@ -213,23 +196,15 @@ class ImportCMLWorkerCommandHandler(
                 worker_name = command.name or instance.name or f"worker-{instance.id}"
 
                 if not command.name and instance.name:
-                    log.info(
-                        f"No custom name provided, using AWS instance name: {instance.name}"
-                    )
+                    log.info(f"No custom name provided, using AWS instance name: {instance.name}")
                 elif not command.name and not instance.name:
-                    log.info(
-                        f"No custom name or AWS instance name, generating: {worker_name}"
-                    )
+                    log.info(f"No custom name or AWS instance name, generating: {worker_name}")
 
                 # Fetch AMI details from AWS
-                ami_details = self.aws_ec2_client.get_ami_details(
-                    aws_region=aws_region, ami_id=instance.image_id
-                )
+                ami_details = self.aws_ec2_client.get_ami_details(aws_region=aws_region, ami_id=instance.image_id)
                 ami_name = ami_details.ami_name if ami_details else None
                 ami_description = ami_details.ami_description if ami_details else None
-                ami_creation_date = (
-                    ami_details.ami_creation_date if ami_details else None
-                )
+                ami_creation_date = ami_details.ami_creation_date if ami_details else None
 
                 if ami_details:
                     log.info(
@@ -238,9 +213,7 @@ class ImportCMLWorkerCommandHandler(
                         f"created={ami_creation_date}"
                     )
                 else:
-                    log.warning(
-                        f"Failed to retrieve AMI details for {instance.image_id} during import"
-                    )
+                    log.warning(f"Failed to retrieve AMI details for {instance.image_id} during import")
 
                 # Create CML Worker aggregate using import factory method
                 worker = CMLWorker.import_from_existing_instance(

@@ -21,8 +21,7 @@ class Profile(MappingProfile):
         for module in [ModuleLoader.load(module_name) for module_name in modules]:
             for type_ in TypeFinder.get_types(
                 module,
-                lambda cls: inspect.isclass(cls)
-                and (hasattr(cls, "__map_from__") or hasattr(cls, "__map_to__")),
+                lambda cls: inspect.isclass(cls) and (hasattr(cls, "__map_from__") or hasattr(cls, "__map_to__")),
             ):
                 map_from = getattr(type_, "__map_from__", None)
                 map_to = getattr(type_, "__map_to__", None)

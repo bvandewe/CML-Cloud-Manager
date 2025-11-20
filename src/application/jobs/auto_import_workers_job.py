@@ -102,12 +102,8 @@ class AutoImportWorkersJob(RecurrentBackgroundJob):
             )
 
             span.set_attribute("job.type", "auto_import_workers")
-            span.set_attribute(
-                "job.aws_region", app_settings.auto_import_workers_region
-            )
-            span.set_attribute(
-                "job.ami_name", app_settings.auto_import_workers_ami_name
-            )
+            span.set_attribute("job.aws_region", app_settings.auto_import_workers_region)
+            span.set_attribute("job.ami_name", app_settings.auto_import_workers_ami_name)
 
             try:
                 # Skip if auto-import is disabled
@@ -149,9 +145,7 @@ class AutoImportWorkersJob(RecurrentBackgroundJob):
                 if status_code != 200:
                     # Use generic safe accessors for optional errors field
                     errors_val = getattr(result, "errors", []) or []
-                    logger.warning(
-                        f"⚠️ Auto-import failed (status={status_code}) detail={detail} errors={errors_val}"
-                    )
+                    logger.warning(f"⚠️ Auto-import failed (status={status_code}) detail={detail} errors={errors_val}")
                     span.set_attribute("job.status", "failed")
                     if detail:
                         span.set_attribute("job.detail", str(detail))
@@ -170,9 +164,7 @@ class AutoImportWorkersJob(RecurrentBackgroundJob):
                 total_skipped = getattr(data, "total_skipped", 0)
                 imported_list = getattr(data, "imported", []) or []
                 imported_ids = [
-                    getattr(w, "instance_id", None)
-                    for w in imported_list
-                    if getattr(w, "instance_id", None)
+                    getattr(w, "instance_id", None) for w in imported_list if getattr(w, "instance_id", None)
                 ]
 
                 logger.info(
@@ -194,9 +186,7 @@ class AutoImportWorkersJob(RecurrentBackgroundJob):
                 }
 
             except Exception as ex:
-                logger.error(
-                    f"❌ Auto-import job failed with exception: {ex}", exc_info=True
-                )
+                logger.error(f"❌ Auto-import job failed with exception: {ex}", exc_info=True)
                 span.set_attribute("job.status", "error")
                 span.set_attribute("job.error", str(ex))
 

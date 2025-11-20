@@ -212,9 +212,7 @@ class TestTaskFactory:
 
     def test_create_task_with_factory(self) -> None:
         """Test creating task using TaskFactory."""
-        task: Task = TaskFactory.create(
-            title="Factory Task", priority=TaskPriority.HIGH
-        )
+        task: Task = TaskFactory.create(title="Factory Task", priority=TaskPriority.HIGH)
 
         assert task.state.title == "Factory Task"
         assert task.state.priority == TaskPriority.HIGH

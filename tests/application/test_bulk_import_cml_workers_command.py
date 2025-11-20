@@ -44,17 +44,13 @@ class TestBulkImportCMLWorkersCommand:
             mediator=mock_dependencies["mediator"],
             mapper=mock_dependencies["mapper"],
             cloud_event_bus=mock_dependencies["cloud_event_bus"],
-            cloud_event_publishing_options=mock_dependencies[
-                "cloud_event_publishing_options"
-            ],
+            cloud_event_publishing_options=mock_dependencies["cloud_event_publishing_options"],
             cml_worker_repository=mock_dependencies["cml_worker_repository"],
             aws_ec2_client=mock_dependencies["aws_ec2_client"],
             settings=mock_dependencies["settings"],
         )
 
-    def create_mock_instance_descriptor(
-        self, instance_id: str, name: str = None
-    ) -> Ec2InstanceDescriptor:
+    def create_mock_instance_descriptor(self, instance_id: str, name: str = None) -> Ec2InstanceDescriptor:
         """Create a mock EC2 instance descriptor."""
         import datetime
 
@@ -80,9 +76,7 @@ class TestBulkImportCMLWorkersCommand:
             self.create_mock_instance_descriptor("i-002", "worker-02"),
             self.create_mock_instance_descriptor("i-003", "worker-03"),
         ]
-        mock_dependencies["aws_ec2_client"].get_ami_ids_by_name.return_value = [
-            "ami-0abc123def456"
-        ]
+        mock_dependencies["aws_ec2_client"].get_ami_ids_by_name.return_value = ["ami-0abc123def456"]
         mock_dependencies["aws_ec2_client"].list_instances.return_value = mock_instances
         mock_dependencies["aws_ec2_client"].get_ami_details.return_value = AmiDetails(
             ami_id="ami-0abc123def456",
@@ -98,14 +92,10 @@ class TestBulkImportCMLWorkersCommand:
         async def mock_add_async(worker):
             return worker
 
-        mock_dependencies["cml_worker_repository"].add_async.side_effect = (
-            mock_add_async
-        )
+        mock_dependencies["cml_worker_repository"].add_async.side_effect = mock_add_async
 
         # Execute command
-        command = BulkImportCMLWorkersCommand(
-            aws_region="us-west-2", ami_name="test-ami", created_by="test-user"
-        )
+        command = BulkImportCMLWorkersCommand(aws_region="us-west-2", ami_name="test-ami", created_by="test-user")
 
         result = await handler.handle_async(command)
 
@@ -131,9 +121,7 @@ class TestBulkImportCMLWorkersCommand:
             self.create_mock_instance_descriptor("i-002", "worker-02"),
             self.create_mock_instance_descriptor("i-003", "worker-03"),
         ]
-        mock_dependencies["aws_ec2_client"].get_ami_ids_by_name.return_value = [
-            "ami-0abc123def456"
-        ]
+        mock_dependencies["aws_ec2_client"].get_ami_ids_by_name.return_value = ["ami-0abc123def456"]
         mock_dependencies["aws_ec2_client"].list_instances.return_value = mock_instances
         mock_dependencies["aws_ec2_client"].get_ami_details.return_value = AmiDetails(
             ami_id="ami-0abc123def456",
@@ -151,22 +139,16 @@ class TestBulkImportCMLWorkersCommand:
             ami_id="ami-0abc123def456",
             instance_state="running",
         )
-        mock_dependencies["cml_worker_repository"].get_all_async.return_value = [
-            existing_worker
-        ]
+        mock_dependencies["cml_worker_repository"].get_all_async.return_value = [existing_worker]
 
         # Mock repository add_async
         async def mock_add_async(worker):
             return worker
 
-        mock_dependencies["cml_worker_repository"].add_async.side_effect = (
-            mock_add_async
-        )
+        mock_dependencies["cml_worker_repository"].add_async.side_effect = mock_add_async
 
         # Execute command
-        command = BulkImportCMLWorkersCommand(
-            aws_region="us-west-2", ami_name="test-ami", created_by="test-user"
-        )
+        command = BulkImportCMLWorkersCommand(aws_region="us-west-2", ami_name="test-ami", created_by="test-user")
 
         result = await handler.handle_async(command)
 
@@ -189,15 +171,11 @@ class TestBulkImportCMLWorkersCommand:
         handler = self.create_handler(mock_dependencies)
 
         # Mock AWS client to return empty list
-        mock_dependencies["aws_ec2_client"].get_ami_ids_by_name.return_value = [
-            "ami-0abc123def456"
-        ]
+        mock_dependencies["aws_ec2_client"].get_ami_ids_by_name.return_value = ["ami-0abc123def456"]
         mock_dependencies["aws_ec2_client"].list_instances.return_value = []
 
         # Execute command
-        command = BulkImportCMLWorkersCommand(
-            aws_region="us-west-2", ami_name="test-ami", created_by="test-user"
-        )
+        command = BulkImportCMLWorkersCommand(aws_region="us-west-2", ami_name="test-ami", created_by="test-user")
 
         result = await handler.handle_async(command)
 
@@ -216,9 +194,7 @@ class TestBulkImportCMLWorkersCommand:
         handler = self.create_handler(mock_dependencies)
 
         # Execute command without ami_id or ami_name
-        command = BulkImportCMLWorkersCommand(
-            aws_region="us-west-2", created_by="test-user"
-        )
+        command = BulkImportCMLWorkersCommand(aws_region="us-west-2", created_by="test-user")
 
         result = await handler.handle_async(command)
 

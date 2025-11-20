@@ -53,9 +53,7 @@ try:
     if os.getenv("LOCAL_DEV", "").lower() in ("1", "true", "yes", True):
         logs_dir = Path(__file__).parent / "logs"
         logs_dir.mkdir(parents=True, exist_ok=True)
-        debug_log_path = (
-            logs_dir / "debug.log"
-        )  # actual log file used by configure_logging
+        debug_log_path = logs_dir / "debug.log"  # actual log file used by configure_logging
         # Truncate (create empty) before FileHandler opens in append mode
         debug_log_path.write_text("")
 except Exception:
@@ -228,9 +226,7 @@ def create_app() -> FastAPI:
             description="Task management REST API with OAuth2/JWT authentication",
             version=app_settings.app_version,
             controllers=["api.controllers"],
-            custom_setup=lambda app, service_provider: configure_api_openapi(
-                app, app_settings
-            ),
+            custom_setup=lambda app, service_provider: configure_api_openapi(app, app_settings),
             docs_url="/docs",
         )
     )

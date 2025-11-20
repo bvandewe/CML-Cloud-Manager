@@ -70,9 +70,7 @@ class TerminateCMLWorkerCommandHandler(
         self.cml_worker_repository = cml_worker_repository
         self.aws_ec2_client = aws_ec2_client
 
-    async def handle_async(
-        self, request: TerminateCMLWorkerCommand
-    ) -> OperationResult[bool]:
+    async def handle_async(self, request: TerminateCMLWorkerCommand) -> OperationResult[bool]:
         """Handle terminate CML Worker command.
 
         Args:
@@ -99,21 +97,15 @@ class TerminateCMLWorkerCommandHandler(
         try:
             with tracer.start_as_current_span("retrieve_cml_worker") as span:
                 # Retrieve worker from repository
-                worker = await self.cml_worker_repository.get_by_id_async(
-                    command.worker_id
-                )
+                worker = await self.cml_worker_repository.get_by_id_async(command.worker_id)
 
                 if not worker:
                     error_msg = f"CML Worker not found: {command.worker_id}"
                     log.error(error_msg)
                     return self.bad_request(error_msg)
 
-                span.set_attribute(
-                    "ec2.instance_id", worker.state.aws_instance_id or "none"
-                )
-                span.set_attribute(
-                    "cml_worker.current_status", worker.state.status.value
-                )
+                span.set_attribute("ec2.instance_id", worker.state.aws_instance_id or "none")
+                span.set_attribute("cml_worker.current_status", worker.state.status.value)
 
             # Terminate EC2 instance if assigned
             if worker.state.aws_instance_id:
@@ -142,9 +134,7 @@ class TerminateCMLWorkerCommandHandler(
                         )
                         span.set_attribute("ec2.already_terminated", True)
             else:
-                log.info(
-                    f"CML Worker {command.worker_id} has no AWS instance to terminate"
-                )
+                log.info(f"CML Worker {command.worker_id} has no AWS instance to terminate")
 
             with tracer.start_as_current_span("update_worker_aggregate") as span:
                 # Mark worker as terminated in domain

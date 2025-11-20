@@ -15,9 +15,7 @@ tasks_completed = meter.create_counter(
     unit="1",
 )
 
-tasks_failed = meter.create_counter(
-    name="cml_cloud_manager.tasks.failed", description="Total task failures", unit="1"
-)
+tasks_failed = meter.create_counter(name="cml_cloud_manager.tasks.failed", description="Total task failures", unit="1")
 
 # Histograms
 task_processing_time = meter.create_histogram(

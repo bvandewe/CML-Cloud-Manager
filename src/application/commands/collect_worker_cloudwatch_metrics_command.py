@@ -72,9 +72,7 @@ class CollectWorkerCloudWatchMetricsCommandHandler(
         self.cml_worker_repository = cml_worker_repository
         self.aws_ec2_client = aws_ec2_client
 
-    async def handle_async(
-        self, request: CollectWorkerCloudWatchMetricsCommand
-    ) -> OperationResult[dict]:
+    async def handle_async(self, request: CollectWorkerCloudWatchMetricsCommand) -> OperationResult[dict]:
         """Handle collect CloudWatch metrics command.
 
         Args:
@@ -96,9 +94,7 @@ class CollectWorkerCloudWatchMetricsCommandHandler(
         try:
             with tracer.start_as_current_span("retrieve_cml_worker") as span:
                 # 1. Load worker from repository
-                worker = await self.cml_worker_repository.get_by_id_async(
-                    command.worker_id
-                )
+                worker = await self.cml_worker_repository.get_by_id_async(command.worker_id)
 
                 if not worker:
                     error_msg = f"CML Worker not found: {command.worker_id}"
@@ -106,16 +102,12 @@ class CollectWorkerCloudWatchMetricsCommandHandler(
                     return self.bad_request(error_msg)
 
                 if not worker.state.aws_instance_id:
-                    error_msg = (
-                        f"CML Worker {command.worker_id} has no AWS instance assigned"
-                    )
+                    error_msg = f"CML Worker {command.worker_id} has no AWS instance assigned"
                     log.error(error_msg)
                     return self.bad_request(error_msg)
 
                 span.set_attribute("ec2.instance_id", worker.state.aws_instance_id)
-                span.set_attribute(
-                    "cml_worker.current_status", worker.state.status.value
-                )
+                span.set_attribute("cml_worker.current_status", worker.state.status.value)
 
             # 2. Only collect CloudWatch metrics if worker is RUNNING
             if worker.state.status != CMLWorkerStatus.RUNNING:
@@ -149,8 +141,7 @@ class CollectWorkerCloudWatchMetricsCommandHandler(
                         # Parse CPU utilization
                         if (
                             metrics.avg_cpu_utilization
-                            and metrics.avg_cpu_utilization
-                            != "unknown - enable CloudWatch..."
+                            and metrics.avg_cpu_utilization != "unknown - enable CloudWatch..."
                         ):
                             try:
                                 cpu_util = float(metrics.avg_cpu_utilization)
@@ -160,8 +151,7 @@ class CollectWorkerCloudWatchMetricsCommandHandler(
                         # Parse memory utilization
                         if (
                             metrics.avg_memory_utilization
-                            and metrics.avg_memory_utilization
-                            != "unknown - enable CloudWatch..."
+                            and metrics.avg_memory_utilization != "unknown - enable CloudWatch..."
                         ):
                             try:
                                 memory_util = float(metrics.avg_memory_utilization)
@@ -172,9 +162,7 @@ class CollectWorkerCloudWatchMetricsCommandHandler(
                         span.set_attribute("metrics.memory", memory_util or 0)
 
                 except Exception as e:
-                    log.warning(
-                        f"Failed to collect CloudWatch metrics for worker {command.worker_id}: {e}"
-                    )
+                    log.warning(f"Failed to collect CloudWatch metrics for worker {command.worker_id}: {e}")
                     # Continue with None values
 
             # 4. Record telemetry update (legacy/backward-compatible event for SSE)
@@ -184,11 +172,7 @@ class CollectWorkerCloudWatchMetricsCommandHandler(
             except Exception:
                 poll_interval = None
 
-            next_refresh_at = (
-                datetime.now(timezone.utc) + timedelta(seconds=poll_interval)
-                if poll_interval
-                else None
-            )
+            next_refresh_at = datetime.now(timezone.utc) + timedelta(seconds=poll_interval) if poll_interval else None
 
             # Use labs count from worker state (may be None -> treat as 0)
             active_labs_count = worker.state.cml_labs_count or 0
@@ -236,6 +220,4 @@ class CollectWorkerCloudWatchMetricsCommandHandler(
                 f"Failed to collect CloudWatch metrics for worker {command.worker_id}: {ex}",
                 exc_info=True,
             )
-            return self.internal_server_error(
-                f"Failed to collect worker CloudWatch metrics: {str(ex)}"
-            )
+            return self.internal_server_error(f"Failed to collect worker CloudWatch metrics: {str(ex)}")

@@ -58,9 +58,7 @@ class DeleteLabCommandHandler(CommandHandler[DeleteLabCommand, OperationResult[d
         self._scheduler = background_task_scheduler
         self._settings = settings
 
-    async def handle_async(
-        self, request: DeleteLabCommand, cancellation_token=None
-    ) -> OperationResult[dict]:
+    async def handle_async(self, request: DeleteLabCommand, cancellation_token=None) -> OperationResult[dict]:
         """Delete lab from CML worker.
 
         Args:
@@ -83,43 +81,29 @@ class DeleteLabCommandHandler(CommandHandler[DeleteLabCommand, OperationResult[d
 
         try:
             # Create CML API client using factory
-            cml_client = self._cml_client_factory.create(
-                base_url=worker.state.https_endpoint
-            )
+            cml_client = self._cml_client_factory.create(base_url=worker.state.https_endpoint)
 
             # Delete lab from CML API
             await cml_client.delete_lab(request.lab_id)
-            log.info(
-                f"Lab {request.lab_id} deleted from CML on worker {request.worker_id}"
-            )
+            log.info(f"Lab {request.lab_id} deleted from CML on worker {request.worker_id}")
 
             # Delete local LabRecord from database for immediate UI consistency
             # Use direct MongoDB deletion instead of aggregate remove_async
-            deleted = await self._lab_record_repository.remove_by_lab_id_async(
-                request.worker_id, request.lab_id
-            )
+            deleted = await self._lab_record_repository.remove_by_lab_id_async(request.worker_id, request.lab_id)
             if deleted:
                 log.info(f"Lab record {request.lab_id} removed from database")
             else:
-                log.warning(
-                    f"Lab record {request.lab_id} not found in database (may not have been synced yet)"
-                )
+                log.warning(f"Lab record {request.lab_id} not found in database (may not have been synced yet)")
 
-            log.info(
-                f"Successfully deleted lab {request.lab_id} from worker {request.worker_id}"
-            )
+            log.info(f"Successfully deleted lab {request.lab_id} from worker {request.worker_id}")
 
             # Trigger immediate lab refresh to update UI (with debounce check)
             await self._trigger_lab_refresh(request.worker_id)
 
-            return self.ok(
-                {"lab_id": request.lab_id, "message": "Lab deleted successfully"}
-            )
+            return self.ok({"lab_id": request.lab_id, "message": "Lab deleted successfully"})
 
         except Exception as e:
-            log.error(
-                f"Failed to delete lab {request.lab_id} from worker {request.worker_id}: {e}"
-            )
+            log.error(f"Failed to delete lab {request.lab_id} from worker {request.worker_id}: {e}")
             return self.internal_server_error(f"Failed to delete lab: {str(e)}")
 
     async def _trigger_lab_refresh(self, worker_id: str) -> None:
@@ -137,11 +121,7 @@ class DeleteLabCommandHandler(CommandHandler[DeleteLabCommand, OperationResult[d
             next_run_utc = labs_job.next_run_time.replace(tzinfo=timezone.utc)
             time_until_job = (next_run_utc - now_utc).total_seconds()
 
-            if (
-                0
-                < time_until_job
-                <= self._settings.worker_refresh_check_upcoming_job_threshold
-            ):
+            if 0 < time_until_job <= self._settings.worker_refresh_check_upcoming_job_threshold:
                 log.info(
                     f"Skipping lab refresh after delete for worker {worker_id} - "
                     f"background job scheduled in {time_until_job:.1f}s"
@@ -151,9 +131,7 @@ class DeleteLabCommandHandler(CommandHandler[DeleteLabCommand, OperationResult[d
         # Trigger immediate refresh
         log.info(f"Triggering lab refresh after delete for worker {worker_id}")
         try:
-            await self._mediator.execute_async(
-                RefreshWorkerLabsCommand(worker_id=worker_id)
-            )
+            await self._mediator.execute_async(RefreshWorkerLabsCommand(worker_id=worker_id))
         except Exception as e:
             log.warning(f"Failed to trigger lab refresh for worker {worker_id}: {e}")
             # Don't fail the delete operation if refresh fails

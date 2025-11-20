@@ -61,9 +61,7 @@ class DetectWorkerIdleCommandHandler(CommandHandler[DetectWorkerIdleCommand, dic
         Returns:
             OperationResult with detection results
         """
-        with tracer.start_as_current_span(
-            "DetectWorkerIdleCommandHandler.handle_async"
-        ) as span:
+        with tracer.start_as_current_span("DetectWorkerIdleCommandHandler.handle_async") as span:
             span.set_attribute("worker_id", command.worker_id)
             span.set_attribute("force_check", command.force_check)
 
@@ -113,8 +111,7 @@ class DetectWorkerIdleCommandHandler(CommandHandler[DetectWorkerIdleCommand, dic
 
                 if not update_result.is_success:
                     log.warning(
-                        f"Failed to update activity for worker {command.worker_id}: "
-                        f"{update_result.error_message}"
+                        f"Failed to update activity for worker {command.worker_id}: " f"{update_result.error_message}"
                     )
                     detection_result["error"] = "Failed to update activity"
                     return self.ok(detection_result)
@@ -169,8 +166,7 @@ class DetectWorkerIdleCommandHandler(CommandHandler[DetectWorkerIdleCommand, dic
                         detection_result["auto_pause_triggered"] = True
                     else:
                         log.warning(
-                            f"Failed to auto-pause worker {command.worker_id}: "
-                            f"{pause_result.error_message}"
+                            f"Failed to auto-pause worker {command.worker_id}: " f"{pause_result.error_message}"
                         )
                         detection_result["error"] = "Failed to trigger auto-pause"
                 else:

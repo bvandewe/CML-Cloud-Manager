@@ -31,19 +31,13 @@ class TaskCreationRequestedIntegrationEventV1Handler(
         cloud_event_bus: CloudEventBus,
         cloud_event_publishing_options: CloudEventPublishingOptions,
     ) -> None:
-        super().__init__(
-            mediator, mapper, cloud_event_bus, cloud_event_publishing_options
-        )
+        super().__init__(mediator, mapper, cloud_event_bus, cloud_event_publishing_options)
 
     @dispatch(TaskCreationRequestedIntegrationEventV1)
-    async def handle_async(
-        self, notification: TaskCreationRequestedIntegrationEventV1
-    ) -> None:
+    async def handle_async(self, notification: TaskCreationRequestedIntegrationEventV1) -> None:
         log.debug(f"🌐 Handling event type: {notification.__cloudevent__type__} from {notification.__cloudevent__source__}")  # type: ignore
         if not notification.title:
-            log.warning(
-                "❗ Task creation requested event is missing a title. Skipping task creation."
-            )
+            log.warning("❗ Task creation requested event is missing a title. Skipping task creation.")
             return
         await self.mediator.execute_async(
             CreateTaskCommand(

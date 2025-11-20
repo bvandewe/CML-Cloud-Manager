@@ -46,16 +46,12 @@ class TestInMemorySessionStore:
 
     def test_refresh_session(self, session_store: SessionStore) -> None:
         """Test refreshing session tokens."""
-        tokens: dict[str, str] = TokenFactory.create_tokens(
-            access_token="old_access_token"
-        )
+        tokens: dict[str, str] = TokenFactory.create_tokens(access_token="old_access_token")
         user_info: dict[str, Any] = TokenFactory.create_user_info()
 
         session_id: str = session_store.create_session(tokens, user_info)
 
-        new_tokens: dict[str, str] = TokenFactory.create_tokens(
-            access_token="new_access_token"
-        )
+        new_tokens: dict[str, str] = TokenFactory.create_tokens(access_token="new_access_token")
         session_store.refresh_session(session_id, new_tokens)
 
         session: dict[str, Any] | None = session_store.get_session(session_id)
@@ -100,14 +96,10 @@ class TestInMemorySessionStore:
     def test_multiple_sessions(self, session_store: SessionStore) -> None:
         """Test managing multiple sessions simultaneously."""
         tokens1: dict[str, str] = TokenFactory.create_tokens(access_token="token1")
-        user_info1: dict[str, Any] = TokenFactory.create_user_info(
-            email="user1@example.com"
-        )
+        user_info1: dict[str, Any] = TokenFactory.create_user_info(email="user1@example.com")
 
         tokens2: dict[str, str] = TokenFactory.create_tokens(access_token="token2")
-        user_info2: dict[str, Any] = TokenFactory.create_user_info(
-            email="user2@example.com"
-        )
+        user_info2: dict[str, Any] = TokenFactory.create_user_info(email="user2@example.com")
 
         session_id1: str = session_store.create_session(tokens1, user_info1)
         session_id2: str = session_store.create_session(tokens2, user_info2)

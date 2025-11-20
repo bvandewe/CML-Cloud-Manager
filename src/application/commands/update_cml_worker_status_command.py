@@ -71,9 +71,7 @@ class UpdateCMLWorkerStatusCommandHandler(
         self.cml_worker_repository = cml_worker_repository
         self.aws_ec2_client = aws_ec2_client
 
-    async def handle_async(
-        self, request: UpdateCMLWorkerStatusCommand
-    ) -> OperationResult[dict[str, str]]:
+    async def handle_async(self, request: UpdateCMLWorkerStatusCommand) -> OperationResult[dict[str, str]]:
         """Handle update CML Worker status command.
 
         Args:
@@ -99,9 +97,7 @@ class UpdateCMLWorkerStatusCommandHandler(
         try:
             with tracer.start_as_current_span("retrieve_cml_worker") as span:
                 # Retrieve worker from repository
-                worker = await self.cml_worker_repository.get_by_id_async(
-                    command.worker_id
-                )
+                worker = await self.cml_worker_repository.get_by_id_async(command.worker_id)
 
                 if not worker:
                     error_msg = f"CML Worker not found: {command.worker_id}"
@@ -109,16 +105,12 @@ class UpdateCMLWorkerStatusCommandHandler(
                     return self.bad_request(error_msg)
 
                 if not worker.state.aws_instance_id:
-                    error_msg = (
-                        f"CML Worker {command.worker_id} has no AWS instance assigned"
-                    )
+                    error_msg = f"CML Worker {command.worker_id} has no AWS instance assigned"
                     log.error(error_msg)
                     return self.bad_request(error_msg)
 
                 span.set_attribute("ec2.instance_id", worker.state.aws_instance_id)
-                span.set_attribute(
-                    "cml_worker.current_status", worker.state.status.value
-                )
+                span.set_attribute("cml_worker.current_status", worker.state.status.value)
 
             with tracer.start_as_current_span("get_ec2_status_checks") as span:
                 # Get instance status checks from AWS
@@ -176,10 +168,7 @@ class UpdateCMLWorkerStatusCommandHandler(
                     f"new_status={worker.state.status.value}"
                 )
             else:
-                log.debug(
-                    f"CML Worker status unchanged: id={worker.id()}, "
-                    f"status={worker.state.status.value}"
-                )
+                log.debug(f"CML Worker status unchanged: id={worker.id()}, " f"status={worker.state.status.value}")
 
             return self.ok(status_info)
 
@@ -188,24 +177,18 @@ class UpdateCMLWorkerStatusCommandHandler(
             # Instance might have been terminated outside our system
             # Mark worker as terminated
             try:
-                worker = await self.cml_worker_repository.get_by_id_async(
-                    command.worker_id
-                )
+                worker = await self.cml_worker_repository.get_by_id_async(command.worker_id)
                 if worker and worker.state.status != CMLWorkerStatus.TERMINATED:
                     worker.terminate()
                     await self.cml_worker_repository.update_async(worker)
-                    log.warning(
-                        f"Marked CML Worker {command.worker_id} as terminated (instance not found in AWS)"
-                    )
+                    log.warning(f"Marked CML Worker {command.worker_id} as terminated (instance not found in AWS)")
             except Exception as update_error:
                 log.error(f"Failed to mark worker as terminated: {update_error}")
 
             return self.bad_request(f"Instance not found: {str(e)}")
 
         except EC2StatusCheckException as e:
-            log.error(
-                f"Failed to retrieve status for CML Worker {command.worker_id}: {e}"
-            )
+            log.error(f"Failed to retrieve status for CML Worker {command.worker_id}: {e}")
             return self.bad_request(f"Status check failed: {str(e)}")
 
         except EC2AuthenticationException as e:

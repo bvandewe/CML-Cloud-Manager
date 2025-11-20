@@ -66,9 +66,7 @@ class ActivityDetectionJob(RecurrentBackgroundJob):
         )
 
         # Create scope for accessing repositories and mediator
-        scope = (
-            self._service_provider.create_scope() if self._service_provider else None
-        )
+        scope = self._service_provider.create_scope() if self._service_provider else None
 
         try:
             if not scope:
@@ -81,14 +79,9 @@ class ActivityDetectionJob(RecurrentBackgroundJob):
 
             # Find all running workers
             all_workers = await repository.get_all_async()
-            running_workers = [
-                w for w in all_workers if w.state.status == CMLWorkerStatus.RUNNING
-            ]
+            running_workers = [w for w in all_workers if w.state.status == CMLWorkerStatus.RUNNING]
 
-            log.info(
-                f"Found {len(running_workers)} running workers "
-                f"(total: {len(all_workers)})"
-            )
+            log.info(f"Found {len(running_workers)} running workers " f"(total: {len(all_workers)})")
 
             if not running_workers:
                 log.debug("No running workers to check")
@@ -106,9 +99,7 @@ class ActivityDetectionJob(RecurrentBackgroundJob):
 
                 try:
                     # Execute idle detection command
-                    result = await mediator.execute_async(
-                        DetectWorkerIdleCommand(worker_id=worker.id())
-                    )
+                    result = await mediator.execute_async(DetectWorkerIdleCommand(worker_id=worker.id()))
 
                     if result.is_success:
                         detection_data = result.data
@@ -126,10 +117,7 @@ class ActivityDetectionJob(RecurrentBackgroundJob):
                                 f"eligible={detection_data.get('eligible_for_pause')}"
                             )
                     else:
-                        log.warning(
-                            f"Idle detection failed for worker {worker.id()}: "
-                            f"{result.error_message}"
-                        )
+                        log.warning(f"Idle detection failed for worker {worker.id()}: " f"{result.error_message}")
 
                 except Exception as e:
                     log.error(

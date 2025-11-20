@@ -31,9 +31,7 @@ class PauseWorkerCommand(Command[OperationResult[None]]):
     reason: str | None = None
 
 
-class PauseWorkerCommandHandler(
-    CommandHandler[PauseWorkerCommand, OperationResult[None]]
-):
+class PauseWorkerCommandHandler(CommandHandler[PauseWorkerCommand, OperationResult[None]]):
     """Handler for PauseWorkerCommand.
 
     Stops EC2 instance and updates worker aggregate state.
@@ -62,9 +60,7 @@ class PauseWorkerCommandHandler(
         Returns:
             OperationResult indicating success or failure
         """
-        with tracer.start_as_current_span(
-            "PauseWorkerCommandHandler.handle_async"
-        ) as span:
+        with tracer.start_as_current_span("PauseWorkerCommandHandler.handle_async") as span:
             span.set_attribute("worker_id", command.worker_id)
             span.set_attribute("is_auto_pause", command.is_auto_pause)
 
@@ -87,9 +83,7 @@ class PauseWorkerCommandHandler(
 
                 # Check if already stopping or stopped
                 if worker.state.status.value in ["stopping", "stopped", "terminated"]:
-                    log.info(
-                        f"Worker {command.worker_id} already in state {worker.state.status.value}"
-                    )
+                    log.info(f"Worker {command.worker_id} already in state {worker.state.status.value}")
                     return self.no_content()
 
                 # Stop EC2 instance
@@ -99,9 +93,7 @@ class PauseWorkerCommandHandler(
                     f"(auto_pause={command.is_auto_pause}, reason={command.reason})"
                 )
 
-                self._aws_client.stop_instance(
-                    AwsRegion(worker.state.aws_region), worker.state.aws_instance_id
-                )
+                self._aws_client.stop_instance(AwsRegion(worker.state.aws_region), worker.state.aws_instance_id)
 
                 # Update worker aggregate
                 reason = "idle_timeout" if command.is_auto_pause else "manual"

@@ -17,18 +17,14 @@ class GetTaskByIdQuery(Query[OperationResult[dict[str, Any]]]):
     user_info: dict[str, Any]
 
 
-class GetTaskByIdQueryHandler(
-    QueryHandler[GetTaskByIdQuery, OperationResult[dict[str, Any]]]
-):
+class GetTaskByIdQueryHandler(QueryHandler[GetTaskByIdQuery, OperationResult[dict[str, Any]]]):
     """Handle task retrieval by ID with authorization checks."""
 
     def __init__(self, task_repository: TaskRepository):
         super().__init__()
         self.task_repository = task_repository
 
-    async def handle_async(
-        self, request: GetTaskByIdQuery
-    ) -> OperationResult[dict[str, Any]]:
+    async def handle_async(self, request: GetTaskByIdQuery) -> OperationResult[dict[str, Any]]:
         """Handle get task by ID query with RBAC logic."""
         # Retrieve task
         task = await self.task_repository.get_by_id_async(request.task_id)
@@ -65,9 +61,7 @@ class GetTaskByIdQueryHandler(
             "description": task.state.description,
             "status": task.state.status,
             "priority": task.state.priority,
-            "assignee_id": (
-                str(task.state.assignee_id) if task.state.assignee_id else None
-            ),
+            "assignee_id": (str(task.state.assignee_id) if task.state.assignee_id else None),
             "department": task.state.department,
             "created_at": task.state.created_at.isoformat(),
             "updated_at": task.state.updated_at.isoformat(),

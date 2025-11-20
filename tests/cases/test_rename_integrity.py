@@ -87,20 +87,12 @@ def test_no_starter_branding_left():
         pytest.skip("Repository still named cml-cloud-manager; rename not yet applied.")
     offending = find_occurrences(repo_root)
     if offending:
-        formatted = "\n".join(
-            f"{path}: {variants}" for path, variants in offending.items()
-        )
-        pytest.fail(
-            f"Rename integrity failed; leftover branding variants found:\n{formatted}"
-        )
+        formatted = "\n".join(f"{path}: {variants}" for path, variants in offending.items())
+        pytest.fail(f"Rename integrity failed; leftover branding variants found:\n{formatted}")
 
 
 def test_variant_list_is_unique_and_non_empty():
     # Guardrail: keep list meaningful
     assert ORIGINAL_VARIANTS, "Expected at least one variant pattern."
-    assert len(ORIGINAL_VARIANTS) == len(
-        set(ORIGINAL_VARIANTS)
-    ), "Duplicate entries in ORIGINAL_VARIANTS."
-    assert len(ORIGINAL_VARIANTS) == len(
-        set(ORIGINAL_VARIANTS)
-    ), "Duplicate entries in ORIGINAL_VARIANTS."
+    assert len(ORIGINAL_VARIANTS) == len(set(ORIGINAL_VARIANTS)), "Duplicate entries in ORIGINAL_VARIANTS."
+    assert len(ORIGINAL_VARIANTS) == len(set(ORIGINAL_VARIANTS)), "Duplicate entries in ORIGINAL_VARIANTS."

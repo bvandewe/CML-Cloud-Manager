@@ -37,12 +37,8 @@ from infrastructure import InMemorySessionStore, SessionStore  # noqa: E402
 
 def pytest_configure(config: Config) -> None:
     """Configure pytest with custom markers."""
-    config.addinivalue_line(
-        "markers", "unit: Unit tests (fast, no external dependencies)"
-    )
-    config.addinivalue_line(
-        "markers", "integration: Integration tests (may use external services)"
-    )
+    config.addinivalue_line("markers", "unit: Unit tests (fast, no external dependencies)")
+    config.addinivalue_line("markers", "integration: Integration tests (may use external services)")
     config.addinivalue_line("markers", "slow: Slow tests (may take several seconds)")
     config.addinivalue_line("markers", "asyncio: Async tests")
     config.addinivalue_line("markers", "auth: Authentication/authorization tests")
@@ -103,9 +99,7 @@ async def mongo_client() -> AsyncGenerator[AsyncIOMotorClient, None]:
 
     Uses test database to avoid polluting production data.
     """
-    connection_string: str = os.getenv(
-        "MONGO_CONNECTION_STRING", "mongodb://localhost:8022"
-    )
+    connection_string: str = os.getenv("MONGO_CONNECTION_STRING", "mongodb://localhost:8022")
     client: AsyncIOMotorClient = AsyncIOMotorClient(connection_string)
     yield client
     client.close()

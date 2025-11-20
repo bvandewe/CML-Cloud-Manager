@@ -24,9 +24,7 @@ def test_settings_registered_as_singleton_not_lambda() -> None:
             settings_descriptor = descriptor
             break
 
-    assert (
-        settings_descriptor is not None
-    ), "Settings should be registered in DI container"
+    assert settings_descriptor is not None, "Settings should be registered in DI container"
 
     # In the buggy version (v0.6.6), implementation_type was `lambda: app_settings`
     # In the fixed version (v0.6.8+), it should be the singleton instance or not a bare callable

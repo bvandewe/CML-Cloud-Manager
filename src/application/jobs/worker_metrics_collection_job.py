@@ -33,9 +33,7 @@ logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
 
 
-@backgroundjob(
-    task_type="recurrent", interval=app_settings.worker_metrics_poll_interval
-)
+@backgroundjob(task_type="recurrent", interval=app_settings.worker_metrics_poll_interval)
 class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
     """Recurrent background job for collecting data from all active CML Workers.
 
@@ -89,9 +87,7 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
         # Inject or instantiate AwsEc2Client
         if not hasattr(self, "aws_ec2_client") or not self.aws_ec2_client:
             if self._service_provider:
-                self.aws_ec2_client = self._service_provider.get_required_service(
-                    AwsEc2Client
-                )
+                self.aws_ec2_client = self._service_provider.get_required_service(AwsEc2Client)
             else:
                 # Directly instantiate for horizontal scaling
                 credentials = AwsAccountCredentials(
@@ -120,9 +116,7 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
         )
 
         # Ensure dependencies are injected
-        assert (
-            hasattr(self, "aws_ec2_client") and self.aws_ec2_client is not None
-        ), "aws_ec2_client not injected"
+        assert hasattr(self, "aws_ec2_client") and self.aws_ec2_client is not None, "aws_ec2_client not injected"
 
         # Service provider should have been configured during job setup
         if not hasattr(self, "_service_provider") or not self._service_provider:
@@ -132,9 +126,7 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
                 logger.info("🔧 Attempting to reconfigure job")
                 self.configure()  # No service provider - will instantiate dependencies directly
                 if not hasattr(self, "_service_provider") or not self._service_provider:
-                    logger.warning(
-                        "⚠️ Still no service provider after reconfigure, continuing anyway"
-                    )
+                    logger.warning("⚠️ Still no service provider after reconfigure, continuing anyway")
             except Exception as e:
                 logger.error(f"❌ Failed to reconfigure job: {e}")
                 return
@@ -185,9 +177,7 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
                 if scope:
                     mediator = scope.get_required_service(Mediator)
                 else:
-                    logger.error(
-                        "❌ No service provider - cannot get Mediator for command orchestration"
-                    )
+                    logger.error("❌ No service provider - cannot get Mediator for command orchestration")
                     return
 
                 # 3. Process workers concurrently with semaphore (limit to 10 concurrent operations)
@@ -202,9 +192,7 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
                             # Step 1: Refresh metrics (EC2, CloudWatch, CML system data)
                             # Mark as background_job so it doesn't trigger user throttle
                             metrics_result = await mediator.execute_async(
-                                RefreshWorkerMetricsCommand(
-                                    worker_id=worker_id, initiated_by="background_job"
-                                )
+                                RefreshWorkerMetricsCommand(worker_id=worker_id, initiated_by="background_job")
                             )
 
                             if metrics_result.status != 200:
@@ -215,13 +203,8 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
 
                             # Step 2: Refresh labs (only if worker is running and CML is ready)
                             operations = metrics_result.data.get("operations", {})
-                            worker_running = (
-                                operations.get("ec2_sync", {}).get("worker_status")
-                                == "running"
-                            )
-                            cml_ready = (
-                                operations.get("cml_sync", {}).get("cml_ready") is True
-                            )
+                            worker_running = operations.get("ec2_sync", {}).get("worker_status") == "running"
+                            cml_ready = operations.get("cml_sync", {}).get("cml_ready") is True
 
                             if worker_running and cml_ready:
                                 labs_result = await mediator.execute_async(
@@ -234,14 +217,11 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
                                     )
                                     return worker_id, True, "labs_failed"
 
-                                logger.debug(
-                                    f"✅ Full data refresh completed for worker {worker_id}"
-                                )
+                                logger.debug(f"✅ Full data refresh completed for worker {worker_id}")
                                 return worker_id, True, "success"
                             else:
                                 logger.debug(
-                                    f"⏭️ Skipping labs refresh for worker {worker_id} - "
-                                    f"not running or CML not ready"
+                                    f"⏭️ Skipping labs refresh for worker {worker_id} - " f"not running or CML not ready"
                                 )
                                 return worker_id, True, "labs_skipped"
 

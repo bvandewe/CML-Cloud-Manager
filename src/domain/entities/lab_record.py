@@ -39,11 +39,7 @@ class LabOperation:
     @staticmethod
     def from_dict(data: dict) -> "LabOperation":
         """Create from dictionary."""
-        timestamp = (
-            datetime.fromisoformat(data["timestamp"])
-            if data.get("timestamp")
-            else datetime.now(timezone.utc)
-        )
+        timestamp = datetime.fromisoformat(data["timestamp"]) if data.get("timestamp") else datetime.now(timezone.utc)
         return LabOperation(
             timestamp=timestamp,
             previous_state=data.get("previous_state"),

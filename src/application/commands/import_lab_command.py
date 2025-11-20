@@ -82,17 +82,13 @@ class ImportLabCommandHandler(CommandHandler[ImportLabCommand, OperationResult[d
 
         try:
             # Create CML API client using factory
-            cml_client = self._cml_client_factory.create(
-                base_url=worker.state.https_endpoint
-            )
+            cml_client = self._cml_client_factory.create(base_url=worker.state.https_endpoint)
 
             # Import lab YAML
             result = await cml_client.import_lab(request.yaml_content, request.title)
 
             lab_id = result.get("id")
-            log.info(
-                f"Successfully imported lab {lab_id} to worker {request.worker_id}"
-            )
+            log.info(f"Successfully imported lab {lab_id} to worker {request.worker_id}")
 
             # Trigger immediate lab refresh to update UI (with debounce check)
             await self._trigger_lab_refresh(request.worker_id)
@@ -124,11 +120,7 @@ class ImportLabCommandHandler(CommandHandler[ImportLabCommand, OperationResult[d
             next_run_utc = labs_job.next_run_time.replace(tzinfo=timezone.utc)
             time_until_job = (next_run_utc - now_utc).total_seconds()
 
-            if (
-                0
-                < time_until_job
-                <= self._settings.worker_refresh_check_upcoming_job_threshold
-            ):
+            if 0 < time_until_job <= self._settings.worker_refresh_check_upcoming_job_threshold:
                 log.info(
                     f"Skipping lab refresh after import for worker {worker_id} - "
                     f"background job scheduled in {time_until_job:.1f}s"
@@ -138,9 +130,7 @@ class ImportLabCommandHandler(CommandHandler[ImportLabCommand, OperationResult[d
         # Trigger immediate refresh
         log.info(f"Triggering lab refresh after import for worker {worker_id}")
         try:
-            await self._mediator.execute_async(
-                RefreshWorkerLabsCommand(worker_id=worker_id)
-            )
+            await self._mediator.execute_async(RefreshWorkerLabsCommand(worker_id=worker_id))
         except Exception as e:
             log.warning(f"Failed to trigger lab refresh for worker {worker_id}: {e}")
             # Don't fail the import operation if refresh fails

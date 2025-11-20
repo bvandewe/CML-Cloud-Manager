@@ -99,9 +99,7 @@ class RefreshWorkerLabsCommandHandler(
         self._sse_relay = sse_relay
 
     @tracer.start_as_current_span("refresh_worker_labs_command_handler")
-    async def handle_async(
-        self, request: RefreshWorkerLabsCommand
-    ) -> OperationResult[dict]:
+    async def handle_async(self, request: RefreshWorkerLabsCommand) -> OperationResult[dict]:
         """Handle refresh worker labs command.
 
         Args:
@@ -171,9 +169,7 @@ class RefreshWorkerLabsCommandHandler(
                 )
             except Exception as e:
                 # Don't fail the command if SSE broadcast fails
-                log.warning(
-                    f"Failed to broadcast SSE event for labs refresh on worker {command.worker_id}: {e}"
-                )
+                log.warning(f"Failed to broadcast SSE event for labs refresh on worker {command.worker_id}: {e}")
 
             log.info(
                 f"✅ Labs refreshed for worker {command.worker_id}: "
@@ -210,15 +206,11 @@ class RefreshWorkerLabsCommandHandler(
         try:
             lab_ids = await cml_client.get_labs()
         except Exception as e:
-            log.error(
-                f"Failed to fetch labs from worker {worker_id}: {e}", exc_info=True
-            )
+            log.error(f"Failed to fetch labs from worker {worker_id}: {e}", exc_info=True)
             return (0, 0, 0)
 
         # Detect and remove orphaned lab records (labs deleted outside our system)
-        existing_records = await self._lab_record_repository.get_all_by_worker_async(
-            worker_id
-        )
+        existing_records = await self._lab_record_repository.get_all_by_worker_async(worker_id)
         existing_lab_ids = {record.state.lab_id for record in existing_records}
         current_lab_ids = set(lab_ids) if lab_ids else set()
         orphaned_lab_ids = existing_lab_ids - current_lab_ids
@@ -238,15 +230,11 @@ class RefreshWorkerLabsCommandHandler(
             for orphaned_lab_id in orphaned_lab_ids:
                 try:
                     # Use direct MongoDB deletion instead of aggregate remove_async
-                    deleted = await self._lab_record_repository.remove_by_lab_id_async(
-                        worker_id, orphaned_lab_id
-                    )
+                    deleted = await self._lab_record_repository.remove_by_lab_id_async(worker_id, orphaned_lab_id)
                     if deleted:
                         log.info(f"Removed orphaned lab record: {orphaned_lab_id}")
                     else:
-                        log.warning(
-                            f"Orphaned lab record {orphaned_lab_id} not found in DB"
-                        )
+                        log.warning(f"Orphaned lab record {orphaned_lab_id} not found in DB")
                 except Exception as e:
                     log.error(
                         f"Failed to remove orphaned lab record {orphaned_lab_id}: {e}",
@@ -271,9 +259,7 @@ class RefreshWorkerLabsCommandHandler(
                     continue
 
                 # Check if lab record exists
-                existing_record = await self._lab_record_repository.get_by_lab_id_async(
-                    worker_id, lab_id
-                )
+                existing_record = await self._lab_record_repository.get_by_lab_id_async(worker_id, lab_id)
 
                 if existing_record:
                     # Update existing record
@@ -318,11 +304,7 @@ class RefreshWorkerLabsCommandHandler(
                             f"Duplicate lab record detected for worker {worker_id}, lab {lab_id}. "
                             f"Fetching and updating existing record."
                         )
-                        existing_record = (
-                            await self._lab_record_repository.get_by_lab_id_async(
-                                worker_id, lab_id
-                            )
-                        )
+                        existing_record = await self._lab_record_repository.get_by_lab_id_async(worker_id, lab_id)
                         if existing_record:
                             existing_record.update_from_cml(
                                 title=lab_details.lab_title,
@@ -334,13 +316,9 @@ class RefreshWorkerLabsCommandHandler(
                                 node_count=lab_details.node_count,
                                 link_count=lab_details.link_count,
                                 groups=lab_details.groups,
-                                cml_modified_at=_parse_cml_timestamp(
-                                    lab_details.modified
-                                ),
+                                cml_modified_at=_parse_cml_timestamp(lab_details.modified),
                             )
-                            await self._lab_record_repository.update_async(
-                                existing_record
-                            )
+                            await self._lab_record_repository.update_async(existing_record)
                             updated += 1
 
                 synced += 1
@@ -353,8 +331,6 @@ class RefreshWorkerLabsCommandHandler(
                 # Continue with next lab
                 continue
 
-        log.info(
-            f"Worker {worker_id}: synced={synced}, created={created}, updated={updated}"
-        )
+        log.info(f"Worker {worker_id}: synced={synced}, created={created}, updated={updated}")
 
         return (synced, created, updated)

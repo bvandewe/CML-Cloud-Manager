@@ -20,18 +20,14 @@ class GetCMLWorkerByIdQuery(Query[OperationResult[dict[str, Any]]]):
     aws_instance_id: str | None = None
 
 
-class GetCMLWorkerByIdQueryHandler(
-    QueryHandler[GetCMLWorkerByIdQuery, OperationResult[dict[str, Any]]]
-):
+class GetCMLWorkerByIdQueryHandler(QueryHandler[GetCMLWorkerByIdQuery, OperationResult[dict[str, Any]]]):
     """Handle retrieving a single CML Worker."""
 
     def __init__(self, worker_repository: CMLWorkerRepository):
         super().__init__()
         self.worker_repository = worker_repository
 
-    async def handle_async(
-        self, request: GetCMLWorkerByIdQuery
-    ) -> OperationResult[dict[str, Any]]:
+    async def handle_async(self, request: GetCMLWorkerByIdQuery) -> OperationResult[dict[str, Any]]:
         """Handle get CML worker by ID query."""
         try:
             # Retrieve worker by ID or AWS instance ID
@@ -39,14 +35,10 @@ class GetCMLWorkerByIdQueryHandler(
                 worker = await self.worker_repository.get_by_id_async(request.worker_id)
                 identifier = request.worker_id
             elif request.aws_instance_id:
-                worker = await self.worker_repository.get_by_aws_instance_id_async(
-                    request.aws_instance_id
-                )
+                worker = await self.worker_repository.get_by_aws_instance_id_async(request.aws_instance_id)
                 identifier = request.aws_instance_id
             else:
-                return self.bad_request(
-                    "Either worker_id or aws_instance_id must be provided"
-                )
+                return self.bad_request("Either worker_id or aws_instance_id must be provided")
 
             if not worker:
                 return self.not_found("CML Worker", identifier)
@@ -76,9 +68,7 @@ class GetCMLWorkerByIdQueryHandler(
                 "ec2_instance_state_detail": worker.state.ec2_instance_state_detail,
                 "ec2_system_status_check": worker.state.ec2_system_status_check,
                 "ec2_last_checked_at": (
-                    worker.state.ec2_last_checked_at.isoformat()
-                    if worker.state.ec2_last_checked_at
-                    else None
+                    worker.state.ec2_last_checked_at.isoformat() if worker.state.ec2_last_checked_at else None
                 ),
                 # CloudWatch Metrics
                 "cloudwatch_cpu_utilization": worker.state.cloudwatch_cpu_utilization,
@@ -97,17 +87,11 @@ class GetCMLWorkerByIdQueryHandler(
                 "cml_uptime_seconds": worker.state.cml_uptime_seconds,
                 "cml_labs_count": worker.state.cml_labs_count,
                 "cml_last_synced_at": (
-                    worker.state.cml_last_synced_at.isoformat()
-                    if worker.state.cml_last_synced_at
-                    else None
+                    worker.state.cml_last_synced_at.isoformat() if worker.state.cml_last_synced_at else None
                 ),
                 # Metrics Timing
                 "poll_interval": worker.state.poll_interval,
-                "next_refresh_at": (
-                    worker.state.next_refresh_at.isoformat()
-                    if worker.state.next_refresh_at
-                    else None
-                ),
+                "next_refresh_at": (worker.state.next_refresh_at.isoformat() if worker.state.next_refresh_at else None),
                 # Backward compatibility (deprecated - use cloudwatch_last_collected_at)
                 "active_labs_count": worker.state.cml_labs_count,
                 "cpu_utilization": worker.state.cloudwatch_cpu_utilization,
@@ -115,58 +99,32 @@ class GetCMLWorkerByIdQueryHandler(
                 "created_at": worker.state.created_at.isoformat(),
                 "updated_at": worker.state.updated_at.isoformat(),
                 "start_initiated_at": (
-                    worker.state.start_initiated_at.isoformat()
-                    if worker.state.start_initiated_at
-                    else None
+                    worker.state.start_initiated_at.isoformat() if worker.state.start_initiated_at else None
                 ),
                 "stop_initiated_at": (
-                    worker.state.stop_initiated_at.isoformat()
-                    if worker.state.stop_initiated_at
-                    else None
+                    worker.state.stop_initiated_at.isoformat() if worker.state.stop_initiated_at else None
                 ),
-                "terminated_at": (
-                    worker.state.terminated_at.isoformat()
-                    if worker.state.terminated_at
-                    else None
-                ),
+                "terminated_at": (worker.state.terminated_at.isoformat() if worker.state.terminated_at else None),
                 "created_by": worker.state.created_by,
                 # Activity tracking and idle detection
                 "last_activity_at": (
-                    worker.state.last_activity_at.isoformat()
-                    if worker.state.last_activity_at
-                    else None
+                    worker.state.last_activity_at.isoformat() if worker.state.last_activity_at else None
                 ),
                 "last_activity_check_at": (
-                    worker.state.last_activity_check_at.isoformat()
-                    if worker.state.last_activity_check_at
-                    else None
+                    worker.state.last_activity_check_at.isoformat() if worker.state.last_activity_check_at else None
                 ),
                 "next_idle_check_at": (
-                    worker.state.next_idle_check_at.isoformat()
-                    if worker.state.next_idle_check_at
-                    else None
+                    worker.state.next_idle_check_at.isoformat() if worker.state.next_idle_check_at else None
                 ),
-                "target_pause_at": (
-                    worker.state.target_pause_at.isoformat()
-                    if worker.state.target_pause_at
-                    else None
-                ),
+                "target_pause_at": (worker.state.target_pause_at.isoformat() if worker.state.target_pause_at else None),
                 "is_idle_detection_enabled": worker.state.is_idle_detection_enabled,
                 # Pause/resume tracking
                 "auto_pause_count": worker.state.auto_pause_count,
                 "manual_pause_count": worker.state.manual_pause_count,
                 "auto_resume_count": worker.state.auto_resume_count,
                 "manual_resume_count": worker.state.manual_resume_count,
-                "last_paused_at": (
-                    worker.state.last_paused_at.isoformat()
-                    if worker.state.last_paused_at
-                    else None
-                ),
-                "last_resumed_at": (
-                    worker.state.last_resumed_at.isoformat()
-                    if worker.state.last_resumed_at
-                    else None
-                ),
+                "last_paused_at": (worker.state.last_paused_at.isoformat() if worker.state.last_paused_at else None),
+                "last_resumed_at": (worker.state.last_resumed_at.isoformat() if worker.state.last_resumed_at else None),
                 "paused_by": worker.state.paused_by,
                 "pause_reason": worker.state.pause_reason,
             }

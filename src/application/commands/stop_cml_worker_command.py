@@ -75,9 +75,7 @@ class StopCMLWorkerCommandHandler(
         self.aws_ec2_client = aws_ec2_client
         # No immediate refresh scheduling; monitoring jobs will pick up changes.
 
-    async def handle_async(
-        self, request: StopCMLWorkerCommand
-    ) -> OperationResult[bool]:
+    async def handle_async(self, request: StopCMLWorkerCommand) -> OperationResult[bool]:
         """Handle stop CML Worker command.
 
         Args:
@@ -104,9 +102,7 @@ class StopCMLWorkerCommandHandler(
         try:
             with tracer.start_as_current_span("retrieve_cml_worker") as span:
                 # Retrieve worker from repository
-                worker = await self.cml_worker_repository.get_by_id_async(
-                    command.worker_id
-                )
+                worker = await self.cml_worker_repository.get_by_id_async(command.worker_id)
 
                 if not worker:
                     error_msg = f"CML Worker not found: {command.worker_id}"
@@ -114,16 +110,12 @@ class StopCMLWorkerCommandHandler(
                     return self.bad_request(error_msg)
 
                 if not worker.state.aws_instance_id:
-                    error_msg = (
-                        f"CML Worker {command.worker_id} has no AWS instance assigned"
-                    )
+                    error_msg = f"CML Worker {command.worker_id} has no AWS instance assigned"
                     log.error(error_msg)
                     return self.bad_request(error_msg)
 
                 span.set_attribute("ec2.instance_id", worker.state.aws_instance_id)
-                span.set_attribute(
-                    "cml_worker.current_status", worker.state.status.value
-                )
+                span.set_attribute("cml_worker.current_status", worker.state.status.value)
 
             # Validate current status
             if worker.state.status == CMLWorkerStatus.STOPPED:
@@ -146,9 +138,7 @@ class StopCMLWorkerCommandHandler(
                 )
 
                 if not success:
-                    error_msg = (
-                        f"Failed to stop EC2 instance {worker.state.aws_instance_id}"
-                    )
+                    error_msg = f"Failed to stop EC2 instance {worker.state.aws_instance_id}"
                     log.error(error_msg)
                     return self.bad_request(error_msg)
 
@@ -158,9 +148,7 @@ class StopCMLWorkerCommandHandler(
                 # Update worker status to STOPPING
                 worker.update_status(CMLWorkerStatus.STOPPING)
 
-                span.set_attribute(
-                    "cml_worker.new_status", CMLWorkerStatus.STOPPING.value
-                )
+                span.set_attribute("cml_worker.new_status", CMLWorkerStatus.STOPPING.value)
 
             # Save worker (will publish domain events)
             await self.cml_worker_repository.update_async(worker)

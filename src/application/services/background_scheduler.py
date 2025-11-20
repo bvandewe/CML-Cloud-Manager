@@ -58,8 +58,8 @@ log = logging.getLogger(__name__)
 
 # Context variable for service provider in background jobs
 # This is thread-safe and async-safe, unlike global variables
-_service_provider_context: contextvars.ContextVar[Optional[Any]] = (
-    contextvars.ContextVar("service_provider", default=None)
+_service_provider_context: contextvars.ContextVar[Optional[Any]] = contextvars.ContextVar(
+    "service_provider", default=None
 )
 
 # Global scheduler instance for access in job wrappers
@@ -85,9 +85,7 @@ def backgroundjob(
 
     def decorator(cls):
         cls.__background_task_class_name__ = cls.__name__
-        cls.__background_task_type__ = (
-            task_type if task_type in ("scheduled", "recurrent") else None
-        )
+        cls.__background_task_type__ = task_type if task_type in ("scheduled", "recurrent") else None
         if interval is not None:
             cls.__interval__ = interval
         if scheduled_at is not None:
@@ -164,9 +162,7 @@ class BackgroundTaskSchedulerOptions:
             modules: List of module paths to scan for @backgroundjob decorators (e.g., ['application.jobs'])
         """
         self.type_maps: dict[str, type] = {}
-        self.modules: list[str] = modules or [
-            "application.services"
-        ]  # Default for backward compatibility
+        self.modules: list[str] = modules or ["application.services"]  # Default for backward compatibility
 
     def register_task_type(self, name: str, task_type: type) -> None:
         """Register a task type with the scheduler."""
@@ -212,13 +208,9 @@ async def scheduled_job_wrapper(
 
         if service_provider:
             try:
-                scheduler_options = service_provider.get_service(
-                    BackgroundTaskSchedulerOptions
-                )
+                scheduler_options = service_provider.get_service(BackgroundTaskSchedulerOptions)
                 modules = (
-                    scheduler_options.modules
-                    if scheduler_options
-                    else ["application.services", "application.jobs"]
+                    scheduler_options.modules if scheduler_options else ["application.services", "application.jobs"]
                 )
             except:
                 modules = ["application.services", "application.jobs"]
@@ -237,24 +229,19 @@ async def scheduled_job_wrapper(
                 module = ModuleLoader.load(module_name)
                 background_tasks = TypeFinder.get_types(
                     module,
-                    lambda cls: inspect.isclass(cls)
-                    and hasattr(cls, "__background_task_class_name__"),
+                    lambda cls: inspect.isclass(cls) and hasattr(cls, "__background_task_class_name__"),
                 )
 
                 for background_task in background_tasks:
                     task_name = background_task.__background_task_class_name__
                     options.register_task_type(task_name, background_task)
             except Exception as e:
-                log.debug(
-                    f"Could not scan module '{module_name}' in scheduled_job_wrapper: {e}"
-                )
+                log.debug(f"Could not scan module '{module_name}' in scheduled_job_wrapper: {e}")
                 continue
 
         task_type = options.get_task_type(task_type_name)
         if not task_type:
-            raise BackgroundTaskException(
-                f"Task type '{task_type_name}' not registered"
-            )
+            raise BackgroundTaskException(f"Task type '{task_type_name}' not registered")
 
         # Create new instance without calling __init__
         task: ScheduledBackgroundJob = object.__new__(task_type)
@@ -276,14 +263,10 @@ async def scheduled_job_wrapper(
         if hasattr(task, "configure"):
             task.configure(service_provider=service_provider)
 
-        log.debug(
-            f"Executing scheduled job: {task.__task_name__} (ID: {task.__task_id__})"
-        )
+        log.debug(f"Executing scheduled job: {task.__task_name__} (ID: {task.__task_id__})")
         return await task.run_at(**kwargs)
     except Exception as ex:
-        log.error(
-            f"Error executing scheduled job {task_type_name}: {ex}", exc_info=True
-        )
+        log.error(f"Error executing scheduled job {task_type_name}: {ex}", exc_info=True)
         raise
 
 
@@ -308,13 +291,9 @@ async def recurrent_job_wrapper(
         # Each worker will execute this independently
 
         # Resolve task type without rescanning modules: use scheduler options map directly
-        options = (
-            _global_scheduler_instance._options if _global_scheduler_instance else None
-        )
+        options = _global_scheduler_instance._options if _global_scheduler_instance else None
         if options is None:
-            raise BackgroundTaskException(
-                "Scheduler options unavailable in recurrent_job_wrapper"
-            )
+            raise BackgroundTaskException("Scheduler options unavailable in recurrent_job_wrapper")
 
         original_name = task_type_name
 
@@ -334,10 +313,7 @@ async def recurrent_job_wrapper(
             serialized_name = task_data.get("background_task_class_name")
             if isinstance(serialized_name, str) and serialized_name:
                 for registered_name, registered_cls in options.type_maps.items():
-                    if (
-                        getattr(registered_cls, "__background_task_class_name__", None)
-                        == serialized_name
-                    ):
+                    if getattr(registered_cls, "__background_task_class_name__", None) == serialized_name:
                         task_type = registered_cls
                         task_type_name = registered_name
                         break
@@ -383,14 +359,10 @@ async def recurrent_job_wrapper(
         if hasattr(task, "configure"):
             task.configure(service_provider=service_provider)
 
-        log.debug(
-            f"Executing recurrent job: {task.__task_name__} (ID: {task.__task_id__})"
-        )
+        log.debug(f"Executing recurrent job: {task.__task_name__} (ID: {task.__task_id__})")
         return await task.run_every(**kwargs)
     except Exception as ex:
-        log.error(
-            f"Error executing recurrent job {task_type_name}: {ex}", exc_info=True
-        )
+        log.error(f"Error executing recurrent job {task_type_name}: {ex}", exc_info=True)
         raise
 
 
@@ -462,27 +434,21 @@ class BackgroundTaskScheduler(HostedService):
                 if getattr(task_class, "__background_task_type__", None) == "recurrent":
                     try:
                         if not self._service_provider:
-                            log.warning(
-                                f"Service provider unavailable while scheduling '{task_name}'"
-                            )
+                            log.warning(f"Service provider unavailable while scheduling '{task_name}'")
                             continue
                         scope = self._service_provider.create_scope()
                         try:
                             instance = scope.get_required_service(task_class)
                             # Ensure interval present
                             if not getattr(instance, "__interval__", None):
-                                log.warning(
-                                    f"Recurrent job '{task_name}' missing interval; skipping"
-                                )
+                                log.warning(f"Recurrent job '{task_name}' missing interval; skipping")
                                 continue
                             await self.enqueue_task_async(instance)
                             log.info(f"✅ Scheduled recurrent job: {task_name}")
                         finally:
                             scope.dispose()
                     except Exception as ex:
-                        log.error(
-                            f"Failed scheduling recurrent job '{task_name}': {ex}"
-                        )
+                        log.error(f"Failed scheduling recurrent job '{task_name}': {ex}")
 
             self._started = True
             log.info("Background task scheduler started successfully")
@@ -565,9 +531,7 @@ class BackgroundTaskScheduler(HostedService):
             log.error(f"Error stopping background task scheduler: {ex}")
             raise BackgroundTaskException(f"Failed to stop scheduler: {ex}")
 
-    def deserialize_task(
-        self, task_type: type, task_descriptor: TaskDescriptor
-    ) -> BackgroundJob:
+    def deserialize_task(self, task_type: type, task_descriptor: TaskDescriptor) -> BackgroundJob:
         """Deserialize a task descriptor into its Python type.
 
         For tasks that require dependency injection, calls the configure() method
@@ -584,17 +548,11 @@ class BackgroundTaskScheduler(HostedService):
             task.__task_type__ = None
 
             # Set type-specific attributes
-            if (
-                isinstance(task_descriptor, ScheduledTaskDescriptor)
-                and task.__background_task_type__ == "scheduled"
-            ):
+            if isinstance(task_descriptor, ScheduledTaskDescriptor) and task.__background_task_type__ == "scheduled":
                 task.__scheduled_at__ = task_descriptor.scheduled_at  # type: ignore
                 task.__task_type__ = "ScheduledTaskDescriptor"
 
-            if (
-                isinstance(task_descriptor, RecurrentTaskDescriptor)
-                and task.__background_task_type__ == "recurrent"
-            ):
+            if isinstance(task_descriptor, RecurrentTaskDescriptor) and task.__background_task_type__ == "recurrent":
                 task.__interval__ = task_descriptor.interval  # type: ignore
                 task.__task_type__ = "RecurrentTaskDescriptor"
 
@@ -618,13 +576,9 @@ class BackgroundTaskScheduler(HostedService):
         try:
             # Ensure stable name/id prior to serialization
             if not getattr(task, "__task_name__", None):
-                background_name = getattr(
-                    task.__class__, "__background_task_class_name__", None
-                )
+                background_name = getattr(task.__class__, "__background_task_class_name__", None)
                 task.__task_name__ = (
-                    background_name
-                    if isinstance(background_name, str) and background_name
-                    else task.__class__.__name__
+                    background_name if isinstance(background_name, str) and background_name else task.__class__.__name__
                 )
             if not getattr(task, "__task_id__", None):
                 task.__task_id__ = f"{task.__task_name__}-{uuid.uuid4().hex}"
@@ -649,19 +603,13 @@ class BackgroundTaskScheduler(HostedService):
                 # Skip complex objects like aws_ec2_client, worker_repository, etc.
 
             # Persist class name explicitly for reconstruction if task_type_name lost
-            background_name = getattr(
-                task.__class__, "__background_task_class_name__", None
-            )
+            background_name = getattr(task.__class__, "__background_task_class_name__", None)
             if isinstance(background_name, str) and background_name:
                 task_data["background_task_class_name"] = background_name
-            log.debug(
-                f"Serializable task_data for {task.__task_name__}: {list(task_data.keys())}"
-            )
+            log.debug(f"Serializable task_data for {task.__task_name__}: {list(task_data.keys())}")
 
             if isinstance(task, ScheduledBackgroundJob):
-                log.debug(
-                    f"Scheduling one-time job: {task.__task_name__} at {task.__scheduled_at__}"
-                )
+                log.debug(f"Scheduling one-time job: {task.__task_name__} at {task.__scheduled_at__}")
 
                 self._scheduler.add_job(
                     scheduled_job_wrapper,
@@ -683,9 +631,7 @@ class BackgroundTaskScheduler(HostedService):
 
             elif isinstance(task, RecurrentBackgroundJob):
                 # Assign stable global ID for recurrent jobs (single instance semantics)
-                if not getattr(task, "__task_id__", None) or not str(
-                    task.__task_id__
-                ).endswith("-global"):
+                if not getattr(task, "__task_id__", None) or not str(task.__task_id__).endswith("-global"):
                     task.__task_id__ = f"{task.__task_name__}-global"
                 # Guard: ensure interval is positive before scheduling
                 interval_val = getattr(task, "__interval__", None)
@@ -718,9 +664,7 @@ class BackgroundTaskScheduler(HostedService):
             else:
                 raise BackgroundTaskException(f"Unknown task type: {type(task)}")
 
-            log.info(
-                f"Successfully enqueued task: {task.__task_name__} (ID: {task.__task_id__})"
-            )
+            log.info(f"Successfully enqueued task: {task.__task_name__} (ID: {task.__task_id__})")
 
         except Exception as ex:
             log.error(f"Error enqueuing task '{task.__task_name__}': {ex}")
@@ -801,19 +745,14 @@ class BackgroundTaskScheduler(HostedService):
                     module = ModuleLoader.load(module_name)
                     background_tasks = TypeFinder.get_types(
                         module,
-                        lambda cls: inspect.isclass(cls)
-                        and hasattr(cls, "__background_task_class_name__"),
+                        lambda cls: inspect.isclass(cls) and hasattr(cls, "__background_task_class_name__"),
                     )
 
                     for background_task in background_tasks:
-                        background_task_name = (
-                            background_task.__background_task_class_name__
-                        )
+                        background_task_name = background_task.__background_task_class_name__
                         background_task_type = background_task.__background_task_type__
 
-                        options.register_task_type(
-                            background_task_name, background_task
-                        )
+                        options.register_task_type(background_task_name, background_task)
                         builder.services.add_transient(background_task, background_task)
 
                         log.info(
@@ -821,9 +760,7 @@ class BackgroundTaskScheduler(HostedService):
                         )
 
                 except Exception as ex:
-                    log.error(
-                        f"Error scanning module '{module_name}' for background tasks: {ex}"
-                    )
+                    log.error(f"Error scanning module '{module_name}' for background tasks: {ex}")
                     continue
 
             # Configure job stores if settings are available
@@ -846,9 +783,7 @@ class BackgroundTaskScheduler(HostedService):
                             f"Configured Redis job store for background tasks (host={job_store_config['redis_host']}, db={job_store_config['redis_db']})"
                         )
                     else:
-                        log.warning(
-                            "Redis job store requested but Redis dependencies not available"
-                        )
+                        log.warning("Redis job store requested but Redis dependencies not available")
 
                 mongo_uri_keys = ["mongo_uri", "mongo_db", "mongo_collection"]
                 mongo_individual_keys = [
@@ -866,25 +801,19 @@ class BackgroundTaskScheduler(HostedService):
                         if "mongo_uri" in job_store_config:
                             mongo_uri = job_store_config.get("mongo_uri")
                             mongo_db = job_store_config.get("mongo_db") or "apscheduler"
-                            mongo_collection = (
-                                job_store_config.get("mongo_collection") or "jobs"
-                            )
+                            mongo_collection = job_store_config.get("mongo_collection") or "jobs"
                             jobstores["default"] = MongoDBJobStore(
                                 host=mongo_uri,
                                 database=mongo_db,
                                 collection=mongo_collection,
                             )
-                            log.info(
-                                "Configured MongoDB job store for background tasks (URI)"
-                            )
+                            log.info("Configured MongoDB job store for background tasks (URI)")
                         else:
                             # Individual parameters
                             mongo_host = job_store_config.get("mongo_host", "localhost")
                             mongo_port = job_store_config.get("mongo_port", 27017)
                             mongo_db = job_store_config.get("mongo_db") or "apscheduler"
-                            mongo_collection = (
-                                job_store_config.get("mongo_collection") or "jobs"
-                            )
+                            mongo_collection = job_store_config.get("mongo_collection") or "jobs"
 
                             jobstores["default"] = MongoDBJobStore(
                                 host=mongo_host,
@@ -892,27 +821,16 @@ class BackgroundTaskScheduler(HostedService):
                                 database=mongo_db,
                                 collection=mongo_collection,
                             )
-                            log.info(
-                                "Configured MongoDB job store for background tasks (individual params)"
-                            )
+                            log.info("Configured MongoDB job store for background tasks (individual params)")
                     else:
-                        log.warning(
-                            "MongoDB job store requested but MongoDB dependencies not available"
-                        )
+                        log.warning("MongoDB job store requested but MongoDB dependencies not available")
 
                 # Check for incomplete configurations
-                elif any(
-                    key.startswith(("redis_", "mongo_"))
-                    for key in job_store_config.keys()
-                ):
-                    log.warning(
-                        "Incomplete job store configuration found - check Redis or MongoDB settings"
-                    )
+                elif any(key.startswith(("redis_", "mongo_")) for key in job_store_config.keys()):
+                    log.warning("Incomplete job store configuration found - check Redis or MongoDB settings")
 
                 else:
-                    log.info(
-                        "No job store configuration found, using in-memory job store"
-                    )
+                    log.info("No job store configuration found, using in-memory job store")
             else:
                 log.info("No settings found, using in-memory job store")
 
@@ -930,9 +848,7 @@ class BackgroundTaskScheduler(HostedService):
                     jobstores=jobstores,
                 ),
             )
-            builder.services.add_singleton(
-                BackgroundTaskSchedulerOptions, singleton=options
-            )
+            builder.services.add_singleton(BackgroundTaskSchedulerOptions, singleton=options)
 
             # Register as both HostedService and BackgroundTaskScheduler
             builder.services.add_singleton(
@@ -945,17 +861,11 @@ class BackgroundTaskScheduler(HostedService):
             )
             builder.services.add_singleton(
                 HostedService,
-                implementation_factory=lambda provider: provider.get_service(
-                    BackgroundTaskScheduler
-                ),
+                implementation_factory=lambda provider: provider.get_service(BackgroundTaskScheduler),
             )
             log.info("✅ Background task scheduler services registered successfully")
 
         except Exception as ex:
             log.error(f"Error configuring background task scheduler: {ex}")
-            raise BackgroundTaskException(
-                f"Failed to configure background task scheduler: {ex}"
-            )
-            raise BackgroundTaskException(
-                f"Failed to configure background task scheduler: {ex}"
-            )
+            raise BackgroundTaskException(f"Failed to configure background task scheduler: {ex}")
+            raise BackgroundTaskException(f"Failed to configure background task scheduler: {ex}")

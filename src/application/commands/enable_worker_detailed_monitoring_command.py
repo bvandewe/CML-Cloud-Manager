@@ -63,9 +63,7 @@ class EnableWorkerDetailedMonitoringCommandHandler(
         self.cml_worker_repository = cml_worker_repository
         self.aws_ec2_client = aws_ec2_client
 
-    async def handle_async(
-        self, request: EnableWorkerDetailedMonitoringCommand
-    ) -> OperationResult[bool]:
+    async def handle_async(self, request: EnableWorkerDetailedMonitoringCommand) -> OperationResult[bool]:
         """Enable detailed monitoring on worker's EC2 instance.
 
         Args:
@@ -109,9 +107,7 @@ class EnableWorkerDetailedMonitoringCommandHandler(
             # Update worker aggregate with monitoring status
             worker.update_cloudwatch_monitoring(enabled=True)
             await self.cml_worker_repository.add_or_update_async(worker)
-            log.info(
-                f"Updated worker {command.worker_id} monitoring status in database"
-            )
+            log.info(f"Updated worker {command.worker_id} monitoring status in database")
 
             return self.ok(True)
 

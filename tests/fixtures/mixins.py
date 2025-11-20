@@ -23,9 +23,7 @@ class AsyncTestMixin:
     """Mixin providing utilities for async tests."""
 
     @staticmethod
-    async def await_with_timeout(
-        coro: Awaitable[T], timeout: float = 5.0, error_msg: str | None = None
-    ) -> T:
+    async def await_with_timeout(coro: Awaitable[T], timeout: float = 5.0, error_msg: str | None = None) -> T:
         """Await a coroutine with timeout."""
         try:
             result: T = await asyncio.wait_for(coro, timeout=timeout)
@@ -65,19 +63,11 @@ class AssertionMixin:
         if check_id:
             assert actual.state.id == expected.state.id, "Task IDs don't match"
         assert actual.state.title == expected.state.title, "Task titles don't match"
-        assert (
-            actual.state.description == expected.state.description
-        ), "Task descriptions don't match"
+        assert actual.state.description == expected.state.description, "Task descriptions don't match"
         assert actual.state.status == expected.state.status, "Task statuses don't match"
-        assert (
-            actual.state.priority == expected.state.priority
-        ), "Task priorities don't match"
-        assert (
-            actual.state.assignee_id == expected.state.assignee_id
-        ), "Task assignees don't match"
-        assert (
-            actual.state.department == expected.state.department
-        ), "Task departments don't match"
+        assert actual.state.priority == expected.state.priority, "Task priorities don't match"
+        assert actual.state.assignee_id == expected.state.assignee_id, "Task assignees don't match"
+        assert actual.state.department == expected.state.department, "Task departments don't match"
 
     @staticmethod
     def assert_contains_task(tasks: list[Task], expected_task: Task) -> None:
@@ -85,26 +75,20 @@ class AssertionMixin:
         for task in tasks:
             if task.state.id == expected_task.state.id:
                 return
-        raise AssertionError(
-            f"Task with ID {expected_task.state.id} not found in task list"
-        )
+        raise AssertionError(f"Task with ID {expected_task.state.id} not found in task list")
 
     @staticmethod
     def assert_dict_contains(actual: dict[str, Any], expected: dict[str, Any]) -> None:
         """Assert actual dict contains all key-value pairs from expected dict."""
         for key, value in expected.items():
             assert key in actual, f"Key '{key}' not found in actual dict"
-            assert (
-                actual[key] == value
-            ), f"Value for key '{key}' doesn't match: {actual[key]} != {value}"
+            assert actual[key] == value, f"Value for key '{key}' doesn't match: {actual[key]} != {value}"
 
     @staticmethod
     def assert_list_length(actual: list[Any], expected_length: int) -> None:
         """Assert list has expected length with helpful error message."""
         actual_length: int = len(actual)
-        assert (
-            actual_length == expected_length
-        ), f"Expected list length {expected_length}, got {actual_length}"
+        assert actual_length == expected_length, f"Expected list length {expected_length}, got {actual_length}"
 
 
 # ============================================================================
@@ -123,21 +107,15 @@ class MockHelperMixin:
         return mock
 
     @staticmethod
-    def assert_mock_called_once_with_partial(
-        mock: AsyncMock, **expected_kwargs: Any
-    ) -> None:
+    def assert_mock_called_once_with_partial(mock: AsyncMock, **expected_kwargs: Any) -> None:
         """Assert mock was called once and call args contain expected kwargs."""
         call_count: int = mock.call_count
         assert call_count == 1, f"Expected 1 call, got {call_count}"
-        call_kwargs: dict[str, Any] = (
-            dict(mock.call_args.kwargs) if mock.call_args else {}
-        )
+        call_kwargs: dict[str, Any] = dict(mock.call_args.kwargs) if mock.call_args else {}
         for key, value in expected_kwargs.items():
             assert key in call_kwargs, f"Expected kwarg '{key}' not found in call args"
             actual_value: Any = call_kwargs[key]
-            assert (
-                actual_value == value
-            ), f"Expected {key}={value}, got {key}={actual_value}"
+            assert actual_value == value, f"Expected {key}={value}, got {key}={actual_value}"
 
 
 # ============================================================================
@@ -149,9 +127,7 @@ class SessionTestMixin:
     """Mixin providing utilities for testing session-related functionality."""
 
     @staticmethod
-    def create_test_session(
-        session_store: Any, tokens: dict[str, str], user_info: dict[str, Any]
-    ) -> str:
+    def create_test_session(session_store: Any, tokens: dict[str, str], user_info: dict[str, Any]) -> str:
         """Create a test session and return the session ID."""
         session_id: str = session_store.create_session(tokens, user_info)
         return session_id

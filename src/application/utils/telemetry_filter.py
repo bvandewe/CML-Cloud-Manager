@@ -96,16 +96,13 @@ def filter_relevant_events(
             continue
 
     log.debug(
-        f"Filtered {len(filtered)} relevant events from {len(events)} total "
-        f"({excluded_count} excluded by filters)"
+        f"Filtered {len(filtered)} relevant events from {len(events)} total " f"({excluded_count} excluded by filters)"
     )
 
     return filtered
 
 
-def get_most_recent_events(
-    events: list[dict[str, Any]], max_count: int = 10
-) -> list[dict[str, Any]]:
+def get_most_recent_events(events: list[dict[str, Any]], max_count: int = 10) -> list[dict[str, Any]]:
     """Get the N most recent events sorted by timestamp.
 
     Args:

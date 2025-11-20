@@ -20,17 +20,11 @@ class InMemoryTaskRepository(TaskRepository):
 
     async def get_by_assignee_async(self, assignee_id: str) -> list[Task]:
         """Retrieve tasks assigned to a specific user."""
-        return [
-            task
-            for task in self._tasks.values()
-            if task.state.assignee_id == assignee_id
-        ]
+        return [task for task in self._tasks.values() if task.state.assignee_id == assignee_id]
 
     async def get_by_department_async(self, department: str) -> list[Task]:
         """Retrieve tasks for a specific department."""
-        return [
-            task for task in self._tasks.values() if task.state.department == department
-        ]
+        return [task for task in self._tasks.values() if task.state.department == department]
 
     async def add_async(self, entity: Task) -> Task:
         """Add a new task."""

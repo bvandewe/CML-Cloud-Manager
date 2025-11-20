@@ -73,9 +73,7 @@ class BulkSyncWorkerEC2StatusCommandHandler(
         )
         self.cml_worker_repository = cml_worker_repository
 
-    async def handle_async(
-        self, request: BulkSyncWorkerEC2StatusCommand
-    ) -> OperationResult[BulkSyncResult]:
+    async def handle_async(self, request: BulkSyncWorkerEC2StatusCommand) -> OperationResult[BulkSyncResult]:
         """Handle bulk EC2 status sync command.
 
         Args:
@@ -99,23 +97,17 @@ class BulkSyncWorkerEC2StatusCommandHandler(
             with tracer.start_as_current_span("get_target_workers") as span:
                 # Get target workers
                 if command.worker_ids:
-                    log.info(
-                        f"Syncing EC2 status for {len(command.worker_ids)} specified workers"
-                    )
+                    log.info(f"Syncing EC2 status for {len(command.worker_ids)} specified workers")
                     workers = []
                     for worker_id in command.worker_ids:
-                        worker = await self.cml_worker_repository.get_by_id_async(
-                            worker_id
-                        )
+                        worker = await self.cml_worker_repository.get_by_id_async(worker_id)
                         if worker:
                             workers.append(worker)
                         else:
                             log.warning(f"Worker {worker_id} not found - skipping")
                 else:
                     log.info("Syncing EC2 status for all active workers")
-                    workers = (
-                        await self.cml_worker_repository.get_active_workers_async()
-                    )
+                    workers = await self.cml_worker_repository.get_active_workers_async()
 
                 if not workers:
                     log.warning("No workers found to sync")
@@ -143,9 +135,7 @@ class BulkSyncWorkerEC2StatusCommandHandler(
                     """Sync single worker with semaphore rate limiting."""
                     async with semaphore:
                         try:
-                            with tracer.start_as_current_span(
-                                "sync_worker_ec2_status"
-                            ) as worker_span:
+                            with tracer.start_as_current_span("sync_worker_ec2_status") as worker_span:
                                 worker_span.set_attribute("worker.id", worker_id)
 
                                 # Execute sync command via mediator
@@ -154,16 +144,12 @@ class BulkSyncWorkerEC2StatusCommandHandler(
                                 )
 
                                 if result.status == 200:
-                                    log.debug(
-                                        f"✅ EC2 status synced for worker {worker_id}"
-                                    )
+                                    log.debug(f"✅ EC2 status synced for worker {worker_id}")
                                     worker_span.set_attribute("sync.success", True)
                                     return {"worker_id": worker_id, "success": True}
                                 else:
                                     error_msg = result.detail or "Unknown error"
-                                    log.warning(
-                                        f"⚠️ EC2 status sync failed for worker {worker_id}: {error_msg}"
-                                    )
+                                    log.warning(f"⚠️ EC2 status sync failed for worker {worker_id}: {error_msg}")
                                     worker_span.set_attribute("sync.success", False)
                                     worker_span.set_attribute("sync.error", error_msg)
                                     return {
@@ -193,9 +179,7 @@ class BulkSyncWorkerEC2StatusCommandHandler(
                 for result in results:
                     if isinstance(result, Exception):
                         log.error(f"Worker sync exception: {result}")
-                        failed_workers.append(
-                            {"worker_id": "unknown", "error": str(result)}
-                        )
+                        failed_workers.append({"worker_id": "unknown", "error": str(result)})
                     elif isinstance(result, dict) and result.get("success"):
                         synced_worker_ids.append(result["worker_id"])
                     elif isinstance(result, dict):

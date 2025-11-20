@@ -95,13 +95,9 @@ class UpdateTaskCommandHandler(CommandHandler[UpdateTaskCommand, OperationResult
                     new_status = TaskStatus(command.status)
                     if task.update_status(new_status):
                         fields_changed.append("status")
-                        span.set_attribute(
-                            "task.status_transition", f"{old_status}->{new_status}"
-                        )
+                        span.set_attribute("task.status_transition", f"{old_status}->{new_status}")
                 except ValueError:
-                    tasks_failed.add(
-                        1, {"reason": "invalid_status", "operation": "update"}
-                    )
+                    tasks_failed.add(1, {"reason": "invalid_status", "operation": "update"})
                     return self.bad_request("Invalid task status supplied")
             if command.priority is not None:
                 try:
@@ -109,9 +105,7 @@ class UpdateTaskCommandHandler(CommandHandler[UpdateTaskCommand, OperationResult
                     if task.update_priority(new_priority):
                         fields_changed.append("priority")
                 except ValueError:
-                    tasks_failed.add(
-                        1, {"reason": "invalid_priority", "operation": "update"}
-                    )
+                    tasks_failed.add(1, {"reason": "invalid_priority", "operation": "update"})
                     return self.bad_request("Invalid task priority supplied")
             if command.assignee_id is not None:
                 if task.update_assignee(command.assignee_id):

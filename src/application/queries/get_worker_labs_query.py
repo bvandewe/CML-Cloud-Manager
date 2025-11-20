@@ -32,9 +32,7 @@ class GetWorkerLabsQuery(Query[OperationResult[list[dict[str, Any]]]]):
     worker_id: str
 
 
-class GetWorkerLabsQueryHandler(
-    QueryHandler[GetWorkerLabsQuery, OperationResult[list[dict[str, Any]]]]
-):
+class GetWorkerLabsQueryHandler(QueryHandler[GetWorkerLabsQuery, OperationResult[list[dict[str, Any]]]]):
     """Handler for GetWorkerLabsQuery.
 
     This handler retrieves lab details from the cached lab_records database collection.
@@ -58,9 +56,7 @@ class GetWorkerLabsQueryHandler(
         self._lab_record_repository = lab_record_repository
 
     @tracer.start_as_current_span("get_worker_labs_query_handler")
-    async def handle_async(
-        self, request: GetWorkerLabsQuery
-    ) -> OperationResult[list[dict[str, Any]]]:
+    async def handle_async(self, request: GetWorkerLabsQuery) -> OperationResult[list[dict[str, Any]]]:
         """Handle the get worker labs query.
 
         Fetches lab records from the database (cached data refreshed every 30 minutes).
@@ -86,9 +82,7 @@ class GetWorkerLabsQueryHandler(
 
             # Fetch lab records from database
             log.info(f"Fetching labs from database for worker {query.worker_id}")
-            lab_records = await self._lab_record_repository.get_all_by_worker_async(
-                query.worker_id
-            )
+            lab_records = await self._lab_record_repository.get_all_by_worker_async(query.worker_id)
 
             span.set_attribute("labs.count", len(lab_records))
 
@@ -114,28 +108,14 @@ class GetWorkerLabsQueryHandler(
                     "owner_username": record.state.owner_username,
                     "node_count": record.state.node_count,
                     "link_count": record.state.link_count,
-                    "created": (
-                        record.state.cml_created_at.isoformat()
-                        if record.state.cml_created_at
-                        else None
-                    ),
-                    "modified": (
-                        record.state.modified_at.isoformat()
-                        if record.state.modified_at
-                        else None
-                    ),
+                    "created": (record.state.cml_created_at.isoformat() if record.state.cml_created_at else None),
+                    "modified": (record.state.modified_at.isoformat() if record.state.modified_at else None),
                     "groups": record.state.groups,
-                    "last_synced": (
-                        record.state.last_synced_at.isoformat()
-                        if record.state.last_synced_at
-                        else None
-                    ),
+                    "last_synced": (record.state.last_synced_at.isoformat() if record.state.last_synced_at else None),
                 }
                 labs.append(lab_dict)
 
-            log.info(
-                f"Successfully fetched {len(labs)} labs from database for worker {query.worker_id}"
-            )
+            log.info(f"Successfully fetched {len(labs)} labs from database for worker {query.worker_id}")
             span.set_attribute("labs.fetched", len(labs))
             span.set_status(Status(StatusCode.OK))
 
