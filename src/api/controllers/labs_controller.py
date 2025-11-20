@@ -2,14 +2,21 @@ import logging
 from typing import Annotated, Any
 
 from classy_fastapi.decorators import get, post
-from fastapi import Depends, Path
+from fastapi import Depends, File, HTTPException, Path, UploadFile
+from fastapi.responses import PlainTextResponse
 from neuroglia.dependency_injection import ServiceProviderBase
 from neuroglia.mapping.mapper import Mapper
 from neuroglia.mediation.mediator import Mediator
 from neuroglia.mvc.controller_base import ControllerBase
 
-from api.dependencies import get_current_user, require_roles
-from application.commands import ControlLabCommand, RefreshWorkerLabsCommand
+from api.dependencies import get_current_user
+from application.commands import (
+    ControlLabCommand,
+    DeleteLabCommand,
+    DownloadLabCommand,
+    ImportLabCommand,
+    RefreshWorkerLabsCommand,
+)
 from application.commands.control_lab_command import LabAction
 from application.queries import GetWorkerLabsQuery
 from integration.enums import AwsRegion
@@ -94,7 +101,7 @@ class LabsController(ControllerBase):
         aws_region: aws_region_annotation,
         worker_id: worker_id_annotation,
         lab_id: lab_id_annotation,
-        token: str = Depends(require_roles("admin", "manager")),
+        token: str = Depends(get_current_user),
     ) -> Any:
         """Start all nodes in a lab.
 
@@ -117,7 +124,7 @@ class LabsController(ControllerBase):
         aws_region: aws_region_annotation,
         worker_id: worker_id_annotation,
         lab_id: lab_id_annotation,
-        token: str = Depends(require_roles("admin", "manager")),
+        token: str = Depends(get_current_user),
     ) -> Any:
         """Stop all nodes in a lab.
 
@@ -140,7 +147,7 @@ class LabsController(ControllerBase):
         aws_region: aws_region_annotation,
         worker_id: worker_id_annotation,
         lab_id: lab_id_annotation,
-        token: str = Depends(require_roles("admin", "manager")),
+        token: str = Depends(get_current_user),
     ) -> Any:
         """Wipe all nodes in a lab (factory reset).
 
@@ -150,4 +157,92 @@ class LabsController(ControllerBase):
         command = ControlLabCommand(
             worker_id=worker_id, lab_id=lab_id, action=LabAction.WIPE
         )
+        return self.process(await self.mediator.execute_async(command))
+
+    @get(
+        "/region/{aws_region}/workers/{worker_id}/labs/{lab_id}/download",
+        response_class=PlainTextResponse,
+        status_code=200,
+        responses=ControllerBase.error_responses,
+    )
+    async def download_lab(
+        self,
+        aws_region: aws_region_annotation,
+        worker_id: worker_id_annotation,
+        lab_id: lab_id_annotation,
+        token: str = Depends(get_current_user),
+    ) -> PlainTextResponse:
+        """Download lab topology as YAML.
+
+        Returns the lab topology in YAML format suitable for import/backup.
+
+        (**Requires valid token.**)
+        """
+        logger.info(f"Downloading lab {lab_id} from worker {worker_id}")
+        command = DownloadLabCommand(worker_id=worker_id, lab_id=lab_id)
+        result = await self.mediator.execute_async(command)
+
+        if not result.is_success:
+            return self.process(result)
+
+        return PlainTextResponse(content=result.data, media_type="text/yaml")
+
+    @post(
+        "/region/{aws_region}/workers/{worker_id}/labs/import",
+        response_model=Any,
+        status_code=200,
+        responses=ControllerBase.error_responses,
+    )
+    async def import_lab(
+        self,
+        aws_region: aws_region_annotation,
+        worker_id: worker_id_annotation,
+        file: UploadFile = File(..., description="Lab YAML file to import"),
+        token: str = Depends(get_current_user),
+    ) -> Any:
+        """Import a lab topology from uploaded YAML file.
+
+        Uploads a CML2 YAML topology file and creates a new lab on the worker.
+        The lab title will be taken from the YAML file unless overridden.
+
+        (**Requires valid token.**)
+        """
+        logger.info(f"Importing lab to worker {worker_id} from file {file.filename}")
+
+        # Read file content
+        try:
+            yaml_content = await file.read()
+            yaml_str = yaml_content.decode("utf-8")
+        except Exception as e:
+            logger.error(f"Failed to read uploaded file: {e}")
+            raise HTTPException(
+                status_code=400, detail=f"Failed to read file: {str(e)}"
+            )
+
+        # Execute import command
+        command = ImportLabCommand(worker_id=worker_id, yaml_content=yaml_str)
+        return self.process(await self.mediator.execute_async(command))
+
+    @post(
+        "/region/{aws_region}/workers/{worker_id}/labs/{lab_id}/delete",
+        response_model=Any,
+        status_code=200,
+        responses=ControllerBase.error_responses,
+    )
+    async def delete_lab(
+        self,
+        aws_region: aws_region_annotation,
+        worker_id: worker_id_annotation,
+        lab_id: lab_id_annotation,
+        token: str = Depends(get_current_user),
+    ) -> Any:
+        """Delete a lab from the worker.
+
+        Permanently deletes the specified lab and all its resources.
+        This action cannot be undone.
+
+        (**Requires valid token.**)
+        """
+        logger.info(f"Deleting lab {lab_id} from worker {worker_id}")
+        command = DeleteLabCommand(worker_id=worker_id, lab_id=lab_id)
         return self.process(await self.mediator.execute_async(command))
