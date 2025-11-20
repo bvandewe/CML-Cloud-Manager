@@ -82,6 +82,18 @@ class MongoLabRecordRepository(TracedRepositoryMixin, MotorRepository[LabRecord,
         """Remove a lab record by ID."""
         await self.collection.delete_one({"id": record_id})
 
+    async def remove_by_lab_id_async(self, worker_id: str, lab_id: str) -> None:
+        """Remove a lab record by worker ID and CML lab ID.
+
+        Args:
+            worker_id: Worker ID hosting the lab
+            lab_id: CML lab ID to remove
+        """
+        result = await self.collection.delete_one(
+            {"worker_id": worker_id, "lab_id": lab_id}
+        )
+        return result.deleted_count > 0
+
     async def remove_by_worker_async(self, worker_id: str) -> None:
         """Remove all lab records for a worker."""
         await self.collection.delete_many({"worker_id": worker_id})

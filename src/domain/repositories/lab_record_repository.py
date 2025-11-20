@@ -43,5 +43,17 @@ class LabRecordRepository(ABC):
         """Remove a lab record by ID."""
 
     @abstractmethod
+    async def remove_by_lab_id_async(self, worker_id: str, lab_id: str) -> bool:
+        """Remove a lab record by worker ID and CML lab ID.
+
+        Args:
+            worker_id: Worker ID hosting the lab
+            lab_id: CML lab ID to remove
+
+        Returns:
+            True if record was deleted, False if not found
+        """
+
+    @abstractmethod
     async def remove_by_worker_async(self, worker_id: str) -> None:
         """Remove all lab records for a worker."""
