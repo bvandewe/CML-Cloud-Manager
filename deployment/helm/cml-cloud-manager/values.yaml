@@ -3,6 +3,13 @@ image:
     tag: latest
     pullPolicy: IfNotPresent
 
+# Application replica count
+# ⚠️ WARNING: SSE (Server-Sent Events) currently uses in-memory client registry.
+# Setting replicaCount > 1 will cause SSE connections to break (events not delivered).
+# Options before horizontal scaling:
+#   1. Implement Redis Pub/Sub for distributed SSE (recommended)
+#   2. Use sticky sessions via load balancer session affinity (workaround)
+# See docs/development/IMPLEMENTATION_PATTERNS_CHEAT_SHEET.md for details.
 replicaCount: 1
 
 service:

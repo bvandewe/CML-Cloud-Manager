@@ -6,6 +6,31 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ## [Unreleased]
 
+### Changed
+
+- **Background Scheduler Simplification**: Removed unused `BackgroundTasksBus` reactive pattern (~150 lines)
+  - Removed `BackgroundTasksBus` class and reactive stream subscription (dead code)
+  - Simplified `BackgroundTaskScheduler` constructor (removed bus parameter)
+  - Removed `_on_job_request_async()` handler method (never received messages)
+  - Updated DI registration to remove bus dependency
+  - Removed unused imports (AsyncRx, Subject, asyncio in background_scheduler.py)
+  - Jobs now scheduled directly via APScheduler (clearer, simpler architecture)
+  - No functionality impacted - bus was never used in actual scheduling flow
+  - Rationale: Bus infrastructure designed for dynamic job submission but never utilized; all jobs scheduled statically at startup
+
+### Documentation
+
+- **SSE Horizontal Scaling Limitation**: Documented that SSE uses in-memory client registry
+  - Current deployment safe with `replicaCount: 1` (single instance)
+  - Multiple replicas will break SSE connections (events not delivered to all clients)
+  - Added deployment warning to Helm values.yaml with mitigation options
+  - Documented Redis Pub/Sub implementation pattern for future scaling
+  - Identified scaling triggers: >50 clients, >200 workers, or multi-region deployment
+  - Added comprehensive section to IMPLEMENTATION_PATTERNS_CHEAT_SHEET.md
+  - Explained why it breaks: Pod A/Pod B event delivery failure scenario
+  - Provided workarounds: sticky sessions via load balancer session affinity
+  - Noted architectural inconsistency: Sessions use Redis, SSE doesn't yet
+
 ### Added
 
 - **Lab Import Refresh Trigger**: Lab list now refreshes immediately after successful lab upload
