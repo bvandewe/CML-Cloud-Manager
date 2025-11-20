@@ -1,4 +1,4 @@
-.PHONY: help build-ui dev-ui run test lint lint-docs format clean install-dev-tools update-neuroglia-config restart-service
+.PHONY: help build-ui dev-ui run test lint docs-lint format clean install-dev-tools update-neuroglia-config restart-service
 
 # Default target
 .DEFAULT_GOAL := help
@@ -224,10 +224,6 @@ lint: ## Run linting checks
 	@echo "$(BLUE)Running linting checks...$(NC)"
 	poetry run ruff check .
 
-lint-docs: ## Lint markdown files in docs folder
-	@echo "$(BLUE)Linting markdown documentation...$(NC)"
-	poetry run pre-commit run markdownlint --files $(DOCS_FOLDER)/**/*.md
-
 format: ## Format code with black
 	@echo "$(BLUE)Formatting code...$(NC)"
 	poetry run black .
@@ -263,6 +259,10 @@ docs-install: ## Install MkDocs and dependencies
 docs-update-config: ## Update mkdocs.yml from .env variables
 	@echo "$(BLUE)Updating mkdocs.yml from environment variables...$(NC)"
 	@python3 scripts/update-mkdocs-config.py
+
+docs-lint: ## Lint markdown files in docs folder
+	@echo "$(BLUE)Linting markdown documentation...$(NC)"
+	poetry run pre-commit run markdownlint --files $(DOCS_FOLDER)/**/*.md
 
 docs-serve: docs-update-config ## Serve documentation locally with live reload
 	@echo "$(BLUE)Starting documentation server...$(NC)"
