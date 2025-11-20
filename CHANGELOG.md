@@ -6,8 +6,72 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ## [Unreleased]
 
+### Added
+
+- **Lab Import Refresh Trigger**: Lab list now refreshes immediately after successful lab upload
+  - Triggers RefreshWorkerLabsCommand after ImportLabCommand succeeds
+  - Respects 10-second debounce threshold (skips if background job imminent)
+  - Provides instant UI feedback when new labs are imported
+  - Prevents duplicate refresh work when background job about to run
+- **Lab Delete Refresh Trigger**: Lab list refreshes immediately after successful lab deletion
+  - Triggers RefreshWorkerLabsCommand after DeleteLabCommand succeeds
+  - Uses same debounce logic as import (10-second threshold)
+  - Ensures UI updates quickly after lab removal operations
+- **Lab Record Duplicate Prevention**: Added DuplicateKeyError handling for race conditions
+  - Catches MongoDB unique constraint violations during lab record creation
+  - Automatically fetches and updates existing record instead of failing
+  - Applied to both RefreshWorkerLabsCommand and LabsRefreshJob
+  - Prevents crashes when multiple processes try to create same lab record
+- **Direct MongoDB Deletion for Lab Records**: Added `remove_by_lab_id_async()` repository method
+  - Bypasses aggregate's remove_async() which wasn't deleting from database
+  - Uses direct MongoDB `delete_one()` with (worker_id, lab_id) filter
+  - Returns boolean indicating if record was actually deleted
+  - Ensures lab records are properly removed from database
+
 ### Fixed
 
+- **Lab Record Deletion Not Working**: Fixed lab records persisting in database after deletion
+  - DeleteLabCommand now uses direct MongoDB deletion via `remove_by_lab_id_async()`
+  - RefreshWorkerLabsCommand orphaned detection uses direct deletion
+  - LabsRefreshJob orphaned cleanup uses direct deletion
+  - Base repository's `remove_async()` was not actually deleting from MongoDB
+- **Lab Synchronization Issues**: Enhanced lab refresh logging for better debugging
+  - Added debug logs showing existing vs current lab counts
+  - Logs existing lab IDs in DB and current lab IDs in CML
+  - Helps diagnose sync issues between CML and database state
+
+### Added
+
+- **Worker Monitoring Tab Enhancements**: Added comprehensive monitoring data display in worker details modal
+  - Shows idle detection settings and status (enabled/disabled, last activity, next check, target pause)
+  - Displays pause/resume history statistics (auto/manual counts, timestamps)
+  - Shows metrics collection timing (poll interval, next refresh, last sync times)
+  - Provides last pause details (timestamp, paused by, reason)
+  - Tab visibility restricted to admin and manager roles only
+  - Real-time updates via SSE for activity, pause, and resume events
+  - Added worker activity, pause, and resume SSE event listeners
+- **Worker API Monitoring Fields**: Extended worker details API response with monitoring-related fields
+  - Activity tracking: last_activity_at, last_check_at, next_idle_check_at, target_pause_at
+  - Idle detection: is_idle_detection_enabled
+  - Pause/resume tracking: auto_pause_count, manual_pause_count, auto_resume_count, manual_resume_count
+  - Last pause/resume: last_paused_at, last_resumed_at, paused_by, pause_reason
+
+### Fixed
+
+- **Pause Worker Command**: Fixed missing required arguments for AWS client and domain methods
+  - Added missing `aws_region` parameter to `stop_instance()` call
+  - Fixed `pause()` method call to provide required `reason` parameter
+  - Correctly maps auto-pause vs manual pause to appropriate reason values
+  - Removed incorrect `await` from synchronous `stop_instance()` call
+- **Repository Method Names**: Fixed incorrect usage of `get_async()` method
+  - Replaced with correct `get_by_id_async()` method in all handlers
+  - Updated get_worker_idle_status_query, pause_worker_command, get_worker_activity_query
+- **Cancellation Token Removal**: Removed unused cancellation_token from all handlers
+  - Not implemented in Neuroglia framework, was causing confusion
+  - Cleaned up signatures and calls in all command/query handlers
+- **Timezone-Aware Datetimes**: Replaced deprecated `datetime.utcnow()` with `datetime.now(timezone.utc)`
+  - Updated all datetime creation to be timezone-aware
+  - Consistent UTC datetime handling across the codebase
 - **Update Worker Activity Command**: Fixed missing required arguments for update_activity method
   - Added optional fields: last_check_at, next_check_at, target_pause_at
   - Defaults last_check_at to current UTC time if not provided
