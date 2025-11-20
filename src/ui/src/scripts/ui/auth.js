@@ -45,6 +45,14 @@ export function showLoginForm() {
     document.getElementById('logout-btn').style.display = 'none';
     document.getElementById('user-info').textContent = '';
 
+    // Hide all other sections
+    const workersSection = document.getElementById('workers-section');
+    const systemView = document.getElementById('system-view');
+    const mainNav = document.getElementById('main-nav');
+    if (workersSection) workersSection.style.display = 'none';
+    if (systemView) systemView.style.display = 'none';
+    if (mainNav) mainNav.style.display = 'none';
+
     // Clear user roles from localStorage on logout
     localStorage.removeItem('user_roles');
 }
