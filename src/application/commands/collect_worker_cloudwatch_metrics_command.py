@@ -10,9 +10,7 @@ from datetime import datetime, timedelta, timezone
 
 from neuroglia.core import OperationResult
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_bus import CloudEventBus
-from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import (
-    CloudEventPublishingOptions,
-)
+from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import CloudEventPublishingOptions
 from neuroglia.mapping import Mapper
 from neuroglia.mediation import Command, CommandHandler, Mediator
 from neuroglia.observability.tracing import add_span_attributes
@@ -21,10 +19,7 @@ from opentelemetry import trace
 from application.settings import app_settings
 from domain.enums import CMLWorkerStatus
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
-from integration.enums import (
-    AwsRegion,
-    Ec2InstanceResourcesUtilizationRelativeStartTime,
-)
+from integration.enums import AwsRegion, Ec2InstanceResourcesUtilizationRelativeStartTime
 from integration.services.aws_ec2_api_client import AwsEc2Client
 
 from .command_handler_base import CommandHandlerBase
@@ -131,7 +126,7 @@ class CollectWorkerCloudWatchMetricsCommandHandler(
                 memory_util = None
 
                 try:
-                    metrics = self.aws_ec2_client.get_instance_resources_utilization(
+                    metrics = await self.aws_ec2_client.get_instance_resources_utilization(
                         aws_region=aws_region,
                         instance_id=worker.state.aws_instance_id,
                         relative_start_time=Ec2InstanceResourcesUtilizationRelativeStartTime.FIVE_MIN_AGO,

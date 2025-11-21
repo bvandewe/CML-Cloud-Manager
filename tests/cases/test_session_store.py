@@ -14,7 +14,7 @@ def test_in_memory_store():
     """Test InMemorySessionStore."""
     print("🧪 Testing InMemorySessionStore...")
 
-    store = InMemorySessionStore(session_timeout_hours=1)
+    store = InMemorySessionStore(session_timeout_minutes=60)
 
     # Create session
     tokens = {

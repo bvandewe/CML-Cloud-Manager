@@ -27,19 +27,12 @@ from application.commands import (
     UpdateCMLWorkerStatusCommand,
     UpdateCMLWorkerTagsCommand,
 )
-from application.commands.request_worker_data_refresh_command import (
-    RequestWorkerDataRefreshCommand,
-)
-from application.queries import (
-    GetCMLWorkerByIdQuery,
-    GetCMLWorkerResourcesQuery,
-    GetCMLWorkersQuery,
-)
+from application.commands.deregister_cml_worker_license_command import DeregisterCMLWorkerLicenseCommand
+from application.commands.register_cml_worker_license_command import RegisterCMLWorkerLicenseCommand
+from application.commands.request_worker_data_refresh_command import RequestWorkerDataRefreshCommand
+from application.queries import GetCMLWorkerByIdQuery, GetCMLWorkerResourcesQuery, GetCMLWorkersQuery
 from domain.enums import CMLWorkerStatus
-from integration.enums import (
-    AwsRegion,
-    Ec2InstanceResourcesUtilizationRelativeStartTime,
-)
+from integration.enums import AwsRegion, Ec2InstanceResourcesUtilizationRelativeStartTime
 from integration.services.aws_ec2_api_client import Ec2InstanceResourcesUtilization
 
 logger = logging.getLogger(__name__)
@@ -407,7 +400,7 @@ class WorkersController(ControllerBase):
     @post(
         "/region/{aws_region}/workers/{worker_id}/license",
         response_model=Any,
-        status_code=200,
+        status_code=202,
         responses=ControllerBase.error_responses,
     )
     async def register_license(
@@ -419,10 +412,52 @@ class WorkersController(ControllerBase):
     ) -> Any:
         """Registers a license for a CML Worker instance.
 
+        This is an asynchronous operation that returns immediately with 202 Accepted.
+        The actual registration process (which can take 5-90 seconds) happens in
+        a background job. Monitor SSE events for completion status:
+
+        - worker.license.registration.started: Registration initiated
+        - worker.license.registration.completed: Registration successful
+        - worker.license.registration.failed: Registration failed
+
         (**Requires `admin` role!**)"""
         logger.info(f"Registering license for CML worker {worker_id} in region {aws_region}")
-        # TODO: Implement RegisterCMLWorkerLicenseCommand when ready
-        raise HTTPException(status_code=501, detail="License registration endpoint not yet implemented")
+
+        command = RegisterCMLWorkerLicenseCommand(
+            worker_id=worker_id,
+            license_token=request.license_token,
+            reregister=request.reregister,
+            initiated_by=token.get("sub") if isinstance(token, dict) else None,
+        )
+
+        return self.process(await self.mediator.execute_async(command))
+
+    @delete(
+        "/region/{aws_region}/workers/{worker_id}/license",
+        response_model=Any,
+        status_code=200,
+        responses=ControllerBase.error_responses,
+    )
+    async def deregister_license(
+        self,
+        aws_region: aws_region_annotation,
+        worker_id: worker_id_annotation,
+        token: str = Depends(require_roles("admin")),
+    ) -> Any:
+        """Deregisters the license from a CML Worker instance.
+
+        This removes the worker from Cisco Smart Licensing. The operation
+        can take 10-60 seconds and is handled synchronously.
+
+        (**Requires `admin` role!**)"""
+        logger.info(f"Deregistering license for CML worker {worker_id} in region {aws_region}")
+
+        command = DeregisterCMLWorkerLicenseCommand(
+            worker_id=worker_id,
+            initiated_by=token.get("sub") if isinstance(token, dict) else None,
+        )
+
+        return self.process(await self.mediator.execute_async(command))
 
     @get(
         "/{aws_region}/{worker_id}/activity",
@@ -474,9 +509,7 @@ class WorkersController(ControllerBase):
         (**Requires authentication!**)"""
         logger.info(f"Checking idle status for worker {worker_id} in region {aws_region}")
 
-        from application.queries.get_worker_idle_status_query import (
-            GetWorkerIdleStatusQuery,
-        )
+        from application.queries.get_worker_idle_status_query import GetWorkerIdleStatusQuery
 
         result = await self.mediator.execute_async(GetWorkerIdleStatusQuery(worker_id=worker_id))
 

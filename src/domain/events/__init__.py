@@ -1,21 +1,19 @@
-from .cloudwatch_monitoring_updated_domain_event import (
-    CloudWatchMonitoringUpdatedDomainEvent,
-)
+from .cloudwatch_monitoring_updated_domain_event import CloudWatchMonitoringUpdatedDomainEvent
 from .cml_worker import (
     CMLServiceStatusUpdatedDomainEvent,
     CMLWorkerCreatedDomainEvent,
     CMLWorkerEndpointUpdatedDomainEvent,
     CMLWorkerInstanceAssignedDomainEvent,
+    CMLWorkerLicenseDeregisteredDomainEvent,
+    CMLWorkerLicenseRegistrationCompletedDomainEvent,
+    CMLWorkerLicenseRegistrationFailedDomainEvent,
+    CMLWorkerLicenseRegistrationStartedDomainEvent,
     CMLWorkerLicenseUpdatedDomainEvent,
     CMLWorkerStatusUpdatedDomainEvent,
     CMLWorkerTelemetryUpdatedDomainEvent,
     CMLWorkerTerminatedDomainEvent,
 )
-from .lab_record_events import (
-    LabRecordCreatedDomainEvent,
-    LabRecordUpdatedDomainEvent,
-    LabStateChangedDomainEvent,
-)
+from .lab_record_events import LabRecordCreatedDomainEvent, LabRecordUpdatedDomainEvent, LabStateChangedDomainEvent
 from .task import (
     TaskAssigneeUpdatedDomainEvent,
     TaskCreatedDomainEvent,
@@ -42,6 +40,10 @@ __all__ = [
     "CMLWorkerCreatedDomainEvent",
     "CMLWorkerEndpointUpdatedDomainEvent",
     "CMLWorkerInstanceAssignedDomainEvent",
+    "CMLWorkerLicenseDeregisteredDomainEvent",
+    "CMLWorkerLicenseRegistrationCompletedDomainEvent",
+    "CMLWorkerLicenseRegistrationFailedDomainEvent",
+    "CMLWorkerLicenseRegistrationStartedDomainEvent",
     "CMLWorkerLicenseUpdatedDomainEvent",
     "CMLWorkerStatusUpdatedDomainEvent",
     "CMLWorkerTelemetryUpdatedDomainEvent",

@@ -362,19 +362,29 @@ async function loadCMLTab() {
         const readyText = worker.cml_ready ? 'Ready' : 'Not Ready';
         const readyIcon = worker.cml_ready ? 'check-circle' : 'exclamation-triangle';
 
-        // License and Edition info - prefer license_info over health data
+        // License and Edition info - prioritize license_status, then license_info, then health data
         let isLicensed = false;
         let isEnterprise = false;
 
-        if (licenseInfo && licenseInfo.product_license) {
-            // Use detailed license info if available
+        // First priority: explicit license_status field (set by backend during registration/deregistration)
+        if (worker.license_status) {
+            isLicensed = worker.license_status === 'registered';
+        } else if (licenseInfo && licenseInfo.product_license) {
+            // Second priority: detailed license info if available
             isEnterprise = licenseInfo.product_license.is_enterprise ?? false;
             // Check registration status for licensed state
             isLicensed = licenseInfo.registration?.status === 'COMPLETED' || licenseInfo.authorization?.status === 'IN_COMPLIANCE';
         } else if (health.is_licensed !== undefined) {
-            // Fall back to health data
+            // Third priority: fall back to health data
             isLicensed = health.is_licensed ?? false;
             isEnterprise = health.is_enterprise ?? false;
+        }
+
+        // Check edition from license_info if available
+        if (licenseInfo && licenseInfo.product_license && licenseInfo.product_license.is_enterprise !== undefined) {
+            isEnterprise = licenseInfo.product_license.is_enterprise;
+        } else if (health.is_enterprise !== undefined) {
+            isEnterprise = health.is_enterprise;
         }
 
         const licensedBadge = isLicensed ? 'success' : 'danger';
@@ -686,9 +696,8 @@ async function loadCMLTab() {
                 <!-- License & Edition -->
                 <div class="col-md-4">
                     <div class="card h-100">
-                        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                        <div class="card-header bg-light">
                             <h6 class="mb-0"><i class="bi bi-key me-2"></i>License & Edition</h6>
-                            ${licenseInfo ? '<button class="btn btn-sm btn-outline-primary" onclick="workersUi.showLicenseDetailsModal()"><i class="bi bi-info-circle me-1"></i>Details</button>' : ''}
                         </div>
                         <div class="card-body">
                             <table class="table table-sm table-borderless mb-0">
@@ -701,7 +710,26 @@ async function loadCMLTab() {
                                     <td><span class="badge bg-${editionBadge}">${editionText}</span></td>
                                 </tr>
                             </table>
-                            ${!health.is_licensed && !licenseInfo ? '<div class="alert alert-info alert-sm mt-2 mb-0 py-1 px-2"><small><i class="bi bi-info-circle"></i> Click Refresh to fetch latest license data</small></div>' : ''}
+                            ${
+                                worker.license_operation_in_progress
+                                    ? '<div class="alert alert-warning alert-sm mt-2 mb-0 py-1 px-2"><small><span class="spinner-border spinner-border-sm me-1"></span><strong>License registration in progress...</strong> This may take up to 90 seconds.</small></div>'
+                                    : ''
+                            }
+                            ${
+                                !worker.license_operation_in_progress && !health.is_licensed && !licenseInfo
+                                    ? '<div class="alert alert-info alert-sm mt-2 mb-0 py-1 px-2"><small><i class="bi bi-info-circle"></i> Click Refresh to fetch latest license data</small></div>'
+                                    : ''
+                            }
+                            <div class="d-flex gap-2 mt-3">
+                                ${licenseInfo ? '<button class="btn btn-sm btn-outline-primary flex-fill" onclick="workersUi.showLicenseDetailsModal()"><i class="bi bi-info-circle me-1"></i>View Details</button>' : ''}
+                                ${
+                                    isAdmin() && worker.status === 'running' && !worker.license_operation_in_progress
+                                        ? `<button class="btn btn-sm btn-outline-info flex-fill admin-only" onclick="workersUi.showLicenseModal('${worker.id}', '${worker.aws_region}', '${escapeHtml(
+                                              worker.name
+                                          )}', ${isLicensed})"><i class="bi bi-key me-1"></i>Manage License</button>`
+                                        : ''
+                                }
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1024,23 +1052,49 @@ window.workersUi = window.workersApp;
 
 // Store subscription handler: derive workersData, render views, update modal.
 function handleStoreUpdate(storeState) {
+    console.log('[workers] handleStoreUpdate called');
     workersData = getAllWorkers();
+    console.log(
+        '[workers] workersData after getAllWorkers:',
+        workersData.map(w => ({
+            id: w.id,
+            name: w.name,
+            license_status: w.license_status,
+            cml_license_info: w.cml_license_info,
+        }))
+    );
+
     // expose for external modules
     window.workersInternal = window.workersInternal || {};
     window.workersInternal.getWorkersData = () => workersData;
     // Always update global statistics & timing, regardless of role
     updateStatistics();
     if (hasAdminAccess(currentUser)) {
+        console.log('[workers] Calling renderWorkersTable');
         renderWorkersTable();
     } else {
+        console.log('[workers] Calling renderWorkersCards');
         renderWorkersCards();
     }
-    // If modal open for active worker, refresh metrics panel & timing displays
+    // If modal open for active worker, refresh all modal sections
     if (currentWorkerDetails && currentWorkerDetails.id === storeState.activeWorkerId) {
         const w = getWorker(storeState.activeWorkerId);
         if (w) {
-            const metricsSection = document.getElementById('cloudwatch-metrics-section');
-            if (metricsSection) metricsSection.innerHTML = renderMetrics(w);
+            // Update AWS overview section (basic info, AMI, network, tags, lifecycle, metrics)
+            const overviewSection = document.getElementById('worker-details-overview');
+            if (overviewSection) {
+                overviewSection.innerHTML = renderWorkerOverview(w);
+                // Re-setup tag management after re-render
+                setupTagManagement(w, w.aws_region);
+            }
+
+            // Update CML section if it's visible (license, system health, resource utilization)
+            const cmlSection = document.getElementById('worker-details-cml');
+            if (cmlSection && cmlSection.offsetParent !== null) {
+                // Tab is visible, reload it
+                window.workersInternal?.loadCMLTab && window.workersInternal.loadCMLTab();
+            }
+
             updateLastRefreshedDisplay();
             // Restart countdown if timing changed
             startMetricsCountdown();

@@ -56,17 +56,8 @@ export function renderWorkerOverview(worker) {
                     : ''
             }
           </td></tr>
-          <tr><td class="text-muted">Service Status:</td><td><span class="badge ${getServiceStatusBadgeClass(worker.service_status)}">${worker.service_status}</span></td></tr>
+                    <tr><td class="text-muted">Service Status:</td><td><span class="badge ${getServiceStatusBadgeClass(worker.service_status)}">${worker.service_status}</span></td></tr>
         </table>
-        ${
-            isAdmin()
-                ? `<div class="mt-2 d-flex flex-wrap gap-2" aria-label="Administrative actions">
-          ${worker.status === 'stopped' ? `<button class="btn btn-sm btn-outline-success admin-only" id="admin-action-start" aria-label="Start worker"><i class="bi bi-play-fill"></i> Start</button>` : ''}
-          ${worker.status === 'running' ? `<button class="btn btn-sm btn-outline-warning admin-only" id="admin-action-stop" aria-label="Stop worker"><i class="bi bi-stop-fill"></i> Stop</button>` : ''}
-          <button class="btn btn-sm btn-outline-secondary admin-only" id="admin-action-refresh" aria-label="Refresh worker"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
-        </div>`
-                : ''
-        }
       </div>
       <div class="col-md-6">
         <h5 class="border-bottom pb-2 mb-3">AMI Information</h5>
@@ -134,14 +125,19 @@ export function renderWorkerOverview(worker) {
         <table class="table table-sm table-borderless" aria-label="Lifecycle timestamps">
           <tr><td class="text-muted" width="40%"><i class="bi bi-plus-circle"></i> Created:</td><td>${formatDateWithRelative(worker.created_at)}</td></tr>
           <tr><td class="text-muted"><i class="bi bi-arrow-repeat"></i> Updated:</td><td>${formatDateWithRelative(worker.updated_at)}</td></tr>
+          <tr><td class="text-muted"><i class="bi bi-clock-history"></i> Last Refreshed:</td><td>${worker.last_refreshed_at ? formatDateWithRelative(worker.last_refreshed_at) : '<span class="text-muted">N/A</span>'}</td></tr>
+          <tr><td class="text-muted"><i class="bi bi-hourglass-split"></i> Next Refresh:</td><td>${worker.next_refresh_at ? formatDateWithRelative(worker.next_refresh_at) : '<span class="text-muted">N/A</span>'}</td></tr>
           <tr><td class="text-muted"><i class="bi bi-x-circle"></i> Terminated:</td><td>${worker.terminated_at ? formatDateWithRelative(worker.terminated_at) : '<span class="text-muted">N/A</span>'}</td></tr>
         </table>
       </div>
-    </div>
-    <div class="row mt-3" role="group" aria-label="Resource Utilization">
-      <div class="col-md-12">
-        <h5 class="border-bottom pb-2 mb-3">Resource Utilization</h5>
-        <div id="cloudwatch-metrics-section" aria-live="polite"></div>
+      <div class="col-md-6">
+        <h5 class="border-bottom pb-2 mb-3">Activity & Usage</h5>
+        <table class="table table-sm table-borderless" aria-label="Activity and usage statistics">
+          <tr><td class="text-muted" width="40%">Pause Count:</td><td>${worker.pause_count || 0}</td></tr>
+          <tr><td class="text-muted">Resume Count:</td><td>${worker.resume_count || 0}</td></tr>
+          <tr><td class="text-muted">Idle Detection:</td><td>${worker.idle_detection_enabled ? '<span class="badge bg-success">Enabled</span>' : '<span class="badge bg-secondary">Disabled</span>'}</td></tr>
+          <tr><td class="text-muted">Last Activity:</td><td>${worker.last_activity_at ? formatDateWithRelative(worker.last_activity_at) : '<span class="text-muted">N/A</span>'}</td></tr>
+        </table>
       </div>
     </div>
   `;

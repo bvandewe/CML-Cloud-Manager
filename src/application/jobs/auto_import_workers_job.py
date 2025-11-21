@@ -9,13 +9,9 @@ import logging
 from neuroglia.mediation import Mediator
 from opentelemetry import trace
 
-from application.commands.bulk_import_cml_workers_command import (
-    BulkImportCMLWorkersCommand,
-)
-from application.services.background_scheduler import (
-    RecurrentBackgroundJob,
-    backgroundjob,
-)
+from application.commands.bulk_import_cml_workers_command import BulkImportCMLWorkersCommand
+from application.commands.request_worker_data_refresh_command import RequestWorkerDataRefreshCommand
+from application.services.background_scheduler import RecurrentBackgroundJob, backgroundjob
 from application.settings import app_settings
 
 logger = logging.getLogger(__name__)
@@ -175,6 +171,29 @@ class AutoImportWorkersJob(RecurrentBackgroundJob):
                 span.set_attribute("job.workers_imported", total_imported)
                 span.set_attribute("job.workers_skipped", total_skipped)
                 span.set_attribute("job.imported_ids.count", len(imported_ids))
+
+                # Trigger data refresh for newly imported workers
+                if imported_list:
+                    logger.info(f"🔄 Triggering data refresh for {len(imported_list)} newly imported workers")
+                    for worker_dto in imported_list:
+                        try:
+                            # Extract ID and region from DTO
+                            # Note: DTO field names might vary, checking both common patterns
+                            worker_id = getattr(worker_dto, "aws_instance_id", None) or getattr(
+                                worker_dto, "instance_id", None
+                            )
+                            region = getattr(worker_dto, "aws_region", None) or app_settings.auto_import_workers_region
+
+                            # Convert enum to string if needed
+                            if hasattr(region, "value"):
+                                region = region.value
+
+                            if worker_id:
+                                logger.info(f"Requesting data refresh for new worker {worker_id} in {region}")
+                                refresh_cmd = RequestWorkerDataRefreshCommand(worker_id=worker_id, region=str(region))
+                                await self.mediator.execute_async(refresh_cmd)
+                        except Exception as refresh_ex:
+                            logger.error(f"Failed to trigger refresh for imported worker: {refresh_ex}")
 
                 return {
                     "status": "success",

@@ -1,14 +1,12 @@
 """Background job for detecting idle workers and triggering auto-pause."""
 
+import asyncio
 import logging
 
 from neuroglia.mediation import Mediator
 
 from application.commands.detect_worker_idle_command import DetectWorkerIdleCommand
-from application.services.background_scheduler import (
-    RecurrentBackgroundJob,
-    backgroundjob,
-)
+from application.services.background_scheduler import RecurrentBackgroundJob, backgroundjob
 from application.settings import app_settings
 from domain.enums import CMLWorkerStatus
 from domain.repositories import CMLWorkerRepository
@@ -77,63 +75,73 @@ class ActivityDetectionJob(RecurrentBackgroundJob):
             repository = scope.get_required_service(CMLWorkerRepository)
             mediator = scope.get_required_service(Mediator)
 
-            # Find all running workers
-            all_workers = await repository.get_all_async()
-            running_workers = [w for w in all_workers if w.state.status == CMLWorkerStatus.RUNNING]
+            # Find all active workers (optimization: don't fetch terminated ones)
+            active_workers = await repository.get_active_workers_async()
+            running_workers = [w for w in active_workers if w.state.status == CMLWorkerStatus.RUNNING]
 
-            log.info(f"Found {len(running_workers)} running workers " f"(total: {len(all_workers)})")
+            log.info(f"Found {len(running_workers)} running workers (total active: {len(active_workers)})")
 
             if not running_workers:
                 log.debug("No running workers to check")
                 return
 
-            # Check each worker for idle activity
-            results = []
-            for worker in running_workers:
+            # Process workers concurrently with semaphore (limit to 5 concurrent operations)
+            semaphore = asyncio.Semaphore(5)
+
+            async def process_worker(worker):
+                """Process single worker for idle detection."""
                 # Skip if idle detection disabled for this worker
                 if not worker.state.is_idle_detection_enabled:
                     log.debug(f"Skipping worker {worker.id()}: idle detection disabled")
-                    continue
+                    return None
 
-                log.info(f"Checking idle status for worker {worker.id()}")
+                async with semaphore:
+                    log.info(f"Checking idle status for worker {worker.id()}")
+                    try:
+                        # Execute idle detection command
+                        result = await mediator.execute_async(DetectWorkerIdleCommand(worker_id=worker.id()))
 
-                try:
-                    # Execute idle detection command
-                    result = await mediator.execute_async(DetectWorkerIdleCommand(worker_id=worker.id()))
+                        if result.is_success:
+                            detection_data = result.data
 
-                    if result.is_success:
-                        detection_data = result.data
-                        results.append(detection_data)
-
-                        if detection_data.get("auto_pause_triggered"):
-                            log.info(
-                                f"Worker {worker.id()} auto-paused "
-                                f"(idle for {detection_data.get('idle_minutes'):.1f} minutes)"
-                            )
+                            if detection_data.get("auto_pause_triggered"):
+                                log.info(
+                                    f"Worker {worker.id()} auto-paused "
+                                    f"(idle for {detection_data.get('idle_minutes'):.1f} minutes)"
+                                )
+                            else:
+                                log.debug(
+                                    f"Worker {worker.id()} idle check complete: "
+                                    f"is_idle={detection_data.get('is_idle')}, "
+                                    f"eligible={detection_data.get('eligible_for_pause')}"
+                                )
+                            return detection_data
                         else:
-                            log.debug(
-                                f"Worker {worker.id()} idle check complete: "
-                                f"is_idle={detection_data.get('is_idle')}, "
-                                f"eligible={detection_data.get('eligible_for_pause')}"
-                            )
-                    else:
-                        log.warning(f"Idle detection failed for worker {worker.id()}: " f"{result.error_message}")
+                            log.warning(f"Idle detection failed for worker {worker.id()}: {result.error_message}")
+                            return None
 
-                except Exception as e:
-                    log.error(
-                        f"Error checking worker {worker.id()} for idle activity: {e}",
-                        exc_info=True,
-                    )
+                    except Exception as e:
+                        log.error(
+                            f"Error checking worker {worker.id()} for idle activity: {e}",
+                            exc_info=True,
+                        )
+                        return e
+
+            # Execute all tasks concurrently
+            results = await asyncio.gather(*[process_worker(w) for w in running_workers], return_exceptions=True)
 
             # Summary logging
-            auto_paused_count = sum(1 for r in results if r.get("auto_pause_triggered"))
-            idle_count = sum(1 for r in results if r.get("is_idle"))
+            valid_results = [r for r in results if r and not isinstance(r, Exception)]
+            auto_paused_count = sum(1 for r in valid_results if r.get("auto_pause_triggered"))
+            idle_count = sum(1 for r in valid_results if r.get("is_idle"))
+            error_count = sum(1 for r in results if isinstance(r, Exception))
 
             log.info(
                 f"Activity detection job complete: "
-                f"checked={len(results)}, "
+                f"checked={len(valid_results)}, "
                 f"idle={idle_count}, "
-                f"auto_paused={auto_paused_count}"
+                f"auto_paused={auto_paused_count}, "
+                f"errors={error_count}"
             )
 
         except Exception as e:

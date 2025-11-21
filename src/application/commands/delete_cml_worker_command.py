@@ -5,9 +5,7 @@ from dataclasses import dataclass
 
 from neuroglia.core import OperationResult
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_bus import CloudEventBus
-from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import (
-    CloudEventPublishingOptions,
-)
+from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import CloudEventPublishingOptions
 from neuroglia.mapping import Mapper
 from neuroglia.mediation import Command, CommandHandler, Mediator
 from neuroglia.observability.tracing import add_span_attributes
@@ -119,7 +117,7 @@ class DeleteCMLWorkerCommandHandler(
                     try:
                         aws_region = AwsRegion(worker.state.aws_region)
 
-                        success = self.aws_ec2_client.terminate_instance(
+                        success = await self.aws_ec2_client.terminate_instance(
                             aws_region=aws_region,
                             instance_id=worker.state.aws_instance_id,
                         )

@@ -11,9 +11,7 @@ from datetime import datetime, timezone
 
 from neuroglia.core import OperationResult
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_bus import CloudEventBus
-from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import (
-    CloudEventPublishingOptions,
-)
+from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import CloudEventPublishingOptions
 from neuroglia.mapping import Mapper
 from neuroglia.mediation import Command, CommandHandler, Mediator
 from neuroglia.observability.tracing import add_span_attributes
@@ -21,12 +19,11 @@ from opentelemetry import trace
 
 from application.services.background_scheduler import BackgroundTaskScheduler
 from application.settings import app_settings
+from domain.repositories.cml_worker_repository import CMLWorkerRepository
 from infrastructure.services.worker_refresh_throttle import WorkerRefreshThrottle
 from observability.metrics import meter
 
-from .collect_worker_cloudwatch_metrics_command import (
-    CollectWorkerCloudWatchMetricsCommand,
-)
+from .collect_worker_cloudwatch_metrics_command import CollectWorkerCloudWatchMetricsCommand
 from .command_handler_base import CommandHandlerBase
 from .sync_worker_cml_data_command import SyncWorkerCMLDataCommand
 from .sync_worker_ec2_status_command import SyncWorkerEC2StatusCommand
@@ -91,6 +88,7 @@ class RefreshWorkerMetricsCommandHandler(
         mapper: Mapper,
         cloud_event_bus: CloudEventBus,
         cloud_event_publishing_options: CloudEventPublishingOptions,
+        cml_worker_repository: CMLWorkerRepository,
         refresh_throttle: WorkerRefreshThrottle,
         background_task_scheduler: BackgroundTaskScheduler,
     ):
@@ -100,6 +98,7 @@ class RefreshWorkerMetricsCommandHandler(
             cloud_event_bus,
             cloud_event_publishing_options,
         )
+        self._worker_repository = cml_worker_repository
         self._refresh_throttle = refresh_throttle
         self._background_task_scheduler = background_task_scheduler
 
@@ -296,6 +295,15 @@ class RefreshWorkerMetricsCommandHandler(
                 f"Completed worker refresh orchestration for worker {command.worker_id}: "
                 f"overall_success={aggregated_result['overall_success']}"
             )
+
+            # Emit completion event (event handler will broadcast SSE)
+            worker = await self._worker_repository.get_by_id_async(command.worker_id)
+            if worker:
+                worker.complete_data_refresh(
+                    completed_at=datetime.now(timezone.utc).isoformat(),
+                    refresh_type=command.refresh_type if hasattr(command, "refresh_type") else "scheduled",
+                )
+                await self._worker_repository.update_async(worker)
 
             return self.ok(aggregated_result)
 

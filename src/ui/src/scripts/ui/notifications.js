@@ -115,3 +115,71 @@ export function showLoadingToast(message) {
         },
     };
 }
+
+/**
+ * Show a toast notification with an action button
+ * @param {string} message - Message to display
+ * @param {string} type - Type of toast: success, error, warning, info
+ * @param {string} buttonText - Text for the action button
+ * @param {Function} onAction - Callback when button is clicked
+ * @param {number} duration - Duration in ms (0 for no auto-hide)
+ */
+export function showToastWithAction(message, type = 'info', buttonText, onAction, duration = 0) {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.className = 'toast-container position-fixed top-0 end-0 p-3';
+        container.style.zIndex = '9999';
+        document.body.appendChild(container);
+    }
+
+    const config = {
+        success: { icon: 'bi-check-circle-fill', bg: 'bg-success' },
+        error: { icon: 'bi-x-circle-fill', bg: 'bg-danger' },
+        warning: { icon: 'bi-exclamation-triangle-fill', bg: 'bg-warning' },
+        info: { icon: 'bi-info-circle-fill', bg: 'bg-info' },
+    };
+
+    const { icon, bg } = config[type] || config.info;
+
+    const toastId = `toast-${Date.now()}`;
+    const toastHtml = `
+        <div id="${toastId}" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header ${bg} text-white">
+                <i class="bi ${icon} me-2"></i>
+                <strong class="me-auto">${capitalizeType(type)}</strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body">
+                <div class="mb-2">${message}</div>
+                <button type="button" class="btn btn-sm btn-primary" id="${toastId}-action">
+                    ${buttonText}
+                </button>
+            </div>
+        </div>
+    `;
+
+    container.insertAdjacentHTML('beforeend', toastHtml);
+
+    const toastElement = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastElement, {
+        autohide: duration > 0,
+        delay: duration,
+    });
+
+    toast.show();
+
+    // Attach action button handler
+    const actionButton = document.getElementById(`${toastId}-action`);
+    if (actionButton) {
+        actionButton.addEventListener('click', () => {
+            onAction();
+            toast.hide();
+        });
+    }
+
+    toastElement.addEventListener('hidden.bs.toast', () => {
+        toastElement.remove();
+    });
+}

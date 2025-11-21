@@ -364,3 +364,4 @@ class RefreshWorkerLabsCommandHandler(
         log.info(f"Worker {worker_id}: synced={synced}, created={created}, updated={updated}")
 
         return (synced, created, updated)
+        return (synced, created, updated)

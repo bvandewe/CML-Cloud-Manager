@@ -1,19 +1,35 @@
 /**
  * workerStore.js
  * Central in-memory store for worker data, timing metadata, and request deduplication.
+ *
+ * MIGRATION NOTE: Now publishes to EventBus in addition to legacy listeners.
+ * Legacy subscribe() maintained for backward compatibility during migration.
  */
 
 import * as workersApi from '../api/workers.js';
+import { eventBus, EventTypes } from '../core/EventBus.js';
 
 const state = {
     workers: new Map(), // id -> worker object
     timing: new Map(), // id -> { pollInterval, nextRefreshAt, lastRefreshedAt }
     activeWorkerId: null,
-    listeners: new Set(),
+    listeners: new Set(), // Legacy listeners (will be removed)
     inflight: new Map(), // key: region:id -> promise
 };
 
 function emit() {
+    console.log('[workerStore] emit() called - notifying', state.listeners.size, 'legacy listeners');
+    console.log('[workerStore] Current state:', {
+        workerCount: state.workers.size,
+        workers: Array.from(state.workers.values()).map(w => ({
+            id: w.id,
+            name: w.name,
+            license_status: w.license_status,
+            cml_license_info: w.cml_license_info,
+        })),
+    });
+
+    // Legacy listener support (backward compatibility)
     state.listeners.forEach(fn => {
         try {
             fn(state);
@@ -23,6 +39,7 @@ function emit() {
     });
 }
 
+// Legacy subscription API (backward compatibility)
 export function subscribe(fn) {
     state.listeners.add(fn);
     return () => state.listeners.delete(fn);
@@ -48,14 +65,42 @@ export function getAllWorkers() {
 export function upsertWorkerSnapshot(snapshot) {
     if (!snapshot || !snapshot.id) return;
     const existing = state.workers.get(snapshot.id) || {};
-    // Only overwrite with defined values to avoid erasing detailed data with undefined
+    const isNew = !existing.id;
+
+    console.log('[workerStore] upsertWorkerSnapshot called:', {
+        id: snapshot.id,
+        isNew,
+        license_status: snapshot.license_status,
+        cml_license_info: snapshot.cml_license_info,
+        existing_license_status: existing.license_status,
+        existing_cml_license_info: existing.cml_license_info,
+    });
+
+    // Merge snapshot into existing, allowing null to overwrite (clears stale data)
+    // Only skip undefined values to preserve existing data when snapshot is partial
     const merged = { ...existing };
     Object.entries(snapshot).forEach(([k, v]) => {
-        if (v !== undefined && v !== null) {
-            merged[k] = v;
+        if (v !== undefined) {
+            merged[k] = v; // Allow null to overwrite
         }
     });
+
+    console.log('[workerStore] After merge:', {
+        id: merged.id,
+        license_status: merged.license_status,
+        cml_license_info: merged.cml_license_info,
+    });
+
     state.workers.set(snapshot.id, merged);
+
+    // Publish to EventBus
+    if (isNew) {
+        eventBus.emit(EventTypes.WORKER_CREATED, merged);
+    } else {
+        eventBus.emit(EventTypes.WORKER_SNAPSHOT, merged);
+    }
+
+    // Legacy emit (backward compatibility)
     emit();
 }
 
@@ -63,15 +108,32 @@ export function upsertWorkerSnapshot(snapshot) {
 export function updateWorkerMetrics(id, metrics) {
     if (!id) return;
     const existing = state.workers.get(id) || { id };
-    state.workers.set(id, { ...existing, ...metrics });
+    const updated = { ...existing, ...metrics };
+    state.workers.set(id, updated);
+
+    // Publish to EventBus
+    eventBus.emit(EventTypes.WORKER_METRICS_UPDATED, {
+        worker_id: id,
+        ...metrics,
+    });
+
+    // Legacy emit (backward compatibility)
     emit();
 }
 
 export function removeWorker(id) {
     if (!id) return;
+    const worker = state.workers.get(id);
     state.workers.delete(id);
     state.timing.delete(id);
     if (state.activeWorkerId === id) state.activeWorkerId = null;
+
+    // Publish to EventBus
+    if (worker) {
+        eventBus.emit(EventTypes.WORKER_DELETED, { worker_id: id, worker });
+    }
+
+    // Legacy emit (backward compatibility)
     emit();
 }
 

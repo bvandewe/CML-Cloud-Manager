@@ -5,10 +5,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from application.commands.import_cml_worker_command import (
-    ImportCMLWorkerCommand,
-    ImportCMLWorkerCommandHandler,
-)
+from application.commands.import_cml_worker_command import ImportCMLWorkerCommand, ImportCMLWorkerCommandHandler
 from domain.entities.cml_worker import CMLWorker
 from domain.enums import CMLWorkerStatus
 from integration.services.aws_ec2_api_client import Ec2InstanceDescriptor
@@ -23,7 +20,7 @@ def mock_dependencies() -> dict:
         "cloud_event_bus": Mock(),
         "cloud_event_publishing_options": Mock(),
         "cml_worker_repository": Mock(),
-        "aws_ec2_client": Mock(),
+        "aws_ec2_client": AsyncMock(),
         "settings": Mock(),
     }
 
@@ -114,7 +111,7 @@ class TestImportCMLWorkerCommandHandler:
         result = await handler.handle_async(command)
 
         # Assert
-        assert result.succeeded
+        assert result.is_success
         assert result.data is not None
         assert result.data.aws_instance_id == "i-0abcdef1234567890"
         assert result.data.instance_name == "imported-worker"
@@ -146,8 +143,8 @@ class TestImportCMLWorkerCommandHandler:
         result = await handler.handle_async(command)
 
         # Assert
-        assert not result.succeeded
-        assert "at least one of" in result.errors[0].message.lower()
+        assert not result.is_success
+        assert "at least one of" in result.detail.lower()
 
     @pytest.mark.asyncio
     async def test_import_fails_when_instance_not_found(self, mock_dependencies):
@@ -166,8 +163,8 @@ class TestImportCMLWorkerCommandHandler:
         result = await handler.handle_async(command)
 
         # Assert
-        assert not result.succeeded
-        assert "no matching ec2 instance" in result.errors[0].message.lower()
+        assert not result.is_success
+        assert "no matching ec2 instance" in result.detail.lower()
 
     @pytest.mark.asyncio
     async def test_import_fails_when_instance_already_registered(self, mock_dependencies, sample_instance_descriptor):
@@ -193,8 +190,8 @@ class TestImportCMLWorkerCommandHandler:
         result = await handler.handle_async(command)
 
         # Assert
-        assert not result.succeeded
-        assert "already registered" in result.errors[0].message.lower()
+        assert not result.is_success
+        assert "already registered" in result.detail.lower()
 
     @pytest.mark.asyncio
     async def test_import_by_ami_id_success(self, mock_dependencies, sample_instance_descriptor):
@@ -222,7 +219,7 @@ class TestImportCMLWorkerCommandHandler:
         result = await handler.handle_async(command)
 
         # Assert
-        assert result.succeeded
+        assert result.is_success
         assert result.data is not None
         assert result.data.ami_id == "ami-0c55b159cbfafe1f0"
 

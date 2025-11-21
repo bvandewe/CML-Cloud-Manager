@@ -1,0 +1,514 @@
+# CML Cloud Manager - Production Docker Compose Configuration
+# This file contains the complete production stack with separate API and Worker services
+# Usage: docker-compose -f deployment/docker-compose/docker-compose.prod.yml --env-file deployment/docker-compose/.env.prod up
+
+name: cml-cloud-manager
+services:
+    # 🌐 Nginx - Reverse Proxy
+    # Single entry point for all services
+    # http://localhost:${NGINX_PORT:-80}/
+    nginx:
+        image: nginx:1.25-alpine
+        container_name: cml-cloud-manager-nginx
+        restart: unless-stopped
+        ports:
+            - '${NGINX_PORT:-80}:80'
+            # For HTTPS/TLS (uncomment when certificates are configured)
+            # - "${NGINX_SSL_PORT:-443}:443"
+        volumes:
+            - ../nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+            - ../nginx/conf.d:/etc/nginx/conf.d:ro
+            # For SSL certificates (create these directories when needed)
+            # - ../nginx/ssl:/etc/nginx/ssl:ro
+            - nginx_logs:/var/log/nginx
+        networks:
+            - ${DOCKER_NETWORK_NAME:-cml-cloud-manager-net}
+        depends_on:
+            - api
+            - worker
+            - keycloak
+            - grafana
+            - prometheus
+        healthcheck:
+            test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost/health']
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 10s
+
+    # 📱 CML Cloud Manager - API Service
+    # Handles web traffic and HTTP API requests
+    # Internal only - accessed via nginx
+    api:
+        build:
+            context: ../../
+            dockerfile: Dockerfile
+        container_name: cml-cloud-manager-api
+        restart: unless-stopped
+        # Ports exposed only to Docker network, accessed via nginx
+        expose:
+            - '8000'
+        environment:
+            # Service identification
+            SERVICE_NAME: api
+
+            # Application settings
+            LOG_LEVEL: ${LOG_LEVEL:-INFO}
+            DEBUG: ${DEBUG:-false}
+            PYTHONPATH: /app/src
+
+            # URLs and ports
+            APP_URL: http://localhost:${NGINX_PORT:-80}
+            APP_PORT: 8000
+
+            # Keycloak Configuration
+            KEYCLOAK_URL: http://localhost:${NGINX_PORT:-80}/auth
+            KEYCLOAK_URL_INTERNAL: http://keycloak:8080
+            KEYCLOAK_REALM: ${KEYCLOAK_REALM:-cml-cloud-manager}
+            KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-cml-cloud-manager-public}
+
+            # JWT Configuration
+            JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production}
+            JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+            JWT_EXPIRATION_HOURS: ${JWT_EXPIRATION_HOURS:-24}
+
+            # Token Claim Validation
+            VERIFY_ISSUER: ${VERIFY_ISSUER:-true}
+            EXPECTED_ISSUER: ${EXPECTED_ISSUER:-http://localhost:8090/realms/cml-cloud-manager}
+            VERIFY_AUDIENCE: ${VERIFY_AUDIENCE:-true}
+            EXPECTED_AUDIENCE: ${EXPECTED_AUDIENCE:-["cml-cloud-manager"]}
+            REFRESH_AUTO_LEEWAY_SECONDS: ${REFRESH_AUTO_LEEWAY_SECONDS:-60}
+            SESSION_TIMEOUT_MINUTES: ${SESSION_TIMEOUT_MINUTES:-30}
+
+            # Application settings
+            ENABLE_CORS: 'true'
+
+            # Database connections
+            CONNECTION_STRINGS: '{"mongo": "mongodb://${MONGODB_ROOT_USERNAME:-root}:${MONGODB_ROOT_PASSWORD:-change-me-in-production}@mongodb:27017/?authSource=admin"}'
+
+            # Redis Configuration (Session Storage)
+            REDIS_URL: redis://redis:6379/0
+            REDIS_ENABLED: ${REDIS_ENABLED:-true}
+            REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-session:}
+
+            # Event streaming
+            CLOUD_EVENT_SINK: http://event-player:8080/events/pub
+            CLOUD_EVENT_SOURCE: https://cml-cloud-manager.io
+            CLOUD_EVENT_TYPE_PREFIX: io.cml-cloud-manager
+
+            # OpenTelemetry configuration
+            OTEL_SERVICE_NAME: cml-cloud-manager-api
+            OTEL_SERVICE_VERSION: 1.0.0
+            OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+            OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+            OTEL_TRACES_EXPORTER: otlp
+            OTEL_METRICS_EXPORTER: otlp
+            OTEL_LOGS_EXPORTER: none
+            OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED: 'false'
+
+            # AWS Credentials
+            AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+            AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+            CML_WORKER_AMI_NAME_DEFAULT: ${CML_WORKER_AMI_NAME_DEFAULT}
+            CML_WORKER_INSTANCE_TYPE_DEFAULT: ${CML_WORKER_INSTANCE_TYPE_DEFAULT}
+            CML_WORKER_SECURITY_GROUP_IDS: ${CML_WORKER_SECURITY_GROUP_IDS}
+            CML_WORKER_SUBNET_ID: ${CML_WORKER_SUBNET_ID}
+            CML_WORKER_KEY_NAME: ${CML_WORKER_KEY_NAME}
+            CML_WORKER_USERNAME: ${CML_WORKER_USERNAME}
+            CML_WORKER_API_USERNAME: ${CML_WORKER_API_USERNAME}
+            CML_WORKER_API_PASSWORD: ${CML_WORKER_API_PASSWORD}
+
+            # Disable background jobs on API service (worker handles these)
+            AUTO_IMPORT_WORKERS_ENABLED: false
+            WORKER_MONITORING_ENABLED: false
+            LABS_REFRESH_ENABLED: false
+
+        networks:
+            - ${DOCKER_NETWORK_NAME:-cml-cloud-manager-net}
+        depends_on:
+            - mongodb
+            - keycloak
+            - redis
+        healthcheck:
+            test: ['CMD', 'curl', '-f', 'http://localhost:8000/health']
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 40s
+
+    # 🔧 CML Cloud Manager - Worker Service
+    # Handles background jobs: metrics collection, auto-import, lab refresh
+    worker:
+        build:
+            context: ../../
+            dockerfile: Dockerfile
+        container_name: cml-cloud-manager-worker
+        restart: unless-stopped
+        # Ports exposed only to Docker network
+        expose:
+            - '8000'
+        environment:
+            # Service identification
+            SERVICE_NAME: worker
+
+            # Application settings
+            LOG_LEVEL: ${LOG_LEVEL:-INFO}
+            DEBUG: ${DEBUG:-false}
+            PYTHONPATH: /app/src
+
+            # URLs and ports
+            APP_URL: http://localhost:${WORKER_EXTERNAL_PORT:-8021}
+            APP_PORT: 8000
+
+            # Keycloak Configuration
+            KEYCLOAK_URL: http://localhost:${KEYCLOAK_PORT:-8090}
+            KEYCLOAK_URL_INTERNAL: http://keycloak:8080
+            KEYCLOAK_REALM: ${KEYCLOAK_REALM:-cml-cloud-manager}
+            KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-cml-cloud-manager-public}
+
+            # JWT Configuration
+            JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production}
+            JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+            JWT_EXPIRATION_HOURS: ${JWT_EXPIRATION_HOURS:-24}
+
+            # Token Claim Validation
+            VERIFY_ISSUER: ${VERIFY_ISSUER:-true}
+            EXPECTED_ISSUER: ${EXPECTED_ISSUER:-http://localhost:8090/realms/cml-cloud-manager}
+            VERIFY_AUDIENCE: ${VERIFY_AUDIENCE:-true}
+            EXPECTED_AUDIENCE: ${EXPECTED_AUDIENCE:-["cml-cloud-manager"]}
+            REFRESH_AUTO_LEEWAY_SECONDS: ${REFRESH_AUTO_LEEWAY_SECONDS:-60}
+            SESSION_TIMEOUT_MINUTES: ${SESSION_TIMEOUT_MINUTES:-30}
+
+            # Application settings
+            ENABLE_CORS: 'true'
+
+            # Database connections
+            CONNECTION_STRINGS: '{"mongo": "mongodb://${MONGODB_ROOT_USERNAME:-root}:${MONGODB_ROOT_PASSWORD:-change-me-in-production}@mongodb:27017/?authSource=admin"}'
+
+            # Redis Configuration (Session Storage)
+            REDIS_URL: redis://redis:6379/0
+            REDIS_ENABLED: ${REDIS_ENABLED:-true}
+            REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-session:}
+
+            # Event streaming
+            CLOUD_EVENT_SINK: http://event-player:8080/events/pub
+            CLOUD_EVENT_SOURCE: https://cml-cloud-manager.io
+            CLOUD_EVENT_TYPE_PREFIX: io.cml-cloud-manager
+
+            # OpenTelemetry configuration
+            OTEL_SERVICE_NAME: cml-cloud-manager-worker
+            OTEL_SERVICE_VERSION: 1.0.0
+            OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+            OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+            OTEL_TRACES_EXPORTER: otlp
+            OTEL_METRICS_EXPORTER: otlp
+            OTEL_LOGS_EXPORTER: none
+            OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED: 'false'
+
+            # AWS Credentials
+            AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+            AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+
+            CML_WORKER_AMI_NAME_DEFAULT: ${CML_WORKER_AMI_NAME_DEFAULT}
+            CML_WORKER_INSTANCE_TYPE_DEFAULT: ${CML_WORKER_INSTANCE_TYPE_DEFAULT}
+            CML_WORKER_SECURITY_GROUP_IDS: ${CML_WORKER_SECURITY_GROUP_IDS}
+            CML_WORKER_SUBNET_ID: ${CML_WORKER_SUBNET_ID}
+            CML_WORKER_KEY_NAME: ${CML_WORKER_KEY_NAME}
+            CML_WORKER_USERNAME: ${CML_WORKER_USERNAME}
+            CML_WORKER_API_USERNAME: ${CML_WORKER_API_USERNAME}
+            CML_WORKER_API_PASSWORD: ${CML_WORKER_API_PASSWORD}
+
+            # Enable background jobs on worker service
+            AUTO_IMPORT_WORKERS_ENABLED: ${AUTO_IMPORT_WORKERS_ENABLED:-true}
+            AUTO_IMPORT_WORKERS_INTERVAL: ${AUTO_IMPORT_WORKERS_INTERVAL:-300}
+            AUTO_IMPORT_WORKERS_REGION: ${AUTO_IMPORT_WORKERS_REGION:-us-east-1}
+            AUTO_IMPORT_WORKERS_AMI_NAME: ${AUTO_IMPORT_WORKERS_AMI_NAME:-cisco-cml2.9-lablet-v0.1.*}
+
+            LABS_REFRESH_INTERVAL: ${LABS_REFRESH_INTERVAL:-1800}
+            WORKER_METRICS_POLL_INTERVAL: ${WORKER_METRICS_POLL_INTERVAL:-300}
+
+        networks:
+            - ${DOCKER_NETWORK_NAME:-cml-cloud-manager-net}
+        depends_on:
+            - mongodb
+            - keycloak
+            - redis
+        healthcheck:
+            test: ['CMD', 'curl', '-f', 'http://localhost:8000/health']
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 40s
+
+    # 🗄️ MongoDB Database
+    # mongodb://localhost:${MONGODB_PORT}
+    # Shared database server for all samples
+    mongodb:
+        image: mongo:8.22
+        restart: always
+        runtime: runc
+        command: mongod --bind_ip_all
+        ports:
+            - '${MONGODB_PORT:-27017}:27017'
+        environment:
+            MONGO_INITDB_ROOT_USERNAME: ${MONGODB_ROOT_USERNAME:-root}
+            MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD:-change-me-in-production}
+            MONGO_INITDB_DATABASE: ${MONGODB_DATABASE:-cml_cloud_manager}
+        volumes:
+            - mongodb_data:/data/db
+        networks:
+            - ${DOCKER_NETWORK_NAME:-cml-cloud-manager-net}
+
+    # 📊 MongoDB Express (Database Admin UI)
+    # http://localhost:${MONGODB_EXPRESS_PORT}
+    # No authentication required (development only!)
+    mongo-express:
+        image: mongo-express:latest
+        restart: always
+        ports:
+            - '${MONGODB_EXPRESS_PORT:-8081}:8081'
+        environment:
+            ME_CONFIG_MONGODB_SERVER: mongodb
+            ME_CONFIG_MONGODB_PORT: 27017
+            ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGODB_ROOT_USERNAME:-root}
+            ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGODB_ROOT_PASSWORD:-change-me-in-production}
+            ME_CONFIG_MONGODB_ENABLE_ADMIN: 'true'
+            ME_CONFIG_MONGODB_AUTH_DATABASE: admin
+            ME_CONFIG_BASICAUTH: 'false'
+        networks:
+            - ${DOCKER_NETWORK_NAME:-cml-cloud-manager-net}
+        depends_on:
+            - mongodb
+
+    # �️ Redis (Session Store & Cache)
+    # In-memory data store for session management and caching
+    # redis://localhost:${REDIS_PORT}
+    redis:
+        image: redis:7.4-alpine
+        restart: always
+        ports:
+            - '${REDIS_PORT:-6379}:6379'
+        command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+        volumes:
+            - redis_data:/data
+        networks:
+            - ${DOCKER_NETWORK_NAME:-cml-cloud-manager-net}
+        healthcheck:
+            test: ['CMD', 'redis-cli', 'ping']
+            interval: 10s
+            timeout: 3s
+            retries: 3
+
+    # 🔐 Keycloak (Identity & Access Management)
+    # OAuth2/OIDC Provider for authentication and authorization
+    # Access via nginx or directly at http://localhost:${KEYCLOAK_PORT}
+    # Default credentials: admin/${KEYCLOAK_ADMIN_PASSWORD}
+    keycloak:
+        image: quay.io/keycloak/keycloak:26.0
+        restart: always
+        environment:
+            # Use H2 file database for persistence across restarts
+            KC_DB: dev-file
+            # Use new bootstrap variables (Keycloak 26+)
+            KC_BOOTSTRAP_ADMIN_USERNAME: admin
+            KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+            # HTTP configuration
+            KC_HTTP_ENABLED: 'true'
+            KC_HOSTNAME_STRICT: 'false'
+            KC_HOSTNAME_STRICT_HTTPS: 'false'
+            KC_PROXY: 'edge'
+            KC_HTTP_RELATIVE_PATH: '/'
+        command:
+            - start-dev
+            - --import-realm
+        ports:
+            - '${KEYCLOAK_PORT:-8090}:8080'
+        networks:
+            - ${DOCKER_NETWORK_NAME:-cml-cloud-manager-net}
+        volumes:
+            - keycloak_data:/opt/keycloak/data
+            - ../keycloak/cml-cloud-manager-realm-export.json:/opt/keycloak/data/import/cml-cloud-manager-realm-export.json:ro
+        healthcheck:
+            test: ['CMD-SHELL', "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200 OK'"]
+            interval: 10s
+            timeout: 5s
+            retries: 30
+            start_period: 60s
+
+    # 🎬 Event Player (Event Visualization & Replay)
+    # http://localhost:${EVENT_PLAYER_PORT}
+    # Shared event visualization and replay service for all samples
+    event-player:
+        image: ghcr.io/bvandewe/events-player:v0.4.11
+        runtime: runc
+        ports:
+            - '${EVENT_PLAYER_PORT:-8085}:8080'
+        environment:
+            tag: 'v0.4.11'
+            log_level: INFO
+
+            # Authentication & Authorization
+            auth_required: 'true'
+            auth_audience: events-player-web
+            auth_algorithm: RS256
+
+            # Role Mapping Configuration
+            auth_role_admin: 'manager' # Role name in JWT that grants admin privileges
+            auth_role_operator: 'chef' # Role name in JWT that grants operator privileges
+            auth_role_user: 'driver' # Role name in JWT that grants user privileges
+
+            # OAuth/OIDC Configuration
+            # oauth_server_url: URL accessible from browser (external)
+            # oauth_server_url_backend: URL accessible from backend container (internal Docker network)
+            oauth_server_url: http://localhost:${KEYCLOAK_PORT:-8090}
+            oauth_server_url_backend: http://keycloak:8080
+            oauth_legacy_keycloak: 'false'
+            oauth_realm: ${KEYCLOAK_REALM:-cml-cloud-manager}
+            oauth_client_id: cml-cloud-manager-public
+            oauth_client_secret: ''
+
+            # HTTP Client Configuration
+            http_client_timeout: 30.0
+
+            # Default Generator Settings
+            default_generator_gateways: '{"urls": ["http://localhost:${EVENT_PLAYER_PORT:-8085}/events/pub", "http://event-player:8080/events/pub"]}'
+            default_generator_event: '{"event_source": "https://dummy.source.com/sys-admin", "event_type": "com.source.dummy.test.requested.v1", "event_subject": "some.interesting.concept.key_abcde12345", "event_data": {"foo": "bar"}}'
+
+            # Frontend Storage Configuration
+            browser_queue_size: 1000
+            storage_max_recent_events: 5000
+            storage_max_metadata_events: 100000
+        networks:
+            - ${DOCKER_NETWORK_NAME:-cml-cloud-manager-net}
+        depends_on:
+            - keycloak
+
+    # 🔭 OpenTelemetry Collector (All-in-One)
+    # Receives, processes, and exports telemetry data (traces, metrics, logs)
+    # Ports: ${OTEL_COLLECTOR_GRPC_PORT} (OTLP gRPC), ${OTEL_COLLECTOR_HTTP_PORT} (OTLP HTTP)
+    otel-collector:
+        image: otel/opentelemetry-collector-contrib:0.110.0
+        runtime: runc
+        command: ['--config=/etc/otel-collector-config.yaml']
+        ports:
+            - '${OTEL_COLLECTOR_GRPC_PORT:-4317}:4317' # OTLP gRPC receiver
+            - '${OTEL_COLLECTOR_HTTP_PORT:-4318}:4318' # OTLP HTTP receiver
+            - '${OTEL_COLLECTOR_METRICS_PORT:-8888}:8888' # Prometheus metrics about the collector itself
+            - '${OTEL_COLLECTOR_HEALTH_PORT:-13133}:13133' # Health check endpoint
+        volumes:
+            - ../otel/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+        networks:
+            - ${DOCKER_NETWORK_NAME:-cml-cloud-manager-net}
+        depends_on:
+            - tempo
+            - loki
+            - prometheus
+
+    # 📊 Grafana (Observability Dashboard)
+    # Access via nginx at http://localhost/grafana/ or grafana.localhost
+    grafana:
+        image: grafana/grafana-enterprise:latest
+        runtime: runc
+        expose:
+            - '3000'
+        environment:
+            GF_AUTH_ANONYMOUS_ENABLED: 'true'
+            GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+            GF_AUTH_DISABLE_LOGIN_FORM: 'false'
+            GF_SECURITY_ADMIN_USER: ${KEYCLOAK_ADMIN_USERNAME:-admin}
+            GF_SECURITY_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+            GF_FEATURE_TOGGLES_ENABLE: traceqlEditor
+        volumes:
+            - grafana_data:/var/lib/grafana
+            - ../grafana/datasources:/etc/grafana/provisioning/datasources:ro
+            - ../grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+        networks:
+            - ${DOCKER_NETWORK_NAME:-cml-cloud-manager-net}
+        depends_on:
+            - tempo
+            - loki
+            - prometheus
+
+    # 🔍 Grafana Tempo (Distributed Tracing Backend)
+    # Stores and queries distributed traces
+    # http://localhost:${TEMPO_PORT}
+    tempo:
+        image: grafana/tempo:2.9.0
+        runtime: runc
+        command: ['-config.file=/etc/tempo.yaml']
+        user: root
+        ports:
+            - '${TEMPO_PORT:-3200}:3200' # Tempo HTTP API
+            - '9095:9095' # Tempo gRPC
+            - 4317 # OTLP gRPC receiver (internal)
+            - 4318 # OTLP HTTP receiver (internal)
+        volumes:
+            - ../otel/tempo.yaml:/etc/tempo.yaml:ro
+            - tempo_data:/tmp/tempo
+        networks:
+            - ${DOCKER_NETWORK_NAME:-cml-cloud-manager-net}
+
+    # 📈 Prometheus (Metrics Storage & Query)
+    # Time-series database for metrics
+    # Access via nginx at prometheus.localhost or keep direct access
+    prometheus:
+        image: prom/prometheus:v2.55.1
+        runtime: runc
+        command:
+            - '--config.file=/etc/prometheus/prometheus.yml'
+            - '--storage.tsdb.path=/prometheus'
+            - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+            - '--web.console.templates=/usr/share/prometheus/consoles'
+            - '--web.enable-lifecycle'
+            - '--storage.tsdb.retention.time=30d'
+        # Keep direct access for now, can be removed to force nginx access
+        ports:
+            - '${PROMETHEUS_PORT:-9090}:9090'
+        volumes:
+            - ../otel/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+            - prometheus_data:/prometheus
+        networks:
+            - ${DOCKER_NETWORK_NAME:-cml-cloud-manager-net}
+
+    # 📝 Grafana Loki (Log Aggregation)
+    # Stores and queries logs with trace correlation
+    # http://localhost:${LOKI_PORT}
+    loki:
+        image: grafana/loki:3.2.0
+        runtime: runc
+        command: ['-config.file=/etc/loki/local-config.yaml']
+        ports:
+            - '${LOKI_PORT:-3100}:3100'
+        volumes:
+            - ../otel/loki-config.yaml:/etc/loki/local-config.yaml:ro
+            - loki_data:/loki
+        networks:
+            - ${DOCKER_NETWORK_NAME:-cml-cloud-manager-net}
+
+volumes:
+    # Database volumes
+    mongodb_data:
+        driver: local
+    # Keycloak H2 database (persists configuration across container restarts)
+    keycloak_data:
+        driver: local
+    # Redis AOF persistence (session data and cache)
+    redis_data:
+        driver: local
+    # Nginx logs
+    nginx_logs:
+        driver: local
+    # OpenTelemetry & Observability volumes
+    grafana_data:
+        driver: local
+    tempo_data:
+        driver: local
+    prometheus_data:
+        driver: local
+    loki_data:
+        driver: local
+
+networks:
+    cml-cloud-manager-net:
+        driver: bridge
+        name: ${DOCKER_NETWORK_NAME:-cml-cloud-manager-net}

@@ -1,0 +1,68 @@
+# Grafana Datasource Provisioning Configuration
+# Automatically configures datasources for Tempo, Prometheus, and Loki
+
+apiVersion: 1
+
+datasources:
+    # Tempo - Distributed Tracing
+    - name: Tempo
+      type: tempo
+      access: proxy
+      url: http://tempo:3200
+      uid: tempo
+      isDefault: false
+      editable: true
+      jsonData:
+          httpMethod: GET
+          tracesToLogsV2:
+              datasourceUid: loki
+              spanStartTimeShift: -1h
+              spanEndTimeShift: 1h
+              tags:
+                  - key: service.name
+                    value: job
+              filterByTraceID: false
+              filterBySpanID: false
+          tracesToMetrics:
+              datasourceUid: prometheus
+              spanStartTimeShift: -1h
+              spanEndTimeShift: 1h
+              tags:
+                  - key: service.name
+                    value: job
+          serviceMap:
+              datasourceUid: prometheus
+          lokiSearch:
+              datasourceUid: loki
+          nodeGraph:
+              enabled: true
+
+    # Prometheus - Metrics Storage
+    - name: Prometheus
+      type: prometheus
+      access: proxy
+      url: http://prometheus:9090
+      uid: prometheus
+      isDefault: true
+      editable: true
+      jsonData:
+          httpMethod: POST
+          exemplarTraceIdDestinations:
+              - name: trace_id
+                datasourceUid: tempo
+
+    # Loki - Log Aggregation
+    - name: Loki
+      type: loki
+      access: proxy
+      url: http://loki:3100
+      uid: loki
+      isDefault: false
+      editable: true
+      jsonData:
+          derivedFields:
+              - datasourceUid: tempo
+                matcherRegex: "trace_id=(\\w+)"
+                name: TraceID
+                url: '$${__value.raw}'
+                urlDisplayLabel: View Trace

@@ -130,6 +130,9 @@ class Settings(ApplicationSettings):
     cml_worker_username: str = "sys-admin"
     cml_worker_api_username: str = "admin"  # CML API username for system_stats
     cml_worker_api_password: str = "admin"  # CML API password (change in production)
+    cml_worker_api_verify_ssl: bool = (
+        False  # Verify SSL certificates for CML API calls (False for dev/self-signed certs)
+    )
     cml_worker_default_tags: dict[str, str] = {
         "Environment": "dev",
         "ApplicationName": "CML-Cloud-Manager",

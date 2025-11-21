@@ -8,15 +8,32 @@ import { renderLicenseRegistration, renderLicenseAuthorization, renderLicenseFea
 import { fetchWorkerDetails, removeWorker } from '../store/workerStore.js';
 import * as bootstrap from 'bootstrap';
 
-export function showLicenseModal(workerId, region) {
+export function showLicenseModal(workerId, region, workerName = '', hasLicense = false) {
     const idEl = document.getElementById('license-worker-id');
     const regionEl = document.getElementById('license-worker-region');
+    const nameEl = document.getElementById('license-worker-name');
+    const reregisterCheckbox = document.getElementById('license-reregister');
+    const deregisterBtn = document.getElementById('deregister-license-btn');
+
     if (!idEl || !regionEl) {
         showToast('License form missing', 'error');
         return;
     }
+
     idEl.value = workerId;
     regionEl.value = region;
+    if (nameEl) nameEl.value = workerName;
+
+    // Show/hide deregister button and reregister checkbox based on license status
+    if (reregisterCheckbox) {
+        reregisterCheckbox.checked = false;
+        reregisterCheckbox.disabled = !hasLicense;
+    }
+
+    if (deregisterBtn) {
+        deregisterBtn.style.display = hasLicense ? 'inline-block' : 'none';
+    }
+
     new bootstrap.Modal(document.getElementById('registerLicenseModal')).show();
 }
 
@@ -112,31 +129,95 @@ export function showDeleteModal(workerId, region, name) {
 export function setupLicenseModal() {
     const form = document.getElementById('register-license-form');
     const submitBtn = document.getElementById('submit-register-license-btn');
+    const deregisterBtn = document.getElementById('deregister-license-btn');
+
     if (!form || !submitBtn) return;
+
+    // Register license handler
     submitBtn.addEventListener('click', async () => {
         const workerId = document.getElementById('license-worker-id')?.value;
         const region = document.getElementById('license-worker-region')?.value;
-        const token = document.getElementById('license-token')?.value;
+        const workerName = document.getElementById('license-worker-name')?.value || workerId;
+        const token = document.getElementById('license-token')?.value?.trim();
+        const reregister = document.getElementById('license-reregister')?.checked || false;
+
         if (!token) {
             showToast('Please provide a license token', 'error');
             return;
         }
+
         try {
             submitBtn.disabled = true;
-            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Registering...';
-            await workersApi.registerLicense(region, workerId, token);
-            showToast('License registered successfully', 'success');
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Initiating...';
+
+            // Call async API (returns 202 Accepted immediately)
+            const response = await workersApi.registerLicense(region, workerId, token, reregister);
+
+            showToast(`License registration initiated for ${workerName}. Processing in background...`, 'info', 5000);
+
+            // Close modal and reset form
             bootstrap.Modal.getInstance(document.getElementById('registerLicenseModal'))?.hide();
             form.reset();
-            setTimeout(() => window.workersApp.refreshWorkers?.(), 1000);
+
+            // SSE events will notify of completion/failure automatically
+            console.log('[license] Registration job started:', response);
         } catch (error) {
             console.error('[worker-modals] License register error:', error);
-            showToast(error.message || 'Failed to register license', 'error');
+            showToast(error.message || 'Failed to initiate license registration', 'error');
         } finally {
             submitBtn.disabled = false;
             submitBtn.innerHTML = '<i class="bi bi-key"></i> Register License';
         }
     });
+
+    // Deregister license handler
+    if (deregisterBtn) {
+        deregisterBtn.addEventListener('click', () => {
+            const workerId = document.getElementById('license-worker-id')?.value;
+            const region = document.getElementById('license-worker-region')?.value;
+            const workerName = document.getElementById('license-worker-name')?.value || workerId;
+
+            // Populate confirmation modal
+            document.getElementById('deregister-confirm-worker-id').value = workerId;
+            document.getElementById('deregister-confirm-region').value = region;
+            document.getElementById('deregister-confirm-worker-name').textContent = workerName;
+
+            // Hide register modal and show confirmation modal
+            bootstrap.Modal.getInstance(document.getElementById('registerLicenseModal'))?.hide();
+            new bootstrap.Modal(document.getElementById('deregisterLicenseConfirmModal')).show();
+        });
+    }
+
+    // Confirm deregister button handler
+    const confirmDeregisterBtn = document.getElementById('confirm-deregister-license-btn');
+    if (confirmDeregisterBtn) {
+        confirmDeregisterBtn.addEventListener('click', async () => {
+            const workerId = document.getElementById('deregister-confirm-worker-id')?.value;
+            const region = document.getElementById('deregister-confirm-region')?.value;
+            const workerName = document.getElementById('deregister-confirm-worker-name')?.textContent;
+
+            try {
+                confirmDeregisterBtn.disabled = true;
+                confirmDeregisterBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Deregistering...';
+
+                await workersApi.deregisterLicense(region, workerId);
+
+                showToast(`License deregistered successfully from ${workerName}`, 'success');
+
+                bootstrap.Modal.getInstance(document.getElementById('deregisterLicenseConfirmModal'))?.hide();
+                form.reset();
+
+                // Refresh worker list to show updated license status
+                setTimeout(() => window.workersApp.refreshWorkers?.(), 1000);
+            } catch (error) {
+                console.error('[worker-modals] License deregister error:', error);
+                showToast(error.message || 'Failed to deregister license', 'error');
+            } finally {
+                confirmDeregisterBtn.disabled = false;
+                confirmDeregisterBtn.innerHTML = '<i class="bi bi-x-circle"></i> Deregister License';
+            }
+        });
+    }
 }
 
 export function setupCreateWorkerModal() {

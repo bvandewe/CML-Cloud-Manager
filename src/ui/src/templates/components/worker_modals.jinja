@@ -334,23 +334,73 @@
                 <form id="register-license-form">
                     <input type="hidden" id="license-worker-id">
                     <input type="hidden" id="license-worker-region">
+                    <input type="hidden" id="license-worker-name">
 
                     <div class="mb-3">
                         <label for="license-token" class="form-label">License Token *</label>
                         <textarea class="form-control" id="license-token" rows="4" required
                             placeholder="Paste your CML license token here"></textarea>
+                        <small class="text-muted">Smart License token from Cisco Smart Account</small>
                     </div>
 
-                    <div class="alert alert-info">
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="license-reregister">
+                        <label class="form-check-label" for="license-reregister">
+                            Force re-registration
+                        </label>
+                        <small class="form-text text-muted d-block">
+                            Check this to re-register an already licensed worker (replaces existing license)
+                        </small>
+                    </div>
+
+                    <div class="alert alert-info mb-0">
                         <i class="bi bi-info-circle"></i>
-                        The license will be applied to the worker. Make sure the worker is running.
+                        <strong>Async Operation:</strong> Registration is processed in the background (5-90 seconds).
+                        You'll receive a notifications when the operation completes.
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
+                <button type="button" class="btn btn-outline-danger me-auto" id="deregister-license-btn"
+                    style="display: none;">
+                    <i class="bi bi-x-circle"></i> Deregister License
+                </button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-primary" id="submit-register-license-btn">
                     <i class="bi bi-key"></i> Register License
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Deregister License Confirmation Modal -->
+<div class="modal fade" id="deregisterLicenseConfirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-exclamation-triangle"></i> Confirm License Deregistration
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="deregister-confirm-worker-id">
+                <input type="hidden" id="deregister-confirm-region">
+                <p class="mb-3">
+                    Are you sure you want to deregister the license from <strong
+                        id="deregister-confirm-worker-name"></strong>?
+                </p>
+                <div class="alert alert-warning mb-0">
+                    <i class="bi bi-exclamation-circle"></i>
+                    <strong>Warning:</strong> This will remove the worker from Cisco Smart Licensing.
+                    The operation can take 10-60 seconds to complete.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirm-deregister-license-btn">
+                    <i class="bi bi-x-circle"></i> Deregister License
                 </button>
             </div>
         </div>

@@ -39,6 +39,15 @@ export function initWorkerSSE({ upsertWorkerSnapshot, updateWorkerMetrics, updat
     sseClient.on('worker.snapshot', msg => {
         const data = msg.data || msg;
         if (!data || !data.worker_id) return;
+
+        console.log('[SSE] worker.snapshot received:', {
+            worker_id: data.worker_id,
+            license_status: data.license_status,
+            cml_license_info: data.cml_license_info,
+            cml_system_health_is_licensed: data.cml_system_health?.is_licensed,
+            _reason: data._reason,
+        });
+
         const nowIso = new Date().toISOString();
         const snapshot = {
             id: data.worker_id,
@@ -61,6 +70,8 @@ export function initWorkerSSE({ upsertWorkerSnapshot, updateWorkerMetrics, updat
             cml_ready: data.cml_ready,
             cml_uptime_seconds: data.cml_uptime_seconds,
             cml_labs_count: data.cml_labs_count,
+            cml_license_info: data.cml_license_info,
+            cml_system_health: data.cml_system_health,
             cpu_utilization: data.cpu_utilization ?? data.cloudwatch_cpu_utilization,
             memory_utilization: data.memory_utilization ?? data.cloudwatch_memory_utilization,
             storage_utilization: data.storage_utilization ?? data.cloudwatch_storage_utilization,
@@ -71,6 +82,14 @@ export function initWorkerSSE({ upsertWorkerSnapshot, updateWorkerMetrics, updat
             terminated_at: data.terminated_at,
             _reason: data._reason || 'snapshot',
         };
+
+        console.log('[SSE] Calling upsertWorkerSnapshot with:', {
+            id: snapshot.id,
+            license_status: snapshot.license_status,
+            cml_license_info: snapshot.cml_license_info,
+            cml_system_health: snapshot.cml_system_health,
+        });
+
         upsertWorkerSnapshot(snapshot);
         if (snapshot.poll_interval && snapshot.next_refresh_at) {
             updateTiming(snapshot.id, {
@@ -195,56 +214,12 @@ export function initWorkerSSE({ upsertWorkerSnapshot, updateWorkerMetrics, updat
         showToast(message, 'warning');
     });
 
-    // Worker data refreshed - reload worker from DB
-    sseClient.on('worker.data.refreshed', async data => {
-        console.log('[SSE] Worker data refreshed, reloading from DB:', data);
-        if (data.worker_id) {
-            try {
-                // Fetch fresh worker data from DB
-                const { getWorkerDetails } = await import('../api/workers.js');
-                // Worker region needed - get from existing snapshot
-                const existingCard = document.querySelector(`[data-worker-id="${data.worker_id}"]`);
-                if (existingCard) {
-                    const region = existingCard.dataset.workerRegion || 'us-east-1';
-                    const workerDetails = await getWorkerDetails(region, data.worker_id);
-
-                    // Update snapshot with fresh data from DB
-                    upsertWorkerSnapshot({
-                        id: workerDetails.id,
-                        name: workerDetails.name,
-                        aws_region: workerDetails.aws_region,
-                        status: workerDetails.status,
-                        service_status: workerDetails.service_status,
-                        instance_type: workerDetails.instance_type,
-                        aws_instance_id: workerDetails.aws_instance_id,
-                        public_ip: workerDetails.public_ip,
-                        private_ip: workerDetails.private_ip,
-                        ami_id: workerDetails.ami_id,
-                        ami_name: workerDetails.ami_name,
-                        ami_description: workerDetails.ami_description,
-                        ami_creation_date: workerDetails.ami_creation_date,
-                        https_endpoint: workerDetails.https_endpoint,
-                        license_status: workerDetails.license_status,
-                        cml_version: workerDetails.cml_version,
-                        cml_ready: workerDetails.cml_ready,
-                        cml_uptime_seconds: workerDetails.cml_uptime_seconds,
-                        cml_labs_count: workerDetails.cml_labs_count,
-                        cpu_utilization: workerDetails.cpu_utilization,
-                        memory_utilization: workerDetails.memory_utilization,
-                        storage_utilization: workerDetails.storage_utilization,
-                        poll_interval: workerDetails.poll_interval,
-                        next_refresh_at: workerDetails.next_refresh_at,
-                        created_at: workerDetails.created_at,
-                        updated_at: workerDetails.updated_at,
-                        terminated_at: workerDetails.terminated_at,
-                        _reason: 'data_refreshed',
-                    });
-                    console.log(`[SSE] Worker ${data.worker_id} data reloaded from DB`);
-                }
-            } catch (error) {
-                console.error('[SSE] Failed to reload worker data:', error);
-            }
-        }
+    // Worker data refreshed
+    sseClient.on('worker.data.refreshed', data => {
+        console.log('[SSE] Worker data refreshed:', data);
+        // Snapshot is already broadcasted by event handler with complete worker data
+        // The worker.snapshot event will update the UI automatically
+        // This event is just for user feedback (e.g., showing a toast notification)
     });
 
     // Worker imported - same as data refreshed (will auto-trigger refresh)
@@ -252,6 +227,55 @@ export function initWorkerSSE({ upsertWorkerSnapshot, updateWorkerMetrics, updat
         console.log('[SSE] Worker imported, will receive snapshot shortly:', data);
         // Snapshot is already broadcasted by event handler, no need to refetch
         // The worker.data.refreshed event will come after the scheduled refresh completes
+    });
+
+    // License registration started
+    sseClient.on('worker.license.registration.started', data => {
+        console.log('[SSE] License registration started:', data);
+        const workerId = data.worker_id;
+        if (workerId) {
+            // Mark worker as having license operation in progress
+            updateWorkerMetrics(workerId, { license_operation_in_progress: true });
+        }
+    });
+
+    // License registration completed
+    sseClient.on('worker.license.registration.completed', data => {
+        console.log('[SSE] License registration completed:', data);
+        const workerId = data.worker_id;
+        if (workerId) {
+            // Clear operation flag and update license status
+            updateWorkerMetrics(workerId, {
+                license_operation_in_progress: false,
+                license_status: 'registered',
+            });
+
+            // Snapshot is already broadcasted by event handler, no need to refetch
+            // The worker.snapshot event will update the UI with complete data
+        }
+    });
+
+    // License registration failed
+    sseClient.on('worker.license.registration.failed', data => {
+        console.log('[SSE] License registration failed:', data);
+        const workerId = data.worker_id;
+        if (workerId) {
+            updateWorkerMetrics(workerId, { license_operation_in_progress: false });
+        }
+    });
+
+    // License deregistered
+    sseClient.on('worker.license.deregistered', data => {
+        console.log('[SSE] License deregistered:', data);
+        const workerId = data.worker_id;
+        if (workerId) {
+            updateWorkerMetrics(workerId, {
+                license_status: 'unregistered',
+            });
+
+            // Snapshot is already broadcasted by event handler, no need to refetch
+            // The worker.snapshot event will update the UI with complete data including license_status
+        }
     });
 
     console.log('[worker-sse] Handlers registered');

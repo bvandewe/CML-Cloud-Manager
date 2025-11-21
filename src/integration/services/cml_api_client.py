@@ -696,6 +696,130 @@ class CMLApiClient:
             log.error(f"Unexpected error querying CML API at {self.base_url}: {e}")
             raise IntegrationException(f"Unexpected CML API error: {e}") from e
 
+    async def register_license(self, token: str, reregister: bool = False) -> bool:
+        """Initiate license registration (async operation on CML side).
+
+        POST /api/v0/licensing/registration
+
+        Args:
+            token: Smart Licensing registration token
+            reregister: Force re-registration (default False)
+
+        Returns:
+            True if registration request accepted (204), False otherwise
+
+        Raises:
+            IntegrationException: On API errors (400, 403, 409)
+
+        Note:
+            - Returns immediately (async operation on CML side)
+            - Poll get_licensing() to check registration_status
+            - Can take 5-90 seconds to complete
+        """
+        endpoint = f"{self.base_url}/api/v0/licensing/registration"
+
+        try:
+            auth_token = await self._get_token()
+
+            async with httpx.AsyncClient(verify=self.verify_ssl, timeout=30.0) as client:
+                response = await client.post(
+                    endpoint,
+                    headers={"Authorization": f"Bearer {auth_token}"},
+                    json={"token": token, "reregister": reregister},
+                )
+
+                if response.status_code == 204:
+                    log.info(f"License registration request accepted for {self.base_url}")
+                    return True
+
+                elif response.status_code == 400:
+                    error_data = response.json()
+                    error_detail = error_data.get("description", "Invalid token")
+                    raise IntegrationException(f"Invalid license token: {error_detail}")
+
+                elif response.status_code == 403:
+                    raise IntegrationException("Access denied: Insufficient permissions for license registration")
+
+                elif response.status_code == 409:
+                    error_data = response.json()
+                    error_detail = error_data.get("description", "Registration in progress")
+                    raise IntegrationException(f"Cannot register now: {error_detail}")
+
+                else:
+                    raise IntegrationException(f"License registration failed: HTTP {response.status_code}")
+
+        except httpx.TimeoutException as e:
+            raise IntegrationException(f"License registration request timed out: {e}") from e
+
+        except httpx.ConnectError as e:
+            raise IntegrationException(f"Cannot connect to CML instance: {e}") from e
+
+        except IntegrationException:
+            # Re-raise IntegrationException without wrapping
+            raise
+
+        except Exception as e:
+            log.error(f"Unexpected error during license registration at {self.base_url}: {e}")
+            raise IntegrationException(f"Unexpected license registration error: {e}") from e
+
+    async def deregister_license(self) -> tuple[bool, str]:
+        """Request license deregistration.
+
+        DELETE /api/v0/licensing/deregistration
+
+        Returns:
+            (success: bool, message: str) tuple
+            - 204: Full success
+            - 202: Partial success (local deregistration, CSSM timeout)
+            - 400: Already deregistered
+
+        Raises:
+            IntegrationException: On API errors (403, 409)
+        """
+        endpoint = f"{self.base_url}/api/v0/licensing/deregistration"
+
+        try:
+            auth_token = await self._get_token()
+
+            async with httpx.AsyncClient(verify=self.verify_ssl, timeout=60.0) as client:
+                response = await client.delete(endpoint, headers={"Authorization": f"Bearer {auth_token}"})
+
+                if response.status_code == 204:
+                    return True, "Successfully deregistered from Smart Licensing"
+
+                elif response.status_code == 202:
+                    return True, "Deregistered locally (CSSM communication timeout)"
+
+                elif response.status_code == 400:
+                    return False, "Already deregistered"
+
+                elif response.status_code == 403:
+                    raise IntegrationException("Access denied: Insufficient permissions for license deregistration")
+
+                elif response.status_code == 409:
+                    error_data = response.json()
+                    error_detail = error_data.get("description", "Deregistration not allowed")
+                    raise IntegrationException(f"Cannot deregister now: {error_detail}")
+
+                else:
+                    raise IntegrationException(f"License deregistration failed: HTTP {response.status_code}")
+
+        except httpx.TimeoutException as e:
+            # Timeout during deregistration might mean CSSM unreachable but local deregistration may have succeeded
+            log.warning(f"License deregistration timeout for {self.base_url}: {e}")
+            return True, "Deregistration timeout (may be deregistered locally)"
+
+        except httpx.ConnectError as e:
+            raise IntegrationException(f"Cannot connect to CML instance: {e}") from e
+
+        except IntegrationException:
+            # Re-raise IntegrationException without wrapping
+            raise
+
+        except Exception as e:
+            log.error(f"Unexpected error during license deregistration at {self.base_url}: {e}")
+            raise IntegrationException(f"Unexpected license deregistration error: {e}") from e
+
     async def start_lab(self, lab_id: str) -> bool:
         """Start all nodes in a lab.
 
@@ -1068,7 +1192,7 @@ class CMLApiClientFactory:
         factory = CMLApiClientFactory(
             default_username=app_settings.cml_worker_api_username,
             default_password=app_settings.cml_worker_api_password,
-            verify_ssl=False,  # CML instances typically use self-signed certificates
+            verify_ssl=app_settings.cml_worker_api_verify_ssl,
             timeout=30.0,
         )
 

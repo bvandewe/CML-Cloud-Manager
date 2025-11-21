@@ -327,3 +327,180 @@ class CMLWorkerTagsUpdatedDomainEvent(DomainEvent):
         self.aggregate_id = aggregate_id
         self.aws_tags = aws_tags
         self.updated_at = updated_at
+
+
+@cloudevent("cml_worker.license.registration.started.v1")
+@dataclass
+class CMLWorkerLicenseRegistrationStartedDomainEvent(DomainEvent):
+    """Event raised when license registration starts."""
+
+    aggregate_id: str
+    worker_id: str
+    started_at: str
+    initiated_by: str
+
+    def __init__(
+        self,
+        aggregate_id: str,
+        worker_id: str,
+        started_at: str,
+        initiated_by: str,
+    ) -> None:
+        super().__init__(aggregate_id)
+        self.aggregate_id = aggregate_id
+        self.worker_id = worker_id
+        self.started_at = started_at
+        self.initiated_by = initiated_by
+
+
+@cloudevent("cml_worker.license.registration.completed.v1")
+@dataclass
+class CMLWorkerLicenseRegistrationCompletedDomainEvent(DomainEvent):
+    """Event raised when license registration completes successfully."""
+
+    aggregate_id: str
+    worker_id: str
+    registration_status: str
+    smart_account: str | None
+    virtual_account: str | None
+    completed_at: str
+
+    def __init__(
+        self,
+        aggregate_id: str,
+        worker_id: str,
+        registration_status: str,
+        smart_account: str | None,
+        virtual_account: str | None,
+        completed_at: str,
+    ) -> None:
+        super().__init__(aggregate_id)
+        self.aggregate_id = aggregate_id
+        self.worker_id = worker_id
+        self.registration_status = registration_status
+        self.smart_account = smart_account
+        self.virtual_account = virtual_account
+        self.completed_at = completed_at
+
+
+@cloudevent("cml_worker.license.registration.failed.v1")
+@dataclass
+class CMLWorkerLicenseRegistrationFailedDomainEvent(DomainEvent):
+    """Event raised when license registration fails."""
+
+    aggregate_id: str
+    worker_id: str
+    error_message: str
+    error_code: str | None
+    failed_at: str
+
+    def __init__(
+        self,
+        aggregate_id: str,
+        worker_id: str,
+        error_message: str,
+        error_code: str | None,
+        failed_at: str,
+    ) -> None:
+        super().__init__(aggregate_id)
+        self.aggregate_id = aggregate_id
+        self.worker_id = worker_id
+        self.error_message = error_message
+        self.error_code = error_code
+        self.failed_at = failed_at
+
+
+@cloudevent("cml_worker.license.deregistered.v1")
+@dataclass
+class CMLWorkerLicenseDeregisteredDomainEvent(DomainEvent):
+    """Event raised when license is deregistered."""
+
+    aggregate_id: str
+    worker_id: str
+    deregistered_at: str
+    initiated_by: str
+
+    def __init__(
+        self,
+        aggregate_id: str,
+        worker_id: str,
+        deregistered_at: str,
+        initiated_by: str,
+    ) -> None:
+        super().__init__(aggregate_id)
+        self.aggregate_id = aggregate_id
+        self.worker_id = worker_id
+        self.deregistered_at = deregistered_at
+        self.initiated_by = initiated_by
+
+
+@cloudevent("cml_worker.data_refresh.requested.v1")
+@dataclass
+class WorkerDataRefreshRequestedDomainEvent(DomainEvent):
+    """Event raised when on-demand worker data refresh is requested."""
+
+    aggregate_id: str
+    worker_id: str
+    requested_at: str
+    requested_by: str | None
+
+    def __init__(
+        self,
+        aggregate_id: str,
+        worker_id: str,
+        requested_at: str,
+        requested_by: str | None = None,
+    ) -> None:
+        super().__init__(aggregate_id)
+        self.aggregate_id = aggregate_id
+        self.worker_id = worker_id
+        self.requested_at = requested_at
+        self.requested_by = requested_by
+
+
+@cloudevent("cml_worker.data_refresh.skipped.v1")
+@dataclass
+class WorkerDataRefreshSkippedDomainEvent(DomainEvent):
+    """Event raised when worker data refresh is skipped (e.g., too frequent)."""
+
+    aggregate_id: str
+    worker_id: str
+    reason: str
+    skipped_at: str
+
+    def __init__(
+        self,
+        aggregate_id: str,
+        worker_id: str,
+        reason: str,
+        skipped_at: str,
+    ) -> None:
+        super().__init__(aggregate_id)
+        self.aggregate_id = aggregate_id
+        self.worker_id = worker_id
+        self.reason = reason
+        self.skipped_at = skipped_at
+
+
+@cloudevent("cml_worker.data_refresh.completed.v1")
+@dataclass
+class WorkerDataRefreshCompletedDomainEvent(DomainEvent):
+    """Event raised when worker data refresh completes successfully."""
+
+    aggregate_id: str
+    worker_id: str
+    completed_at: str
+    refresh_type: str  # 'scheduled' or 'on_demand'
+
+    def __init__(
+        self,
+        aggregate_id: str,
+        worker_id: str,
+        completed_at: str,
+        refresh_type: str,
+    ) -> None:
+        super().__init__(aggregate_id)
+        self.aggregate_id = aggregate_id
+        self.worker_id = worker_id
+        self.completed_at = completed_at
+        self.refresh_type = refresh_type

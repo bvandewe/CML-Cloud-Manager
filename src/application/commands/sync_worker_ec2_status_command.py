@@ -9,9 +9,7 @@ from dataclasses import dataclass
 
 from neuroglia.core import OperationResult
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_bus import CloudEventBus
-from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import (
-    CloudEventPublishingOptions,
-)
+from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import CloudEventPublishingOptions
 from neuroglia.mapping import Mapper
 from neuroglia.mediation import Command, CommandHandler, Mediator
 from neuroglia.observability.tracing import add_span_attributes
@@ -110,7 +108,7 @@ class SyncWorkerEC2StatusCommandHandler(
             with tracer.start_as_current_span("query_ec2_instance_status") as span:
                 aws_region = AwsRegion(worker.state.aws_region)
 
-                status_checks = self.aws_ec2_client.get_instance_status_checks(
+                status_checks = await self.aws_ec2_client.get_instance_status_checks(
                     aws_region=aws_region,
                     instance_id=worker.state.aws_instance_id,
                 )
@@ -130,7 +128,7 @@ class SyncWorkerEC2StatusCommandHandler(
                 )
 
                 # Get EC2 instance details (IPs, type, AMI)
-                instance_details = self.aws_ec2_client.get_instance_details(
+                instance_details = await self.aws_ec2_client.get_instance_details(
                     aws_region=aws_region,
                     instance_id=worker.state.aws_instance_id,
                 )
@@ -139,7 +137,7 @@ class SyncWorkerEC2StatusCommandHandler(
                     # Fetch AMI details from AWS
                     ami_details = None
                     if instance_details.image_id:
-                        ami_details = self.aws_ec2_client.get_ami_details(
+                        ami_details = await self.aws_ec2_client.get_ami_details(
                             aws_region=aws_region, ami_id=instance_details.image_id
                         )
                         if ami_details:
@@ -182,7 +180,7 @@ class SyncWorkerEC2StatusCommandHandler(
 
                 # Fetch and update AWS tags
                 try:
-                    aws_tags = self.aws_ec2_client.get_tags(
+                    aws_tags = await self.aws_ec2_client.get_tags(
                         aws_region=aws_region,
                         instance_id=worker.state.aws_instance_id,
                     )

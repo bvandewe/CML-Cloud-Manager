@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 
-from neuroglia.mediation import DomainEventHandler, Mediator
+from neuroglia.mediation import DomainEventHandler
 
 from application.services.sse_event_relay import SSEEventRelay
 from domain.events.cml_worker import (
@@ -66,17 +66,32 @@ class CMLWorkerImportedDomainEventHandler(DomainEventHandler[CMLWorkerImportedDo
         self,
         sse_relay: SSEEventRelay,
         repository: CMLWorkerRepository,
-        mediator: Mediator,
+        scheduler,
     ):
+        from application.services.background_scheduler import BackgroundTaskScheduler
+
         self._sse_relay = sse_relay
         self._repository = repository
-        self._mediator = mediator
+        self._scheduler: BackgroundTaskScheduler = scheduler
 
     async def handle_async(self, notification: CMLWorkerImportedDomainEvent) -> None:  # type: ignore[override]
         """Broadcast worker.imported SSE event and schedule immediate data collection."""
-        from application.commands.request_worker_data_refresh_command import (
-            RequestWorkerDataRefreshCommand,
-        )
+        from datetime import timedelta, timezone
+
+        from application.jobs.on_demand_worker_data_refresh_job import OnDemandWorkerDataRefreshJob
+
+        # Map EC2 instance_state to CMLWorkerStatus for consistency
+        status_str = notification.instance_state
+        if notification.instance_state == "running":
+            status_str = "running"
+        elif notification.instance_state == "stopped":
+            status_str = "stopped"
+        elif notification.instance_state == "stopping":
+            status_str = "stopping"
+        elif notification.instance_state == "pending":
+            status_str = "pending"
+        else:
+            status_str = "unknown"
 
         # Broadcast imported event to UI
         await self._sse_relay.broadcast_event(
@@ -85,7 +100,7 @@ class CMLWorkerImportedDomainEventHandler(DomainEventHandler[CMLWorkerImportedDo
                 "worker_id": notification.aggregate_id,
                 "name": notification.name,
                 "region": notification.aws_region,
-                "status": notification.status.value,
+                "status": status_str,
                 "instance_type": notification.instance_type,
                 "aws_instance_id": notification.aws_instance_id,
                 "imported_at": _utc_iso(notification.created_at),
@@ -106,20 +121,23 @@ class CMLWorkerImportedDomainEventHandler(DomainEventHandler[CMLWorkerImportedDo
             f"scheduling initial data collection"
         )
 
-        # Schedule immediate on-demand refresh to populate worker data
-        # This follows the same flow as user-triggered refreshes
+        # Schedule immediate data refresh job, bypassing command validation checks
+        # Newly imported workers need their data collected regardless of status/throttling
         try:
-            refresh_command = RequestWorkerDataRefreshCommand(
-                worker_id=notification.aggregate_id, region=notification.aws_region
+            job_id = f"import_refresh_{notification.aggregate_id}"
+            job = OnDemandWorkerDataRefreshJob(worker_id=notification.aggregate_id)
+            job.__task_id__ = job_id
+            job.__task_name__ = "OnDemandWorkerDataRefreshJob"
+            job.__background_task_type__ = "scheduled"
+            # Schedule 2 seconds in the future to ensure import transaction completes
+            job.__scheduled_at__ = datetime.now(timezone.utc) + timedelta(seconds=2)
+
+            await self._scheduler.enqueue_task_async(job)
+
+            log.info(
+                f"✅ Scheduled initial data collection for imported worker {notification.aggregate_id} "
+                f"(job_id: {job_id}, eta: 2s)"
             )
-            result = await self._mediator.execute_async(refresh_command)
-            if result.is_success and result.data.get("scheduled"):
-                log.info(f"✅ Scheduled initial data collection for imported worker {notification.aggregate_id}")
-            else:
-                reason = result.data.get("reason", "unknown") if result.data else "unknown"
-                log.warning(
-                    f"⚠️ Failed to schedule data collection for imported worker {notification.aggregate_id}: {reason}"
-                )
         except Exception as e:
             log.error(
                 f"❌ Error scheduling data collection for imported worker {notification.aggregate_id}: {e}",
@@ -291,14 +309,10 @@ class CMLMetricsUpdatedDomainEventHandler(DomainEventHandler[CMLMetricsUpdatedDo
             data=payload,
             source="domain.cml_worker.cml_metrics",
         )
-        await _broadcast_worker_snapshot(
-            self._repository,
-            self._sse_relay,
-            notification.aggregate_id,
-            reason="cml_metrics_updated",
-        )
+        # Note: Snapshot broadcast removed - metrics event already contains relevant data
+        # Snapshots are only broadcast for significant state changes (status, license, etc.)
         log.debug(
-            "Broadcasted worker.metrics.updated (CML metrics) + snapshot for %s",
+            "Broadcasted worker.metrics.updated (CML metrics) for %s",
             notification.aggregate_id,
         )
         return None
@@ -368,6 +382,8 @@ async def _broadcast_worker_snapshot(
             "cml_ready": s.cml_ready,
             "cml_uptime_seconds": s.cml_uptime_seconds,
             "cml_labs_count": s.cml_labs_count,
+            "cml_license_info": s.cml_license_info,
+            "cml_system_health": s.cml_system_health,
             "cpu_utilization": cpu_util,
             "memory_utilization": mem_util,
             "storage_utilization": storage_util,

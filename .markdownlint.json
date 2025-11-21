@@ -40,7 +40,9 @@
     },
     "MD031": true,
     "MD032": true,
-    "MD033": false,
+    "MD033": {
+        "allowed_elements": ["!--"]
+    },
     "MD034": false,
     "MD035": true,
     "MD036": false,

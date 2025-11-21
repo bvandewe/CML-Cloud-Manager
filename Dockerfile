@@ -27,4 +27,7 @@ ENV PYTHONPATH=/app/src:$PYTHONPATH
 EXPOSE 8000
 
 # Run the application from /app with PYTHONPATH set
-CMD ["sh", "-c", "cd /app/src && uvicorn main:create_app --factory --host 0.0.0.0 --port 8000"]
+# IMPORTANT: --workers 1 is required because background jobs (APScheduler)
+# are NOT multi-worker safe. Multiple workers would cause duplicate job execution.
+# For horizontal scaling, deploy multiple containers with 1 worker each.
+CMD ["sh", "-c", "cd /app/src && uvicorn main:create_app --factory --host 0.0.0.0 --port 8000 --workers 1"]

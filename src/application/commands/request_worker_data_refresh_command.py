@@ -14,19 +14,14 @@ from datetime import datetime, timedelta, timezone
 
 from neuroglia.core import OperationResult
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_bus import CloudEventBus
-from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import (
-    CloudEventPublishingOptions,
-)
+from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import CloudEventPublishingOptions
 from neuroglia.mapping import Mapper
 from neuroglia.mediation import Command, CommandHandler, Mediator
 from neuroglia.observability.tracing import add_span_attributes
 from opentelemetry import trace
 
-from application.jobs.on_demand_worker_data_refresh_job import (
-    OnDemandWorkerDataRefreshJob,
-)
+from application.jobs.on_demand_worker_data_refresh_job import OnDemandWorkerDataRefreshJob
 from application.services.background_scheduler import BackgroundTaskScheduler
-from application.services.sse_event_relay import SSEEventRelay
 from application.settings import app_settings
 from domain.enums import CMLWorkerStatus
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
@@ -73,7 +68,6 @@ class RequestWorkerDataRefreshCommandHandler(
         cml_worker_repository: CMLWorkerRepository,
         refresh_throttle: WorkerRefreshThrottle,
         background_task_scheduler: BackgroundTaskScheduler,
-        sse_event_relay: SSEEventRelay,
     ):
         super().__init__(
             mediator,
@@ -84,7 +78,6 @@ class RequestWorkerDataRefreshCommandHandler(
         self._worker_repository = cml_worker_repository
         self._refresh_throttle = refresh_throttle
         self._scheduler = background_task_scheduler
-        self._sse_relay = sse_event_relay
 
     async def handle_async(self, request: RequestWorkerDataRefreshCommand) -> OperationResult[dict]:
         """Handle async data refresh request by scheduling job or rejecting with reason.
@@ -117,14 +110,13 @@ class RequestWorkerDataRefreshCommandHandler(
             # 2. Check worker status (only running workers should be refreshed)
             if worker.state.status != CMLWorkerStatus.RUNNING:
                 reason = f"not_running (status: {worker.state.status.value})"
-                eta_seconds = None
 
-                # Emit skip SSE event
-                await self._emit_refresh_skipped_event(
-                    worker_id=command.worker_id,
+                # Emit domain event (event handler will broadcast SSE)
+                worker.skip_data_refresh(
                     reason=reason,
-                    eta_seconds=eta_seconds,
+                    skipped_at=datetime.now(timezone.utc).isoformat(),
                 )
+                await self._worker_repository.update_async(worker)
 
                 log.info(f"Refresh skipped for worker {command.worker_id} - {reason}")
 
@@ -142,12 +134,12 @@ class RequestWorkerDataRefreshCommandHandler(
                 retry_after_int = int(retry_after) if retry_after is not None else 0
                 reason = "rate_limited"
 
-                # Emit skip SSE event
-                await self._emit_refresh_skipped_event(
-                    worker_id=command.worker_id,
+                # Emit domain event (event handler will broadcast SSE)
+                worker.skip_data_refresh(
                     reason=reason,
-                    eta_seconds=retry_after_int,
+                    skipped_at=datetime.now(timezone.utc).isoformat(),
                 )
+                await self._worker_repository.update_async(worker)
 
                 log.info(f"Refresh throttled for worker {command.worker_id} - " f"retry after {retry_after:.1f}s")
 
@@ -169,12 +161,12 @@ class RequestWorkerDataRefreshCommandHandler(
                 if 0 < time_until_job <= app_settings.worker_refresh_check_upcoming_job_threshold:
                     reason = "background_job_imminent"
 
-                    # Emit skip SSE event
-                    await self._emit_refresh_skipped_event(
-                        worker_id=command.worker_id,
+                    # Emit domain event (event handler will broadcast SSE)
+                    worker.skip_data_refresh(
                         reason=reason,
-                        eta_seconds=int(time_until_job),
+                        skipped_at=datetime.now(timezone.utc).isoformat(),
                     )
+                    await self._worker_repository.update_async(worker)
 
                     log.info(
                         f"Refresh skipped for worker {command.worker_id} - " f"background job in {time_until_job:.1f}s"
@@ -202,12 +194,12 @@ class RequestWorkerDataRefreshCommandHandler(
                 if 0 < time_until <= 30:
                     reason = "already_scheduled"
 
-                    # Emit skip SSE event
-                    await self._emit_refresh_skipped_event(
-                        worker_id=command.worker_id,
+                    # Emit domain event (event handler will broadcast SSE)
+                    worker.skip_data_refresh(
                         reason=reason,
-                        eta_seconds=int(time_until),
+                        skipped_at=datetime.now(timezone.utc).isoformat(),
                     )
+                    await self._worker_repository.update_async(worker)
 
                     log.info(
                         f"Refresh already scheduled for worker {command.worker_id} - " f"pending in {time_until:.1f}s"
@@ -235,11 +227,12 @@ class RequestWorkerDataRefreshCommandHandler(
             # Note: Throttle recording happens in RefreshWorkerMetricsCommand when job executes
             # This prevents recording throttle before the actual refresh happens
 
-            # Emit requested SSE event
-            await self._emit_refresh_requested_event(
-                worker_id=command.worker_id,
-                eta_seconds=1,  # ~1s execution delay
+            # Emit domain event (event handler will broadcast SSE)
+            worker.request_data_refresh(
+                requested_at=datetime.now(timezone.utc).isoformat(),
+                requested_by="user",  # TODO: Get from auth context
             )
+            await self._worker_repository.update_async(worker)
 
             log.info(f"✅ On-demand refresh scheduled for worker {command.worker_id} " f"(job_id: {job_id})")
 
@@ -255,6 +248,3 @@ class RequestWorkerDataRefreshCommandHandler(
             error_msg = f"Failed to schedule refresh for worker {command.worker_id}: {str(e)}"
             log.exception(error_msg)
             return self.internal_server_error(error_msg)
-
-    # Note: SSE events for refresh operations are now handled by domain event handlers
-    # triggered automatically when worker state changes via repository operations

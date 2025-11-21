@@ -4,10 +4,11 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from neuroglia.data.abstractions import DomainEvent
-from neuroglia.eventing.cloud_events.decorators import cloudevent
+
+# from neuroglia.eventing.cloud_events.decorators import cloudevent
 
 
-@cloudevent("cml_worker.ec2_metrics.updated.v1")
+# @cloudevent("cml_worker.ec2_metrics.updated.v1")
 @dataclass
 class EC2MetricsUpdatedDomainEvent(DomainEvent):
     """Event raised when EC2 instance metrics are collected from AWS EC2 API."""
@@ -34,7 +35,7 @@ class EC2MetricsUpdatedDomainEvent(DomainEvent):
         self.updated_at = updated_at
 
 
-@cloudevent("cml_worker.cloudwatch_metrics.updated.v1")
+# @cloudevent("cml_worker.cloudwatch_metrics.updated.v1")
 @dataclass
 class CloudWatchMetricsUpdatedDomainEvent(DomainEvent):
     """Event raised when CloudWatch metrics are collected from AWS CloudWatch API."""
@@ -61,7 +62,7 @@ class CloudWatchMetricsUpdatedDomainEvent(DomainEvent):
         self.updated_at = updated_at
 
 
-@cloudevent("cml_worker.cml_metrics.updated.v1")
+# @cloudevent("cml_worker.cml_metrics.updated.v1")
 @dataclass
 class CMLMetricsUpdatedDomainEvent(DomainEvent):
     """Event raised when CML application metrics are collected from CML API."""
@@ -103,7 +104,7 @@ class CMLMetricsUpdatedDomainEvent(DomainEvent):
         self.updated_at = updated_at
 
 
-@cloudevent("cml_worker.ec2_instance_details.updated.v1")
+# @cloudevent("cml_worker.ec2_instance_details.updated.v1")
 @dataclass
 class EC2InstanceDetailsUpdatedDomainEvent(DomainEvent):
     """Event raised when EC2 instance details are collected from AWS EC2 API."""
@@ -139,4 +140,5 @@ class EC2InstanceDetailsUpdatedDomainEvent(DomainEvent):
         self.ami_name = ami_name
         self.ami_description = ami_description
         self.ami_creation_date = ami_creation_date
+        self.updated_at = updated_at
         self.updated_at = updated_at

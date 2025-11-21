@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import logging
 from dataclasses import dataclass
@@ -6,10 +7,7 @@ from typing import TYPE_CHECKING, Any
 import boto3  # type: ignore
 from botocore.exceptions import ClientError, ParamValidationError  # type: ignore
 
-from integration.enums import (
-    AwsRegion,
-    Ec2InstanceResourcesUtilizationRelativeStartTime,
-)
+from integration.enums import AwsRegion, Ec2InstanceResourcesUtilizationRelativeStartTime
 from integration.exceptions import (
     EC2AuthenticationException,
     EC2InstanceCreationException,
@@ -93,6 +91,11 @@ class AwsEc2Client:
     def __init__(self, aws_account_credentials: AwsAccountCredentials):
         self.aws_account_credentials = aws_account_credentials
 
+    async def _run_async(self, func, *args, **kwargs):
+        """Run a blocking function in a separate thread."""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, lambda: func(*args, **kwargs))
+
     def _parse_aws_error(self, error: ClientError, operation: str) -> Exception:
         """Parse AWS ClientError and return appropriate specific exception.
 
@@ -139,12 +142,8 @@ class AwsEc2Client:
         # Generic AWS error
         return IntegrationException(f"{operation} - AWS error [{error_code}]: {error_message}")
 
-    def health(self) -> bool:
-        """Validates whether the service is available
-
-        Returns:
-            bool: True if EC2 Cloud is available.
-        """
+    def _health_sync(self) -> bool:
+        """Validates whether the service is available (Synchronous implementation)"""
         try:
             ec2_client = boto3.client(
                 "ec2",
@@ -161,23 +160,20 @@ class AwsEc2Client:
             log.error(f"Error while verifying access to EC2: {e}")
             raise IntegrationException(f"Error while verifying access to EC2: {e}")
 
-    def get_ami_ids_by_name(
+    async def health(self) -> bool:
+        """Validates whether the service is available
+
+        Returns:
+            bool: True if EC2 Cloud is available.
+        """
+        return await self._run_async(self._health_sync)
+
+    def _get_ami_ids_by_name_sync(
         self,
         aws_region: AwsRegion,
         ami_name: str,
     ) -> list[str]:
-        """Query AWS to find AMI IDs that match the given AMI name.
-
-        Args:
-            aws_region: The AWS region to search in.
-            ami_name: The AMI name pattern to search for.
-
-        Returns:
-            List of AMI IDs that match the name pattern.
-
-        Raises:
-            IntegrationException: If the AMI query fails.
-        """
+        """Query AWS to find AMI IDs that match the given AMI name (Synchronous)."""
         try:
             ec2_client = boto3.client(
                 "ec2",
@@ -211,19 +207,27 @@ class AwsEc2Client:
             log.error(f"Invalid parameters for AMI query: {e}")
             raise EC2InvalidParameterException(f"Invalid AMI name parameter: {e}")
 
-    def get_ami_details(self, aws_region: AwsRegion, ami_id: str) -> AmiDetails | None:
-        """Get AMI details from AWS by AMI ID.
+    async def get_ami_ids_by_name(
+        self,
+        aws_region: AwsRegion,
+        ami_name: str,
+    ) -> list[str]:
+        """Query AWS to find AMI IDs that match the given AMI name.
 
         Args:
-            aws_region: The AWS region where the AMI exists.
-            ami_id: The AMI ID to query.
+            aws_region: The AWS region to search in.
+            ami_name: The AMI name pattern to search for.
 
         Returns:
-            AmiDetails with name, description, and creation date, or None if not found.
+            List of AMI IDs that match the name pattern.
 
         Raises:
             IntegrationException: If the AMI query fails.
         """
+        return await self._run_async(self._get_ami_ids_by_name_sync, aws_region, ami_name)
+
+    def _get_ami_details_sync(self, aws_region: AwsRegion, ami_id: str) -> AmiDetails | None:
+        """Get AMI details from AWS by AMI ID (Synchronous)."""
         try:
             ec2_client = boto3.client(
                 "ec2",
@@ -263,7 +267,22 @@ class AwsEc2Client:
             log.error(f"Invalid parameters for AMI details query: {e}")
             raise EC2InvalidParameterException(f"Invalid AMI ID parameter: {e}")
 
-    def create_instance(
+    async def get_ami_details(self, aws_region: AwsRegion, ami_id: str) -> AmiDetails | None:
+        """Get AMI details from AWS by AMI ID.
+
+        Args:
+            aws_region: The AWS region where the AMI exists.
+            ami_id: The AMI ID to query.
+
+        Returns:
+            AmiDetails with name, description, and creation date, or None if not found.
+
+        Raises:
+            IntegrationException: If the AMI query fails.
+        """
+        return await self._run_async(self._get_ami_details_sync, aws_region, ami_id)
+
+    def _create_instance_sync(
         self,
         aws_region: AwsRegion,
         instance_name: str,
@@ -274,24 +293,7 @@ class AwsEc2Client:
         subnet_id: str,
         key_name: str,
     ) -> CMLWorkerInstanceDto | None:
-        """Creates a single EC2 instance for CML Worker.
-
-        Args:
-            aws_region: The name of the AWS region where to create the instance.
-            instance_name: The name of the EC2 instance to create.
-            ami_id: The ID of the AMI to use for the instance.
-            ami_name: Human-readable name of the AMI.
-            instance_type: The type of instance to create.
-            security_group_ids: A list of security group IDs to assign to the instance.
-            subnet_id: The VPC subnet ID where the instance will be launched.
-            key_name: SSH key pair name for instance access.
-
-        Returns:
-            CMLWorkerInstanceDto containing the created instance details.
-
-        Raises:
-            IntegrationException: If instance creation fails.
-        """
+        """Creates a single EC2 instance for CML Worker (Synchronous)."""
         ec2 = boto3.resource(
             "ec2",
             aws_access_key_id=self.aws_account_credentials.aws_access_key_id,
@@ -366,21 +368,49 @@ class AwsEc2Client:
             log.error(f"Error creating CML Worker instance - invalid value: {e}")
             raise EC2InstanceCreationException(f"Invalid value provided: {e}")
 
-    def start_instance(self, aws_region: AwsRegion, instance_id: str) -> bool:
-        """Starts a stopped EC2 instance.
+    async def create_instance(
+        self,
+        aws_region: AwsRegion,
+        instance_name: str,
+        ami_id: str,
+        ami_name: str,
+        instance_type: str,
+        security_group_ids: list[str],
+        subnet_id: str,
+        key_name: str,
+    ) -> CMLWorkerInstanceDto | None:
+        """Creates a single EC2 instance for CML Worker.
 
         Args:
-            aws_region: The AWS region where the instance is located.
-            instance_id: The AWS identifier of the EC2 instance to start.
+            aws_region: The name of the AWS region where to create the instance.
+            instance_name: The name of the EC2 instance to create.
+            ami_id: The ID of the AMI to use for the instance.
+            ami_name: Human-readable name of the AMI.
+            instance_type: The type of instance to create.
+            security_group_ids: A list of security group IDs to assign to the instance.
+            subnet_id: The VPC subnet ID where the instance will be launched.
+            key_name: SSH key pair name for instance access.
 
         Returns:
-            True if the start request was successful, False otherwise.
+            CMLWorkerInstanceDto containing the created instance details.
 
         Raises:
-            EC2InstanceNotFoundException: If instance not found.
-            EC2InstanceOperationException: If the start operation fails.
-            EC2AuthenticationException: If credentials are invalid.
+            IntegrationException: If instance creation fails.
         """
+        return await self._run_async(
+            self._create_instance_sync,
+            aws_region,
+            instance_name,
+            ami_id,
+            ami_name,
+            instance_type,
+            security_group_ids,
+            subnet_id,
+            key_name,
+        )
+
+    def _start_instance_sync(self, aws_region: AwsRegion, instance_id: str) -> bool:
+        """Starts a stopped EC2 instance (Synchronous)."""
         ec2_client = boto3.client(
             "ec2",
             aws_access_key_id=self.aws_account_credentials.aws_access_key_id,
@@ -405,21 +435,25 @@ class AwsEc2Client:
             log.error(f"Error starting CML Worker instance - invalid value: {e}")
             raise EC2InstanceOperationException(f"Failed to start instance: {e}")
 
-    def stop_instance(self, aws_region: AwsRegion, instance_id: str) -> bool:
-        """Stops a running EC2 instance.
+    async def start_instance(self, aws_region: AwsRegion, instance_id: str) -> bool:
+        """Starts a stopped EC2 instance.
 
         Args:
             aws_region: The AWS region where the instance is located.
-            instance_id: The AWS identifier of the EC2 instance to stop.
+            instance_id: The AWS identifier of the EC2 instance to start.
 
         Returns:
-            True if the stop request was successful, False otherwise.
+            True if the start request was successful, False otherwise.
 
         Raises:
             EC2InstanceNotFoundException: If instance not found.
-            EC2InstanceOperationException: If the stop operation fails.
+            EC2InstanceOperationException: If the start operation fails.
             EC2AuthenticationException: If credentials are invalid.
         """
+        return await self._run_async(self._start_instance_sync, aws_region, instance_id)
+
+    def _stop_instance_sync(self, aws_region: AwsRegion, instance_id: str) -> bool:
+        """Stops a running EC2 instance (Synchronous)."""
         ec2_client = boto3.client(
             "ec2",
             aws_access_key_id=self.aws_account_credentials.aws_access_key_id,
@@ -444,21 +478,25 @@ class AwsEc2Client:
             log.error(f"Error stopping CML Worker instance - invalid value: {e}")
             raise EC2InstanceOperationException(f"Failed to stop instance: {e}")
 
-    def terminate_instance(self, aws_region: AwsRegion, instance_id: str) -> bool:
-        """Terminates a single EC2 instance.
+    async def stop_instance(self, aws_region: AwsRegion, instance_id: str) -> bool:
+        """Stops a running EC2 instance.
 
         Args:
-            aws_region: The name of the AWS region where to create the instance.
-            instance_id: The AWS identifier of the EC2 instance to terminate.
+            aws_region: The AWS region where the instance is located.
+            instance_id: The AWS identifier of the EC2 instance to stop.
 
         Returns:
-            True if the termination request was successful, False otherwise.
+            True if the stop request was successful, False otherwise.
 
         Raises:
             EC2InstanceNotFoundException: If instance not found.
-            EC2InstanceOperationException: If the termination operation fails.
+            EC2InstanceOperationException: If the stop operation fails.
             EC2AuthenticationException: If credentials are invalid.
         """
+        return await self._run_async(self._stop_instance_sync, aws_region, instance_id)
+
+    def _terminate_instance_sync(self, aws_region: AwsRegion, instance_id: str) -> bool:
+        """Terminates a single EC2 instance (Synchronous)."""
         ec2_client = boto3.client(
             "ec2",
             aws_access_key_id=self.aws_account_credentials.aws_access_key_id,
@@ -483,26 +521,29 @@ class AwsEc2Client:
             log.error(f"Error terminating CML Worker instance - invalid value: {e}")
             raise EC2InstanceOperationException(f"Failed to terminate instance: {e}")
 
-    def get_instance_status_checks(
+    async def terminate_instance(self, aws_region: AwsRegion, instance_id: str) -> bool:
+        """Terminates a single EC2 instance.
+
+        Args:
+            aws_region: The name of the AWS region where to create the instance.
+            instance_id: The AWS identifier of the EC2 instance to terminate.
+
+        Returns:
+            True if the termination request was successful, False otherwise.
+
+        Raises:
+            EC2InstanceNotFoundException: If instance not found.
+            EC2InstanceOperationException: If the termination operation fails.
+            EC2AuthenticationException: If credentials are invalid.
+        """
+        return await self._run_async(self._terminate_instance_sync, aws_region, instance_id)
+
+    def _get_instance_status_checks_sync(
         self,
         aws_region: AwsRegion,
         instance_id: str,
     ) -> dict[str, str]:
-        """Get instance and system status checks for an EC2 instance.
-
-        Args:
-            aws_region: The AWS region where the instance is located.
-            instance_id: The AWS identifier of the EC2 instance.
-
-        Returns:
-            Dictionary containing:
-                - instance_status_check: Status of instance checks (ok, impaired, insufficient-data, etc.)
-                - ec2_system_status_check: Status of AWS system/hardware checks (ok, impaired, insufficient-data, etc.)
-                - instance_state: Current state of the instance (pending, running, stopping, stopped, etc.)
-
-        Raises:
-            IntegrationException: If the status check retrieval fails.
-        """
+        """Get instance and system status checks for an EC2 instance (Synchronous)."""
         ec2_client = boto3.client(
             "ec2",
             aws_access_key_id=self.aws_account_credentials.aws_access_key_id,
@@ -549,19 +590,30 @@ class AwsEc2Client:
             log.error(f"Error getting status checks - invalid value: {e}")
             raise EC2StatusCheckException(f"Failed to get status checks: {e}")
 
-    def get_tags(self, aws_region: AwsRegion, instance_id: str) -> dict[str, str]:
-        """Get all tags for an EC2 instance.
+    async def get_instance_status_checks(
+        self,
+        aws_region: AwsRegion,
+        instance_id: str,
+    ) -> dict[str, str]:
+        """Get instance and system status checks for an EC2 instance.
 
         Args:
             aws_region: The AWS region where the instance is located.
             instance_id: The AWS identifier of the EC2 instance.
 
         Returns:
-            Dictionary of tag key-value pairs.
+            Dictionary containing:
+                - instance_status_check: Status of instance checks (ok, impaired, insufficient-data, etc.)
+                - ec2_system_status_check: Status of AWS system/hardware checks (ok, impaired, insufficient-data, etc.)
+                - instance_state: Current state of the instance (pending, running, stopping, stopped, etc.)
 
         Raises:
-            IntegrationException: If the tag retrieval fails.
+            IntegrationException: If the status check retrieval fails.
         """
+        return await self._run_async(self._get_instance_status_checks_sync, aws_region, instance_id)
+
+    def _get_tags_sync(self, aws_region: AwsRegion, instance_id: str) -> dict[str, str]:
+        """Get all tags for an EC2 instance (Synchronous)."""
         ec2_client = boto3.client(
             "ec2",
             aws_access_key_id=self.aws_account_credentials.aws_access_key_id,
@@ -594,25 +646,28 @@ class AwsEc2Client:
             log.error(f"Error getting tags - invalid value: {e}")
             raise EC2TagOperationException(f"Failed to get tags: {e}")
 
-    def add_tags(
+    async def get_tags(self, aws_region: AwsRegion, instance_id: str) -> dict[str, str]:
+        """Get all tags for an EC2 instance.
+
+        Args:
+            aws_region: The AWS region where the instance is located.
+            instance_id: The AWS identifier of the EC2 instance.
+
+        Returns:
+            Dictionary of tag key-value pairs.
+
+        Raises:
+            IntegrationException: If the tag retrieval fails.
+        """
+        return await self._run_async(self._get_tags_sync, aws_region, instance_id)
+
+    def _add_tags_sync(
         self,
         aws_region: AwsRegion,
         instance_id: str,
         tags: dict[str, str],
     ) -> bool:
-        """Add or update tags on an EC2 instance.
-
-        Args:
-            aws_region: The AWS region where the instance is located.
-            instance_id: The AWS identifier of the EC2 instance.
-            tags: Dictionary of tag key-value pairs to add/update.
-
-        Returns:
-            True if the tags were successfully added/updated.
-
-        Raises:
-            IntegrationException: If the tag operation fails.
-        """
+        """Add or update tags on an EC2 instance (Synchronous)."""
         ec2_client = boto3.client(
             "ec2",
             aws_access_key_id=self.aws_account_credentials.aws_access_key_id,
@@ -639,25 +694,34 @@ class AwsEc2Client:
             log.error(f"Error adding tags - invalid value: {e}")
             raise EC2TagOperationException(f"Failed to add tags: {e}")
 
-    def remove_tags(
+    async def add_tags(
+        self,
+        aws_region: AwsRegion,
+        instance_id: str,
+        tags: dict[str, str],
+    ) -> bool:
+        """Add or update tags on an EC2 instance.
+
+        Args:
+            aws_region: The AWS region where the instance is located.
+            instance_id: The AWS identifier of the EC2 instance.
+            tags: Dictionary of tag key-value pairs to add/update.
+
+        Returns:
+            True if the tags were successfully added/updated.
+
+        Raises:
+            IntegrationException: If the tag operation fails.
+        """
+        return await self._run_async(self._add_tags_sync, aws_region, instance_id, tags)
+
+    def _remove_tags_sync(
         self,
         aws_region: AwsRegion,
         instance_id: str,
         tag_keys: list[str],
     ) -> bool:
-        """Remove tags from an EC2 instance.
-
-        Args:
-            aws_region: The AWS region where the instance is located.
-            instance_id: The AWS identifier of the EC2 instance.
-            tag_keys: List of tag keys to remove.
-
-        Returns:
-            True if the tags were successfully removed.
-
-        Raises:
-            IntegrationException: If the tag removal fails.
-        """
+        """Remove tags from an EC2 instance (Synchronous)."""
         ec2_client = boto3.client(
             "ec2",
             aws_access_key_id=self.aws_account_credentials.aws_access_key_id,
@@ -684,16 +748,29 @@ class AwsEc2Client:
             log.error(f"Error removing tags - invalid value: {e}")
             raise EC2TagOperationException(f"Failed to remove tags: {e}")
 
-    def get_instance_details(self, aws_region: AwsRegion, instance_id: str) -> Ec2InstanceDescriptor | None:
-        """Gets the given EC2 instance details from the given AWS Region.
+    async def remove_tags(
+        self,
+        aws_region: AwsRegion,
+        instance_id: str,
+        tag_keys: list[str],
+    ) -> bool:
+        """Remove tags from an EC2 instance.
 
         Args:
-            aws_region: The name of the AWS region where to create the instance.
-            instance_id: The AWS identifier of the EC2 CML Worker instance.
+            aws_region: The AWS region where the instance is located.
+            instance_id: The AWS identifier of the EC2 instance.
+            tag_keys: List of tag keys to remove.
 
         Returns:
-            Ec2InstanceDescriptor: An Ec2InstanceDescriptor.
+            True if the tags were successfully removed.
+
+        Raises:
+            IntegrationException: If the tag removal fails.
         """
+        return await self._run_async(self._remove_tags_sync, aws_region, instance_id, tag_keys)
+
+    def _get_instance_details_sync(self, aws_region: AwsRegion, instance_id: str) -> Ec2InstanceDescriptor | None:
+        """Gets the given EC2 instance details from the given AWS Region (Synchronous)."""
         ec2_client = boto3.client(
             "ec2",
             aws_access_key_id=self.aws_account_credentials.aws_access_key_id,
@@ -736,7 +813,19 @@ class AwsEc2Client:
                 f"{type(e)} Error while getting details of instance {instance_id} in Region {aws_region}: {e}"
             )
 
-    def list_instances(
+    async def get_instance_details(self, aws_region: AwsRegion, instance_id: str) -> Ec2InstanceDescriptor | None:
+        """Gets the given EC2 instance details from the given AWS Region.
+
+        Args:
+            aws_region: The name of the AWS region where to create the instance.
+            instance_id: The AWS identifier of the EC2 CML Worker instance.
+
+        Returns:
+            Ec2InstanceDescriptor: An Ec2InstanceDescriptor.
+        """
+        return await self._run_async(self._get_instance_details_sync, aws_region, instance_id)
+
+    def _list_instances_sync(
         self,
         region_name: AwsRegion,
         instance_ids: list[str] | None = None,
@@ -745,19 +834,7 @@ class AwsEc2Client:
         image_ids: list[str] | None = None,
         tag_filters: dict[str, str] | None = None,
     ) -> list[Ec2InstanceDescriptor] | None:
-        """List EC2 instances in the AWS Region with optional filters.
-
-        Args:
-            region_name: The name of the AWS region where to list instances.
-            instance_ids: Optional list of specific instance IDs to filter by.
-            instance_types: Optional list of instance types to filter by (e.g., ['t2.micro', 't3.small']).
-            instance_states: Optional list of instance states to filter by (e.g., ['running', 'stopped']).
-            image_ids: Optional list of AMI IDs to filter by.
-            tag_filters: Optional dictionary of tag key-value pairs to filter by (e.g., {'Environment': 'prod', 'Team': 'backend'}).
-
-        Returns:
-            List[Ec2InstanceDescriptor]: A list of Ec2InstanceDescriptor matching the filters.
-        """
+        """List EC2 instances in the AWS Region with optional filters (Synchronous)."""
         ec2_client = boto3.client(
             "ec2",
             aws_access_key_id=self.aws_account_credentials.aws_access_key_id,
@@ -847,26 +924,48 @@ class AwsEc2Client:
             log.error(f"Error while listing CML Worker instances in Region {region_name}: {e}")
             raise IntegrationException(f"Error while listing CML Worker instances in Region {region_name}: {e}")
 
-    def get_instance_resources_utilization(
+    async def list_instances(
+        self,
+        region_name: AwsRegion,
+        instance_ids: list[str] | None = None,
+        instance_types: list[str] | None = None,
+        instance_states: list[str] | None = None,
+        image_ids: list[str] | None = None,
+        tag_filters: dict[str, str] | None = None,
+    ) -> list[Ec2InstanceDescriptor] | None:
+        """List EC2 instances in the AWS Region with optional filters.
+
+        Args:
+            region_name: The name of the AWS region where to list instances.
+            instance_ids: Optional list of specific instance IDs to filter by.
+            instance_types: Optional list of instance types to filter by (e.g., ['t2.micro', 't3.small']).
+            instance_states: Optional list of instance states to filter by (e.g., ['running', 'stopped']).
+            image_ids: Optional list of AMI IDs to filter by.
+            tag_filters: Optional dictionary of tag key-value pairs to filter by (e.g., {'Environment': 'prod', 'Team': 'backend'}).
+
+        Returns:
+            List[Ec2InstanceDescriptor]: A list of Ec2InstanceDescriptor matching the filters.
+        """
+        return await self._run_async(
+            self._list_instances_sync,
+            region_name,
+            instance_ids,
+            instance_types,
+            instance_states,
+            image_ids,
+            tag_filters,
+        )
+
+    def _get_instance_resources_utilization_sync(
         self,
         aws_region: AwsRegion,
         instance_id: str,
         relative_start_time: Ec2InstanceResourcesUtilizationRelativeStartTime,
     ) -> Ec2InstanceResourcesUtilization | None:
-        """
-        Retrieves averageCPU utilization and memory utilization for a given EC2 instance, region and for the time period starting `now() - relative_start_time`.
-
-        Args:
-            aws_region (str): The AWS region where the instance resides.
-            instance_id (str): The ID of the EC2 instance.
-            relative_start_time (timedelta): The time period to consider for the utilization compute.
-
-        Returns:
-            dict: A dictionary containing CPU utilization and memory utilization.
-        """
+        """Retrieves averageCPU utilization and memory utilization (Synchronous)."""
         try:
             # Verify instance exists - raises IntegrationException if not found
-            self.get_instance_details(aws_region=aws_region, instance_id=instance_id)
+            self._get_instance_details_sync(aws_region=aws_region, instance_id=instance_id)
 
             cloudwatch = boto3.client(
                 "cloudwatch",
@@ -928,6 +1027,30 @@ class AwsEc2Client:
             raise IntegrationException(
                 f"Error while pulling resources utilization for CML Worker instance {instance_id} in Region {aws_region}: {e}"
             )
+
+    async def get_instance_resources_utilization(
+        self,
+        aws_region: AwsRegion,
+        instance_id: str,
+        relative_start_time: Ec2InstanceResourcesUtilizationRelativeStartTime,
+    ) -> Ec2InstanceResourcesUtilization | None:
+        """
+        Retrieves averageCPU utilization and memory utilization for a given EC2 instance, region and for the time period starting `now() - relative_start_time`.
+
+        Args:
+            aws_region (str): The AWS region where the instance resides.
+            instance_id (str): The ID of the EC2 instance.
+            relative_start_time (timedelta): The time period to consider for the utilization compute.
+
+        Returns:
+            dict: A dictionary containing CPU utilization and memory utilization.
+        """
+        return await self._run_async(
+            self._get_instance_resources_utilization_sync,
+            aws_region,
+            instance_id,
+            relative_start_time,
+        )
 
     @staticmethod
     def configure(builder: "WebApplicationBuilder") -> None:

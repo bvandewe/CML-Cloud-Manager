@@ -63,7 +63,7 @@ class LabRecordCreatedDomainEvent(DomainEvent):
         self.first_seen_at = first_seen_at
 
 
-@cloudevent("lab_record.updated.v1")
+# @cloudevent("lab_record.updated.v1")
 @dataclass
 class LabRecordUpdatedDomainEvent(DomainEvent):
     """Event raised when a lab record is updated with fresh CML data."""

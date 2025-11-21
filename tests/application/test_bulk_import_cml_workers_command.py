@@ -26,7 +26,7 @@ class TestBulkImportCMLWorkersCommand:
         cloud_event_bus = MagicMock()
         cloud_event_publishing_options = MagicMock()
         cml_worker_repository = AsyncMock()
-        aws_ec2_client = MagicMock()
+        aws_ec2_client = AsyncMock()
         settings = MagicMock()
 
         return {
@@ -101,13 +101,13 @@ class TestBulkImportCMLWorkersCommand:
         result = await handler.handle_async(command)
 
         # Verify success
-        assert result.is_successful
-        assert isinstance(result.value, BulkImportResult)
-        assert result.value.total_found == 3
-        assert result.value.total_imported == 3
-        assert result.value.total_skipped == 0
-        assert len(result.value.imported) == 3
-        assert len(result.value.skipped) == 0
+        assert result.is_success
+        assert isinstance(result.data, BulkImportResult)
+        assert result.data.total_found == 3
+        assert result.data.total_imported == 3
+        assert result.data.total_skipped == 0
+        assert len(result.data.imported) == 3
+        assert len(result.data.skipped) == 0
 
         # Verify repository was called 3 times
         assert mock_dependencies["cml_worker_repository"].add_async.call_count == 3
@@ -155,15 +155,15 @@ class TestBulkImportCMLWorkersCommand:
         result = await handler.handle_async(command)
 
         # Verify success
-        assert result.is_successful
-        assert isinstance(result.value, BulkImportResult)
-        assert result.value.total_found == 3
-        assert result.value.total_imported == 2
-        assert result.value.total_skipped == 1
-        assert len(result.value.imported) == 2
-        assert len(result.value.skipped) == 1
-        assert result.value.skipped[0]["instance_id"] == "i-002"
-        assert "Already registered" in result.value.skipped[0]["reason"]
+        assert result.is_success
+        assert isinstance(result.data, BulkImportResult)
+        assert result.data.total_found == 3
+        assert result.data.total_imported == 2
+        assert result.data.total_skipped == 1
+        assert len(result.data.imported) == 2
+        assert len(result.data.skipped) == 1
+        assert result.data.skipped[0]["instance_id"] == "i-002"
+        assert "Already registered" in result.data.skipped[0]["reason"]
 
         # Verify repository was called only 2 times (skipped i-002)
         assert mock_dependencies["cml_worker_repository"].add_async.call_count == 2
@@ -182,11 +182,11 @@ class TestBulkImportCMLWorkersCommand:
         result = await handler.handle_async(command)
 
         # Verify success with empty result
-        assert result.is_successful
-        assert isinstance(result.value, BulkImportResult)
-        assert result.value.total_found == 0
-        assert result.value.total_imported == 0
-        assert result.value.total_skipped == 0
+        assert result.is_success
+        assert isinstance(result.data, BulkImportResult)
+        assert result.data.total_found == 0
+        assert result.data.total_imported == 0
+        assert result.data.total_skipped == 0
 
         # Verify repository was never called
         assert mock_dependencies["cml_worker_repository"].add_async.call_count == 0
@@ -201,5 +201,5 @@ class TestBulkImportCMLWorkersCommand:
         result = await handler.handle_async(command)
 
         # Verify failure
-        assert not result.is_successful
-        assert "Must provide at least one of: ami_id or ami_name" in result.reason
+        assert not result.is_success
+        assert "Must provide at least one of: ami_id or ami_name" in result.detail

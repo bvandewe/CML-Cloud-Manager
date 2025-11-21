@@ -54,6 +54,22 @@ class SSEClient {
                 console.debug('SSE: Heartbeat', data.timestamp);
             });
 
+            // Worker snapshot event (complete worker state)
+            this.eventSource.addEventListener('worker.snapshot', event => {
+                console.log('[sse-client] EventSource received worker.snapshot, raw event.data:', event.data.substring(0, 200));
+                const data = JSON.parse(event.data);
+                console.log('[sse-client] Parsed worker.snapshot data:', {
+                    type: data.type,
+                    source: data.source,
+                    hasData: !!data.data,
+                    worker_id: data.data?.worker_id,
+                    license_status: data.data?.license_status,
+                    cml_license_info: data.data?.cml_license_info,
+                });
+                console.log('SSE: Worker snapshot', data);
+                this.emit('worker.snapshot', data.data);
+            });
+
             // Worker metrics updated event
             this.eventSource.addEventListener('worker.metrics.updated', event => {
                 const data = JSON.parse(event.data);
@@ -134,6 +150,43 @@ class SSEClient {
                 const data = JSON.parse(event.data);
                 console.log('SSE: Worker data refreshed', data);
                 this.emit('worker.data.refreshed', data.data);
+            });
+
+            // License registration started event
+            this.eventSource.addEventListener('worker.license.registration.started', event => {
+                const data = JSON.parse(event.data);
+                console.log('SSE: License registration started', data);
+                const workerName = data.data.worker_name || data.data.worker_id;
+                showToast(`License registration started for ${workerName}`, 'info');
+                this.emit('worker.license.registration.started', data.data);
+            });
+
+            // License registration completed event
+            this.eventSource.addEventListener('worker.license.registration.completed', event => {
+                const data = JSON.parse(event.data);
+                console.log('SSE: License registration completed', data);
+                const workerName = data.data.worker_name || data.data.worker_id;
+                showToast(`✅ License registered successfully for ${workerName}! Click to dismiss.`, 'success', 0);
+                this.emit('worker.license.registration.completed', data.data);
+            });
+
+            // License registration failed event
+            this.eventSource.addEventListener('worker.license.registration.failed', event => {
+                const data = JSON.parse(event.data);
+                console.log('SSE: License registration failed', data);
+                const workerName = data.data.worker_name || data.data.worker_id;
+                const reason = data.data.reason || 'Unknown error';
+                showToast(`License registration failed for ${workerName}: ${reason}`, 'error', 8000);
+                this.emit('worker.license.registration.failed', data.data);
+            });
+
+            // License deregistered event
+            this.eventSource.addEventListener('worker.license.deregistered', event => {
+                const data = JSON.parse(event.data);
+                console.log('SSE: License deregistered', data);
+                const workerName = data.data.worker_name || data.data.worker_id;
+                showToast(`License deregistered from ${workerName}`, 'info');
+                this.emit('worker.license.deregistered', data.data);
             });
 
             // Error handling
@@ -240,6 +293,20 @@ class SSEClient {
      * @param {object} data - Event data
      */
     emit(eventType, data) {
+        console.log('[sse-client] emit() called:', {
+            eventType,
+            hasHandlers: !!this.eventHandlers[eventType],
+            handlerCount: this.eventHandlers[eventType]?.length || 0,
+            data:
+                eventType === 'worker.snapshot'
+                    ? {
+                          worker_id: data?.worker_id,
+                          license_status: data?.license_status,
+                          cml_license_info: data?.cml_license_info,
+                      }
+                    : 'other',
+        });
+
         if (this.eventHandlers[eventType]) {
             this.eventHandlers[eventType].forEach(handler => {
                 try {
@@ -248,6 +315,8 @@ class SSEClient {
                     console.error(`SSE: Error in event handler for ${eventType}:`, error);
                 }
             });
+        } else {
+            console.warn(`[sse-client] No handlers registered for event type: ${eventType}`);
         }
     }
 

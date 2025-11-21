@@ -9,14 +9,13 @@ from dataclasses import dataclass
 
 from neuroglia.core import OperationResult
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_bus import CloudEventBus
-from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import (
-    CloudEventPublishingOptions,
-)
+from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import CloudEventPublishingOptions
 from neuroglia.mapping import Mapper
 from neuroglia.mediation import Command, CommandHandler, Mediator
 from neuroglia.observability.tracing import add_span_attributes
 from opentelemetry import trace
 
+from application.decorators import retry_on_concurrency_conflict
 from application.settings import Settings
 from domain.enums import CMLServiceStatus, CMLWorkerStatus
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
@@ -72,6 +71,7 @@ class SyncWorkerCMLDataCommandHandler(
         self.cml_client_factory = cml_api_client_factory
         self.settings = settings
 
+    @retry_on_concurrency_conflict(max_attempts=3, initial_delay=0.1)
     async def handle_async(self, request: SyncWorkerCMLDataCommand) -> OperationResult[dict]:
         """Handle sync worker CML data command.
 

@@ -206,7 +206,18 @@ function stopGlobalTimingInterval() {
 }
 
 export function renderWorkersTable() {
+    console.log('[worker-render] renderWorkersTable called');
     const workersData = getWorkersDataRef() || [];
+    console.log(
+        '[worker-render] workersData:',
+        workersData.map(w => ({
+            id: w.id,
+            name: w.name,
+            license_status: w.license_status,
+            cml_license_info: w.cml_license_info,
+        }))
+    );
+
     const tbody = document.getElementById('workers-table-body');
     if (!tbody) return;
     if (!workersData.length) {
@@ -306,6 +317,13 @@ export function renderWorkersTable() {
         ${
             isAdmin() && worker.status === 'running'
                 ? `<button class='btn btn-outline-secondary refresh-btn admin-only' data-worker-id='${worker.id}' data-region='${worker.aws_region}' title='Refresh Metrics' onclick='event.stopPropagation()'><i class='bi bi-arrow-clockwise'></i></button>`
+                : ''
+        }
+        ${
+            isAdmin() && worker.status === 'running'
+                ? `<button class='btn btn-outline-info admin-only' onclick="event.stopPropagation(); window.workersApp.showLicenseModal('${worker.id}','${worker.aws_region}','${escapeHtml(worker.name)}',${
+                      worker.is_licensed || false
+                  })" title='Register License'><i class='bi bi-key'></i></button>`
                 : ''
         }
         <button class='btn btn-outline-danger admin-only' onclick="event.stopPropagation(); window.workersApp.showDeleteModal('${worker.id}','${worker.aws_region}','${escapeHtml(

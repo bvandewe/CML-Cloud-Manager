@@ -104,16 +104,33 @@ export async function deleteWorker(region, workerId, terminateInstance = false) 
 }
 
 /**
- * Register CML license for a worker
+ * Register CML license for a worker (async operation)
  * @param {string} region - AWS region
  * @param {string} workerId - Worker UUID
  * @param {string} licenseToken - CML license token
- * @returns {Promise<Object>}
+ * @param {boolean} reregister - Force re-registration if already licensed
+ * @returns {Promise<Object>} Returns 202 Accepted with job details
  */
-export async function registerLicense(region, workerId, licenseToken) {
+export async function registerLicense(region, workerId, licenseToken, reregister = false) {
     const response = await apiRequest(`/api/workers/region/${region}/workers/${workerId}/license`, {
         method: 'POST',
-        body: JSON.stringify({ license_token: licenseToken }),
+        body: JSON.stringify({
+            license_token: licenseToken,
+            reregister: reregister,
+        }),
+    });
+    return await response.json();
+}
+
+/**
+ * Deregister CML license from a worker (sync operation, 10-60s)
+ * @param {string} region - AWS region
+ * @param {string} workerId - Worker UUID
+ * @returns {Promise<Object>}
+ */
+export async function deregisterLicense(region, workerId) {
+    const response = await apiRequest(`/api/workers/region/${region}/workers/${workerId}/license`, {
+        method: 'DELETE',
     });
     return await response.json();
 }

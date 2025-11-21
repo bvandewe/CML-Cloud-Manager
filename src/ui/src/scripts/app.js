@@ -1,12 +1,13 @@
 /**
  * Application Entry Point
  * Main application initialization and event handling
+ *
+ * MIGRATION NOTE: Supports both legacy and Web Components implementation via feature flag.
  */
 
 import { checkAuth } from './api/client.js';
 import { login, logout, showLoginForm, showDashboard } from './ui/auth.js';
 import { loadTasks, handleCreateTask, handleUpdateTask } from './ui/tasks.js';
-import { initializeWorkersView } from './ui/workers.js';
 import { initializeSystemView } from './ui/system.js';
 import { initializeTheme } from './services/theme.js';
 
@@ -43,9 +44,18 @@ async function checkSessionExpiration() {
             // Session expired - redirect to login
             console.log('[Session] Session expired, redirecting to login');
             stopSessionMonitoring();
-            const { showToast } = await import('./ui/notifications.js');
-            showToast('Your session has expired. Please log in again.', 'warning');
-            showLoginForm();
+            const { showToastWithAction } = await import('./ui/notifications.js');
+            showToastWithAction(
+                'Your session has expired.',
+                'warning',
+                'Extend Session',
+                async () => {
+                    // Refresh the page to trigger re-authentication
+                    window.location.reload();
+                },
+                10000
+            );
+            setTimeout(() => showLoginForm(), 10000);
             return;
         }
 
@@ -172,7 +182,22 @@ function showView(view) {
         if (workersSection) workersSection.style.display = 'block';
         if (navWorkers) navWorkers.classList.add('active');
         console.log('[APP showView] Calling initializeWorkersView with user:', currentUser);
-        initializeWorkersView(currentUser);
+
+        // Feature flag: Use Web Components or legacy implementation
+        const useWebComponents = localStorage.getItem('use-web-components') !== 'false';
+
+        if (useWebComponents) {
+            console.log('[APP] Using Web Components implementation');
+            import('./components-v2/WorkersApp.js').then(module => {
+                module.initializeWorkersView(currentUser);
+            });
+        } else {
+            console.log('[APP] Using legacy implementation');
+            import('./ui/workers.js').then(module => {
+                module.initializeWorkersView(currentUser);
+            });
+        }
+
         console.log('[APP showView] initializeWorkersView completed');
     } else if (view === 'system') {
         console.log('[APP showView] Showing system view');

@@ -77,7 +77,7 @@ class TestInMemorySessionStore:
     def test_session_expiration(self) -> None:
         """Test that sessions expire after the timeout period."""
         # Create store with 1-hour timeout
-        store: InMemorySessionStore = InMemorySessionStore(session_timeout_hours=1)
+        store: InMemorySessionStore = InMemorySessionStore(session_timeout_minutes=60)
 
         tokens: dict[str, str] = TokenFactory.create_tokens()
         user_info: dict[str, Any] = TokenFactory.create_user_info()
@@ -87,7 +87,7 @@ class TestInMemorySessionStore:
         # Manually expire the session by modifying its timestamp
         if hasattr(store, "_sessions") and session_id in store._sessions:
             expired_time: datetime = datetime.now(timezone.utc) - timedelta(hours=2)
-            store._sessions[session_id]["last_accessed"] = expired_time
+            store._sessions[session_id]["expires_at"] = expired_time
 
         # Try to get expired session
         session: dict[str, Any] | None = store.get_session(session_id)

@@ -12,13 +12,8 @@ from neuroglia.mediation import Mediator
 from opentelemetry import trace
 
 from application.commands.refresh_worker_labs_command import RefreshWorkerLabsCommand
-from application.commands.refresh_worker_metrics_command import (
-    RefreshWorkerMetricsCommand,
-)
-from application.services.background_scheduler import (
-    ScheduledBackgroundJob,
-    backgroundjob,
-)
+from application.commands.refresh_worker_metrics_command import RefreshWorkerMetricsCommand
+from application.services.background_scheduler import ScheduledBackgroundJob, backgroundjob
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)

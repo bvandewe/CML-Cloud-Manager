@@ -13,20 +13,25 @@ from multipledispatch import dispatch
 from neuroglia.data.abstractions import AggregateRoot, AggregateState
 
 from domain.enums import CMLServiceStatus, CMLWorkerStatus, LicenseStatus
-from domain.events.cloudwatch_monitoring_updated_domain_event import (
-    CloudWatchMonitoringUpdatedDomainEvent,
-)
+from domain.events.cloudwatch_monitoring_updated_domain_event import CloudWatchMonitoringUpdatedDomainEvent
 from domain.events.cml_worker import (
     CMLServiceStatusUpdatedDomainEvent,
     CMLWorkerCreatedDomainEvent,
     CMLWorkerEndpointUpdatedDomainEvent,
     CMLWorkerImportedDomainEvent,
     CMLWorkerInstanceAssignedDomainEvent,
+    CMLWorkerLicenseDeregisteredDomainEvent,
+    CMLWorkerLicenseRegistrationCompletedDomainEvent,
+    CMLWorkerLicenseRegistrationFailedDomainEvent,
+    CMLWorkerLicenseRegistrationStartedDomainEvent,
     CMLWorkerLicenseUpdatedDomainEvent,
     CMLWorkerStatusUpdatedDomainEvent,
     CMLWorkerTagsUpdatedDomainEvent,
     CMLWorkerTelemetryUpdatedDomainEvent,
     CMLWorkerTerminatedDomainEvent,
+    WorkerDataRefreshCompletedDomainEvent,
+    WorkerDataRefreshRequestedDomainEvent,
+    WorkerDataRefreshSkippedDomainEvent,
 )
 from domain.events.worker_activity_events import (
     WorkerActivityUpdatedDomainEvent,
@@ -60,6 +65,7 @@ class CMLWorkerState(AggregateState[str]):
     cml_version: str | None
     license_status: LicenseStatus
     license_token: str | None
+    license_operation_in_progress: bool  # Track if registration/deregistration is ongoing
     https_endpoint: str | None
 
     # Network details
@@ -141,6 +147,7 @@ class CMLWorkerState(AggregateState[str]):
         self.cml_version = None
         self.license_status = LicenseStatus.UNREGISTERED
         self.license_token = None
+        self.license_operation_in_progress = False
         self.https_endpoint = None
 
         self.public_ip = None
@@ -328,6 +335,20 @@ class CMLWorkerState(AggregateState[str]):
         self.cml_last_synced_at = event.synced_at
         self.updated_at = event.updated_at
 
+        # Sync license_status from cml_license_info if available
+        if self.cml_license_info:
+            # Handle both flat and nested structure (CML 2.7+ uses nested registration.status)
+            reg_status = self.cml_license_info.get("registration_status")
+            if not reg_status and isinstance(self.cml_license_info.get("registration"), dict):
+                reg_status = self.cml_license_info["registration"].get("status")
+
+            if reg_status:
+                reg_status = reg_status.upper()
+                if reg_status == "COMPLETED" or reg_status == "REGISTERED":
+                    self.license_status = LicenseStatus.REGISTERED
+                elif reg_status == "EVALUATION":
+                    self.license_status = LicenseStatus.EVALUATION
+
     @dispatch(CMLWorkerTelemetryUpdatedDomainEvent)
     def on(self, event: CMLWorkerTelemetryUpdatedDomainEvent) -> None:
         """Handle telemetry updated event."""
@@ -359,6 +380,58 @@ class CMLWorkerState(AggregateState[str]):
         """Apply AWS tags update to the state."""
         self.aws_tags = event.aws_tags
         self.updated_at = event.updated_at
+
+    @dispatch(CMLWorkerLicenseRegistrationStartedDomainEvent)
+    def on(self, event: CMLWorkerLicenseRegistrationStartedDomainEvent) -> None:  # type: ignore[override]
+        """Apply license registration started event to the state."""
+        self.license_operation_in_progress = True
+        self.updated_at = datetime.fromisoformat(event.started_at)
+
+    @dispatch(CMLWorkerLicenseRegistrationCompletedDomainEvent)
+    def on(self, event: CMLWorkerLicenseRegistrationCompletedDomainEvent) -> None:  # type: ignore[override]
+        """Apply license registration completed event to the state."""
+        self.license_status = LicenseStatus.REGISTERED
+        self.license_operation_in_progress = False
+        self.updated_at = datetime.fromisoformat(event.completed_at)
+
+    @dispatch(CMLWorkerLicenseRegistrationFailedDomainEvent)
+    def on(self, event: CMLWorkerLicenseRegistrationFailedDomainEvent) -> None:  # type: ignore[override]
+        """Apply license registration failed event to the state."""
+        self.license_operation_in_progress = False
+        self.updated_at = datetime.fromisoformat(event.failed_at)
+
+    @dispatch(CMLWorkerLicenseDeregisteredDomainEvent)
+    def on(self, event: CMLWorkerLicenseDeregisteredDomainEvent) -> None:  # type: ignore[override]
+        """Apply license deregistered event to the state."""
+        self.license_status = LicenseStatus.UNREGISTERED
+        self.updated_at = datetime.fromisoformat(event.deregistered_at)
+
+        # Clear stale license data to prevent inconsistency
+        self.cml_license_info = None
+        if self.cml_system_health:
+            self.cml_system_health = {
+                **self.cml_system_health,
+                "is_licensed": False,
+                "is_enterprise": False,
+            }
+
+    @dispatch(WorkerDataRefreshRequestedDomainEvent)
+    def on(self, event: WorkerDataRefreshRequestedDomainEvent) -> None:  # type: ignore[override]
+        """Apply data refresh requested event to the state."""
+        # No state changes needed - event is for notification only
+        pass
+
+    @dispatch(WorkerDataRefreshSkippedDomainEvent)
+    def on(self, event: WorkerDataRefreshSkippedDomainEvent) -> None:  # type: ignore[override]
+        """Apply data refresh skipped event to the state."""
+        # No state changes needed - event is for notification only
+        pass
+
+    @dispatch(WorkerDataRefreshCompletedDomainEvent)
+    def on(self, event: WorkerDataRefreshCompletedDomainEvent) -> None:  # type: ignore[override]
+        """Apply data refresh completed event to the state."""
+        # No state changes needed - event is for notification only
+        pass
 
     @dispatch(CloudWatchMonitoringUpdatedDomainEvent)
     def on(self, event: CloudWatchMonitoringUpdatedDomainEvent) -> None:  # type: ignore[override]
@@ -973,6 +1046,183 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
                     name=self.state.name,
                     terminated_at=datetime.now(timezone.utc),
                     terminated_by=terminated_by,
+                )
+            )
+        )
+
+    def start_license_registration(
+        self,
+        started_at: str,
+        initiated_by: str | None,
+    ) -> None:
+        """Start license registration process.
+
+        Args:
+            started_at: ISO timestamp when registration started
+            initiated_by: User ID who initiated registration
+        """
+        from domain.events.cml_worker import CMLWorkerLicenseRegistrationStartedDomainEvent
+
+        self.state.on(
+            self.register_event(  # type: ignore
+                CMLWorkerLicenseRegistrationStartedDomainEvent(
+                    aggregate_id=self.id(),
+                    worker_id=self.id(),
+                    started_at=started_at,
+                    initiated_by=initiated_by or "system",
+                )
+            )
+        )
+
+    def complete_license_registration(
+        self,
+        registration_status: str,
+        smart_account: str | None,
+        virtual_account: str | None,
+        completed_at: str,
+    ) -> None:
+        """Complete license registration successfully.
+
+        Args:
+            registration_status: CML registration status (e.g., "COMPLETED")
+            smart_account: Smart Licensing account name
+            virtual_account: Virtual account name
+            completed_at: ISO timestamp when registration completed
+        """
+        from domain.events.cml_worker import CMLWorkerLicenseRegistrationCompletedDomainEvent
+
+        self.state.on(
+            self.register_event(  # type: ignore
+                CMLWorkerLicenseRegistrationCompletedDomainEvent(
+                    aggregate_id=self.id(),
+                    worker_id=self.id(),
+                    registration_status=registration_status,
+                    smart_account=smart_account,
+                    virtual_account=virtual_account,
+                    completed_at=completed_at,
+                )
+            )
+        )
+
+    def fail_license_registration(
+        self,
+        error_message: str,
+        failed_at: str,
+        error_code: str | None = None,
+    ) -> None:
+        """Fail license registration.
+
+        Args:
+            error_message: Error description
+            failed_at: ISO timestamp when registration failed
+            error_code: Optional error code from CML
+        """
+        from domain.events.cml_worker import CMLWorkerLicenseRegistrationFailedDomainEvent
+
+        self.state.on(
+            self.register_event(  # type: ignore
+                CMLWorkerLicenseRegistrationFailedDomainEvent(
+                    aggregate_id=self.id(),
+                    worker_id=self.id(),
+                    error_message=error_message,
+                    error_code=error_code,
+                    failed_at=failed_at,
+                )
+            )
+        )
+
+    def deregister_license(
+        self,
+        deregistered_at: str,
+        initiated_by: str | None,
+    ) -> None:
+        """Deregister license.
+
+        Args:
+            deregistered_at: ISO timestamp when deregistration completed
+            initiated_by: User ID who initiated deregistration
+        """
+        from domain.events.cml_worker import CMLWorkerLicenseDeregisteredDomainEvent
+
+        self.state.on(
+            self.register_event(  # type: ignore
+                CMLWorkerLicenseDeregisteredDomainEvent(
+                    aggregate_id=self.id(),
+                    worker_id=self.id(),
+                    deregistered_at=deregistered_at,
+                    initiated_by=initiated_by or "system",
+                )
+            )
+        )
+
+    def request_data_refresh(
+        self,
+        requested_at: str,
+        requested_by: str,
+    ) -> None:
+        """Request worker data refresh.
+
+        Args:
+            requested_at: ISO timestamp when refresh was requested
+            requested_by: User ID who requested refresh
+        """
+        from domain.events.cml_worker import WorkerDataRefreshRequestedDomainEvent
+
+        self.state.on(
+            self.register_event(  # type: ignore
+                WorkerDataRefreshRequestedDomainEvent(
+                    aggregate_id=self.id(),
+                    worker_id=self.id(),
+                    requested_at=requested_at,
+                    requested_by=requested_by,
+                )
+            )
+        )
+
+    def skip_data_refresh(
+        self,
+        reason: str,
+        skipped_at: str,
+    ) -> None:
+        """Skip worker data refresh.
+
+        Args:
+            reason: Reason why refresh was skipped
+            skipped_at: ISO timestamp when refresh was skipped
+        """
+        from domain.events.cml_worker import WorkerDataRefreshSkippedDomainEvent
+
+        self.state.on(
+            self.register_event(  # type: ignore
+                WorkerDataRefreshSkippedDomainEvent(
+                    aggregate_id=self.id(),
+                    worker_id=self.id(),
+                    reason=reason,
+                    skipped_at=skipped_at,
+                )
+            )
+        )
+
+    def complete_data_refresh(
+        self,
+        completed_at: str,
+        refresh_type: str,
+    ) -> None:
+        """Complete worker data refresh.
+
+        Args:
+            completed_at: ISO timestamp when refresh completed
+            refresh_type: Type of refresh ('scheduled' or 'on_demand')
+        """
+        from domain.events.cml_worker import WorkerDataRefreshCompletedDomainEvent
+
+        self.state.on(
+            self.register_event(  # type: ignore
+                WorkerDataRefreshCompletedDomainEvent(
+                    aggregate_id=self.id(),
+                    worker_id=self.id(),
+                    completed_at=completed_at,
+                    refresh_type=refresh_type,
                 )
             )
         )

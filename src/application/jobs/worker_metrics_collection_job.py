@@ -8,26 +8,15 @@ for all active workers concurrently.
 import asyncio
 import logging
 
-from motor.motor_asyncio import AsyncIOMotorClient
 from neuroglia.mediation import Mediator
-from neuroglia.serialization.json import JsonSerializer
 from opentelemetry import trace
 
 from application.commands.refresh_worker_labs_command import RefreshWorkerLabsCommand
-from application.commands.refresh_worker_metrics_command import (
-    RefreshWorkerMetricsCommand,
-)
-from application.services.background_scheduler import (
-    RecurrentBackgroundJob,
-    backgroundjob,
-)
+from application.commands.refresh_worker_metrics_command import RefreshWorkerMetricsCommand
+from application.services.background_scheduler import RecurrentBackgroundJob, backgroundjob
 from application.settings import app_settings
-from domain.entities.cml_worker import CMLWorker
 from domain.repositories import CMLWorkerRepository
-from integration.repositories.motor_cml_worker_repository import (
-    MongoCMLWorkerRepository,
-)
-from integration.services.aws_ec2_api_client import AwsAccountCredentials, AwsEc2Client
+from integration.services.aws_ec2_api_client import AwsEc2Client
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -84,19 +73,13 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
 
         self._service_provider = service_provider
 
-        # Inject or instantiate AwsEc2Client
+        # Inject AwsEc2Client
         if not hasattr(self, "aws_ec2_client") or not self.aws_ec2_client:
             if self._service_provider:
                 self.aws_ec2_client = self._service_provider.get_required_service(AwsEc2Client)
+                logger.info("✅ Configured AwsEc2Client")
             else:
-                # Directly instantiate for horizontal scaling
-                credentials = AwsAccountCredentials(
-                    aws_access_key_id=app_settings.aws_access_key_id,
-                    aws_secret_access_key=app_settings.aws_secret_access_key,
-                )
-                self.aws_ec2_client = AwsEc2Client(aws_account_credentials=credentials)
-
-            logger.info("✅ Configured AwsEc2Client")
+                logger.warning("⚠️ No service provider available to inject AwsEc2Client")
 
         logger.info("✅ Configuration complete")
 
@@ -121,47 +104,17 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
         # Service provider should have been configured during job setup
         if not hasattr(self, "_service_provider") or not self._service_provider:
             logger.error("❌ service_provider not configured - job cannot execute")
-            # Try to reconfigure
-            try:
-                logger.info("🔧 Attempting to reconfigure job")
-                self.configure()  # No service provider - will instantiate dependencies directly
-                if not hasattr(self, "_service_provider") or not self._service_provider:
-                    logger.warning("⚠️ Still no service provider after reconfigure, continuing anyway")
-            except Exception as e:
-                logger.error(f"❌ Failed to reconfigure job: {e}")
-                return
+            return
 
         with tracer.start_as_current_span("collect_all_workers_metrics") as span:
             span.set_attribute("job_id", self.__task_id__ or "unknown")
 
             # Create a scope to access scoped services
-            if self._service_provider:
-                scope = self._service_provider.create_scope()
-            else:
-                scope = None
+            scope = self._service_provider.create_scope()
 
             try:
-                if scope:
-                    worker_repository = scope.get_required_service(CMLWorkerRepository)
-                else:
-                    # No service provider - create repository directly for horizontal scaling
-                    # Get MongoDB connection string
-                    mongo_uri = app_settings.connection_strings.get("mongo")
-                    if not mongo_uri:
-                        raise Exception("MongoDB connection string not configured")
-
-                    # Create Motor client
-                    client = AsyncIOMotorClient(mongo_uri)
-
-                    # Create repository
-                    worker_repository = MongoCMLWorkerRepository(
-                        client=client,
-                        database_name="cml_cloud_manager",
-                        collection_name="cml_workers",
-                        serializer=JsonSerializer(),
-                        entity_type=CMLWorker,
-                        mediator=None,  # No mediator for background jobs
-                    )
+                worker_repository = scope.get_required_service(CMLWorkerRepository)
+                mediator = scope.get_required_service(Mediator)
 
                 # 1. Get all active workers
                 workers = await worker_repository.get_active_workers_async()
@@ -172,13 +125,6 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
 
                 logger.info(f"📊 Collecting metrics for {len(workers)} active workers")
                 span.set_attribute("worker_count", len(workers))
-
-                # 2. Get Mediator for command orchestration
-                if scope:
-                    mediator = scope.get_required_service(Mediator)
-                else:
-                    logger.error("❌ No service provider - cannot get Mediator for command orchestration")
-                    return
 
                 # 3. Process workers concurrently with semaphore (limit to 10 concurrent operations)
                 semaphore = asyncio.Semaphore(10)

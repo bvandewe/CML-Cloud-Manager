@@ -5,9 +5,7 @@ from dataclasses import dataclass
 
 from neuroglia.core import OperationResult
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_bus import CloudEventBus
-from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import (
-    CloudEventPublishingOptions,
-)
+from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import CloudEventPublishingOptions
 from neuroglia.mapping import Mapper
 from neuroglia.mediation import Command, CommandHandler, Mediator
 from neuroglia.observability.tracing import add_span_attributes
@@ -128,7 +126,7 @@ class UpdateCMLWorkerTagsCommandHandler(
                 aws_region = AwsRegion(worker.state.aws_region)
 
                 # Get current tags from AWS
-                current_tags = self.aws_ec2_client.get_tags(
+                current_tags = await self.aws_ec2_client.get_tags(
                     aws_region=aws_region,
                     instance_id=worker.state.aws_instance_id,
                 )
@@ -149,7 +147,7 @@ class UpdateCMLWorkerTagsCommandHandler(
 
                 # Add/update tags if any
                 if tags_to_add:
-                    success = self.aws_ec2_client.add_tags(
+                    success = await self.aws_ec2_client.add_tags(
                         aws_region=aws_region,
                         instance_id=worker.state.aws_instance_id,
                         tags=tags_to_add,
@@ -166,7 +164,7 @@ class UpdateCMLWorkerTagsCommandHandler(
 
                 # Remove tags if any
                 if tags_to_remove:
-                    success = self.aws_ec2_client.remove_tags(
+                    success = await self.aws_ec2_client.remove_tags(
                         aws_region=aws_region,
                         instance_id=worker.state.aws_instance_id,
                         tag_keys=tags_to_remove,
@@ -186,7 +184,7 @@ class UpdateCMLWorkerTagsCommandHandler(
 
             with tracer.start_as_current_span("retrieve_updated_tags") as span:
                 # Retrieve all tags to return updated state
-                all_tags = self.aws_ec2_client.get_tags(
+                all_tags = await self.aws_ec2_client.get_tags(
                     aws_region=aws_region,
                     instance_id=worker.state.aws_instance_id,
                 )

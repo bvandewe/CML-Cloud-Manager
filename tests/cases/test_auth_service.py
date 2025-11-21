@@ -21,7 +21,7 @@ class DummySessionStore(InMemorySessionStore):
 
 @pytest.fixture()
 def session_store():
-    return DummySessionStore(session_timeout_hours=1)
+    return DummySessionStore(session_timeout_minutes=60)
 
 
 @pytest.fixture()
@@ -63,8 +63,8 @@ def test_rs256_success(monkeypatch, auth_service):
     token = build_rs256_token(private_key, jwk_dict["kid"], claims)
 
     # Disable strict validation for this test
-    monkeypatch.setattr(app_settings, "VERIFY_ISSUER", False)
-    monkeypatch.setattr(app_settings, "VERIFY_AUDIENCE", False)
+    monkeypatch.setattr(app_settings, "verify_issuer", False)
+    monkeypatch.setattr(app_settings, "verify_audience", False)
 
     user = auth_service.get_user_from_jwt(token)
     if user is None:
@@ -90,8 +90,8 @@ def test_rs256_issuer_mismatch(monkeypatch, auth_service):
     }
     token = build_rs256_token(private_key, jwk_dict["kid"], claims)
 
-    monkeypatch.setattr(app_settings, "VERIFY_ISSUER", True)
-    monkeypatch.setattr(app_settings, "EXPECTED_ISSUER", "expected-iss")
+    monkeypatch.setattr(app_settings, "verify_issuer", True)
+    monkeypatch.setattr(app_settings, "expected_issuer", "expected-iss")
 
     user = auth_service.get_user_from_jwt(token)
     if user is not None:
@@ -155,8 +155,8 @@ def test_expired_rs256_token(monkeypatch, auth_service):
 def test_audience_mismatch_rs256(monkeypatch, auth_service):
     private_key, jwk_dict = generate_rs256_keys()
     monkeypatch.setattr(auth_service, "_fetch_jwks", lambda: {"keys": [jwk_dict], "fetched_at": 0})
-    monkeypatch.setattr(app_settings, "VERIFY_AUDIENCE", True)
-    monkeypatch.setattr(app_settings, "EXPECTED_AUDIENCE", ["expected-aud"])  # enforce audience
+    monkeypatch.setattr(app_settings, "verify_audience", True)
+    monkeypatch.setattr(app_settings, "expected_audience", ["expected-aud"])  # enforce audience
     claims = {
         "sub": "user123",
         "preferred_username": "alice",
@@ -169,5 +169,5 @@ def test_audience_mismatch_rs256(monkeypatch, auth_service):
     if user is not None:
         pytest.fail("Audience mismatch should invalidate token")
     # Reset audience enforcement for other tests
-    monkeypatch.setattr(app_settings, "VERIFY_AUDIENCE", False)
-    monkeypatch.setattr(app_settings, "EXPECTED_AUDIENCE", [])
+    monkeypatch.setattr(app_settings, "verify_audience", False)
+    monkeypatch.setattr(app_settings, "expected_audience", [])

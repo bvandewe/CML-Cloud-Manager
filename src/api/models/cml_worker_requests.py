@@ -47,9 +47,10 @@ class RegisterLicenseRequest(BaseModel):
     """Request body for registering CML license."""
 
     license_token: str = Field(..., description="CML license registration token")
+    reregister: bool = Field(False, description="Force re-registration if already registered")
 
     class Config:
-        json_schema_extra = {"example": {"license_token": "ABCD-1234-EFGH-5678"}}
+        json_schema_extra = {"example": {"license_token": "ABCD-1234-EFGH-5678", "reregister": False}}
 
 
 class DeleteCMLWorkerRequest(BaseModel):

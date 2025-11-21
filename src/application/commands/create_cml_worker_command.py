@@ -6,9 +6,7 @@ from datetime import datetime, timezone
 
 from neuroglia.core import OperationResult
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_bus import CloudEventBus
-from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import (
-    CloudEventPublishingOptions,
-)
+from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import CloudEventPublishingOptions
 from neuroglia.mapping import Mapper
 from neuroglia.mediation import Command, CommandHandler, Mediator
 from neuroglia.observability.tracing import add_span_attributes
@@ -132,7 +130,7 @@ class CreateCMLWorkerCommandHandler(
                 # Fetch full AMI details from AWS
                 if ami_id:
                     aws_region = AwsRegion(command.aws_region)
-                    ami_details = self.aws_ec2_client.get_ami_details(aws_region=aws_region, ami_id=ami_id)
+                    ami_details = await self.aws_ec2_client.get_ami_details(aws_region=aws_region, ami_id=ami_id)
                     if ami_details:
                         ami_name = ami_details.ami_name or ami_name
                         ami_description = ami_details.ami_description
@@ -167,24 +165,25 @@ class CreateCMLWorkerCommandHandler(
                 # Provision EC2 instance
                 aws_region = AwsRegion(command.aws_region)
 
-                instance_dto = self.aws_ec2_client.create_instance(
-                    aws_region=aws_region,
-                    instance_name=command.name,
-                    ami_id=ami_id,
-                    ami_name=ami_name or "CML Worker AMI",
-                    instance_type=command.instance_type,
-                    security_group_ids=self.settings.cml_worker_security_group_ids,
-                    subnet_id=self.settings.cml_worker_subnet_id,
-                    key_name=self.settings.cml_worker_key_name,
-                )
+            # Create EC2 instance
+            instance_dto = await self.aws_ec2_client.create_instance(
+                aws_region=AwsRegion(command.aws_region),
+                instance_name=command.name,
+                ami_id=ami_id,
+                ami_name=ami_name or "CML Worker AMI",
+                instance_type=command.instance_type,
+                security_group_ids=self.settings.cml_worker_security_group_ids,
+                subnet_id=self.settings.cml_worker_subnet_id,
+                key_name=self.settings.cml_worker_key_name,
+            )
 
-                if not instance_dto:
-                    error_msg = "Failed to create EC2 instance - no instance returned"
-                    log.error(error_msg)
-                    return self.bad_request(error_msg)
+            if not instance_dto:
+                error_msg = "Failed to create EC2 instance - no instance returned"
+                log.error(error_msg)
+                return self.bad_request(error_msg)
 
-                span.set_attribute("ec2.instance_id", instance_dto.aws_instance_id)
-                span.set_attribute("ec2.instance_state", instance_dto.instance_state or "unknown")
+            span.set_attribute("ec2.instance_id", instance_dto.aws_instance_id)
+            span.set_attribute("ec2.instance_state", instance_dto.instance_state or "unknown")
 
             with tracer.start_as_current_span("check_duplicate_worker") as span:
                 # Check if instance already registered as a worker

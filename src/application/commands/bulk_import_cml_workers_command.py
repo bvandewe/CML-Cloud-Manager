@@ -5,9 +5,7 @@ from dataclasses import dataclass
 
 from neuroglia.core import OperationResult
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_bus import CloudEventBus
-from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import (
-    CloudEventPublishingOptions,
-)
+from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import CloudEventPublishingOptions
 from neuroglia.mapping import Mapper
 from neuroglia.mediation import Command, CommandHandler, Mediator
 from neuroglia.observability.tracing import add_span_attributes
@@ -17,11 +15,7 @@ from application.settings import Settings
 from domain.entities.cml_worker import CMLWorker
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
 from integration.enums import AwsRegion
-from integration.exceptions import (
-    EC2AuthenticationException,
-    EC2InvalidParameterException,
-    IntegrationException,
-)
+from integration.exceptions import EC2AuthenticationException, EC2InvalidParameterException, IntegrationException
 from integration.models import CMLWorkerInstanceDto
 from integration.services.aws_ec2_api_client import AwsEc2Client
 
@@ -135,7 +129,7 @@ class BulkImportCMLWorkersCommandHandler(
                 elif command.ami_name:
                     # Resolve AMI name to AMI IDs first
                     log.info(f"Resolving AMI name '{command.ami_name}' to AMI IDs...")
-                    ami_ids = self.aws_ec2_client.get_ami_ids_by_name(
+                    ami_ids = await self.aws_ec2_client.get_ami_ids_by_name(
                         aws_region=aws_region,
                         ami_name=command.ami_name,
                     )
@@ -150,7 +144,7 @@ class BulkImportCMLWorkersCommandHandler(
                     span.set_attribute("ec2.resolved_ami_ids", ",".join(ami_ids))
                     log.info(f"Resolved AMI name to {len(ami_ids)} AMI ID(s): {ami_ids}")
 
-                instances = self.aws_ec2_client.list_instances(
+                instances = await self.aws_ec2_client.list_instances(
                     region_name=aws_region,
                     **filters,
                 )
@@ -210,7 +204,7 @@ class BulkImportCMLWorkersCommandHandler(
                                 log.info(f"No AWS instance name, generating for {instance.id}: {worker_name}")
 
                             # Fetch AMI details from AWS
-                            ami_details = self.aws_ec2_client.get_ami_details(
+                            ami_details = await self.aws_ec2_client.get_ami_details(
                                 aws_region=aws_region, ami_id=instance.image_id
                             )
                             ami_name = ami_details.ami_name if ami_details else None

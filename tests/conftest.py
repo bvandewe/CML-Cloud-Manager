@@ -68,7 +68,7 @@ def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
 @pytest.fixture
 def session_store() -> SessionStore:
     """Provide an in-memory session store for testing."""
-    return InMemorySessionStore(session_timeout_hours=1)
+    return InMemorySessionStore(session_timeout_minutes=60)
 
 
 @pytest.fixture
