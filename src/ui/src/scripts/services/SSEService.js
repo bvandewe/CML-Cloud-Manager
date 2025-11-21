@@ -76,6 +76,12 @@ export class SSEService {
                 eventBus.emit(EventTypes.WORKER_CREATED, data.data);
             });
 
+            this.eventSource.addEventListener('worker.imported', event => {
+                const data = JSON.parse(event.data);
+                console.log('[SSE] Worker imported', data);
+                eventBus.emit(EventTypes.WORKER_IMPORTED, data.data);
+            });
+
             this.eventSource.addEventListener('worker.labs.updated', event => {
                 const data = JSON.parse(event.data);
                 console.log('[SSE] Worker labs updated', data);

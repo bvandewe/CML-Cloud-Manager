@@ -80,32 +80,43 @@ class EventsController(ControllerBase):
 
             # Heartbeat interval (30 seconds)
             heartbeat_interval = 30
-            last_heartbeat = asyncio.get_event_loop().time()
 
-            # Stream events
-            while True:
-                # Check if client disconnected
-                if await request.is_disconnected():
-                    logger.info(
-                        f"SSE client disconnected - user: {user_info.get('username', 'unknown')}, client_id: {client_id}"
+            async def check_disconnect():
+                while True:
+                    if await request.is_disconnected():
+                        return
+                    await asyncio.sleep(1.0)
+
+            disconnect_task = asyncio.create_task(check_disconnect())
+
+            try:
+                # Stream events
+                while True:
+                    get_event_task = asyncio.create_task(event_queue.get())
+
+                    done, pending = await asyncio.wait(
+                        [get_event_task, disconnect_task],
+                        return_when=asyncio.FIRST_COMPLETED,
+                        timeout=heartbeat_interval,
                     )
-                    break
 
-                try:
-                    # Wait for event with timeout (for heartbeat)
-                    event_message = await asyncio.wait_for(event_queue.get(), timeout=heartbeat_interval)
+                    if disconnect_task in done:
+                        logger.info(
+                            f"SSE client disconnected - user: {user_info.get('username', 'unknown')}, client_id: {client_id}"
+                        )
+                        get_event_task.cancel()
+                        break
 
-                    # Format event as SSE
-                    event_type = event_message.get("type", "message")
-                    yield f"event: {event_type}\ndata: {json.dumps(event_message)}\n\n"
-                    last_heartbeat = asyncio.get_event_loop().time()
-
-                except asyncio.TimeoutError:
-                    # Send heartbeat
-                    current_time = asyncio.get_event_loop().time()
-                    if current_time - last_heartbeat >= heartbeat_interval:
-                        yield f"event: heartbeat\ndata: {json.dumps({'timestamp': current_time})}\n\n"
-                        last_heartbeat = current_time
+                    if get_event_task in done:
+                        event_message = get_event_task.result()
+                        event_type = event_message.get("type", "message")
+                        yield f"event: {event_type}\ndata: {json.dumps(event_message)}\n\n"
+                    else:
+                        # Timeout occurred (Heartbeat)
+                        get_event_task.cancel()
+                        yield f"event: heartbeat\ndata: {json.dumps({'timestamp': asyncio.get_event_loop().time()})}\n\n"
+            finally:
+                disconnect_task.cancel()
 
         except asyncio.CancelledError:
             logger.info(f"SSE stream cancelled for client {client_id}")

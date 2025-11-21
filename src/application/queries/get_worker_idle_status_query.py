@@ -12,6 +12,7 @@ from opentelemetry.trace import Status, StatusCode
 
 from application.settings import app_settings
 from domain.repositories import CMLWorkerRepository
+from domain.services.idle_detection_service import IdleDetectionService
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -34,13 +35,15 @@ class GetWorkerIdleStatusQueryHandler(QueryHandler[GetWorkerIdleStatusQuery, Ope
     Evaluates idle conditions and determines if worker should be auto-paused.
     """
 
-    def __init__(self, worker_repository: CMLWorkerRepository):
+    def __init__(self, worker_repository: CMLWorkerRepository, idle_service: IdleDetectionService):
         """Initialize the handler.
 
         Args:
             worker_repository: Repository for CML worker aggregates
+            idle_service: Domain service for idle detection
         """
         self._repository = worker_repository
+        self._idle_service = idle_service
 
     async def handle_async(self, request: GetWorkerIdleStatusQuery) -> OperationResult[dict[str, Any]]:
         """Execute the query.
@@ -72,8 +75,8 @@ class GetWorkerIdleStatusQueryHandler(QueryHandler[GetWorkerIdleStatusQuery, Ope
                 # Check if currently in snooze period
                 in_snooze = worker.in_snooze_period(app_settings.worker_auto_pause_snooze_minutes)
 
-                # Determine if worker is idle based on threshold
-                is_idle = idle_minutes is not None and idle_minutes >= app_settings.worker_idle_timeout_minutes
+                # Determine if worker is idle based on threshold using domain service
+                is_idle = self._idle_service.is_worker_idle(worker, app_settings.worker_idle_timeout_minutes)
 
                 # Check if auto-pause is enabled (globally and for this worker)
                 auto_pause_enabled = app_settings.worker_auto_pause_enabled and worker.state.is_idle_detection_enabled

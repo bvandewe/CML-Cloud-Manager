@@ -127,6 +127,16 @@ class DeleteCMLWorkerCommandHandler(
                                 f"Failed to terminate EC2 instance {worker.state.aws_instance_id}, "
                                 "but will continue with deletion"
                             )
+                        else:
+                            # If termination initiated successfully, update status and return (don't delete)
+                            # This allows monitoring to track the "shutting-down" state until termination
+                            worker.update_status(CMLWorkerStatus.SHUTTING_DOWN)
+                            await self.cml_worker_repository.update_async(worker)
+                            log.info(
+                                f"CML Worker {command.worker_id} marked as SHUTTING_DOWN. "
+                                "Monitoring will track termination."
+                            )
+                            return self.ok(True)
 
                         span.set_attribute("ec2.terminate_success", success)
 

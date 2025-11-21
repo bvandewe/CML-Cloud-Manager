@@ -6,6 +6,27 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ## [Unreleased]
 
+### Changed
+
+- **Worker Deletion Workflow**: Enhanced "Delete Worker" functionality
+  - Restored "Terminate EC2 Instance" option in Web Components UI modal
+  - Updated `DeleteCMLWorkerCommand` to support asynchronous termination tracking
+  - Workers marked for termination now transition to `SHUTTING_DOWN` status instead of immediate deletion
+  - UI displays `SHUTTING_DOWN` status (yellow badge) and prevents local removal until termination confirmed
+
+### Fixed
+
+- **UI Reactivity for Worker Imports**: Fixed issue where imported workers did not appear in UI without refresh
+  - Added `WORKER_IMPORTED` event to `EventBus` and `SSEService`
+  - Updated `WorkerList` component to handle `WORKER_IMPORTED` events dynamically
+- **Backend SSE Connection Handling**: Fixed issue where SSE connections prevented backend auto-reload
+  - Implemented graceful shutdown in `EventsController` to detect client disconnects
+  - Added `beforeunload` handler in `WorkersApp` to explicitly close SSE connections
+- **500 Internal Server Error on Worker List**: Fixed `AttributeError` in `CMLMetrics` for malformed system info
+- **Incomplete Data on Import**: Fixed race condition where imported workers showed incomplete data
+  - Updated `OnDemandWorkerDataRefreshJob` to support forced refresh (bypassing throttle)
+  - Triggered immediate forced refresh upon `CMLWorkerImportedDomainEvent`
+
 ### Added
 
 - **Frontend Web Components Architecture**: Complete refactoring of workers view using vanilla JavaScript Web Components with Pub/Sub pattern

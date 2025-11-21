@@ -13,7 +13,7 @@
 
 import { eventBus, EventTypes } from '../core/EventBus.js';
 import { sseService } from '../services/SSEService.js';
-import { setupCreateWorkerModal, setupImportWorkerModal } from '../ui/worker-modals.js';
+import { setupCreateWorkerModal, setupImportWorkerModal, setupDeleteWorkerModal } from '../ui/worker-modals.js';
 import { isAdminOrManager } from '../utils/roles.js';
 import '../components-v2/WorkerCard.js';
 import '../components-v2/WorkerList.js';
@@ -58,11 +58,17 @@ class WorkersApp {
         // Initialize modals
         setupCreateWorkerModal();
         setupImportWorkerModal();
+        setupDeleteWorkerModal();
 
         // Expose refresh method for modals
         // Note: We attach to the existing window.workersApp object or create it
         window.workersApp = window.workersApp || {};
         window.workersApp.refreshWorkers = () => this.refreshWorkers();
+
+        // Handle page unload
+        window.addEventListener('beforeunload', () => {
+            this.destroy();
+        });
 
         this.initialized = true;
         console.log('[WorkersApp] Initialization complete');

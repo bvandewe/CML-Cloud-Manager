@@ -91,11 +91,17 @@ export function setupDeleteWorkerModal() {
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Deleting...';
             await workersApi.deleteWorker(region, workerId, terminateInstance);
-            const action = terminateInstance ? 'deleted and terminated' : 'deleted';
-            showToast(`Worker ${action} successfully`, 'success');
+
+            if (terminateInstance) {
+                showToast('Worker termination initiated. It will be removed once terminated.', 'info');
+                // Do NOT remove locally - let SSE update status to shutting-down/terminated
+            } else {
+                showToast('Worker deleted successfully', 'success');
+                removeWorker(workerId);
+            }
+
             bootstrap.Modal.getInstance(document.getElementById('deleteWorkerModal'))?.hide();
             document.getElementById('delete-worker-form')?.reset();
-            removeWorker(workerId);
         } catch (error) {
             console.error('[worker-modals] Delete error:', error);
             showToast(error.message || 'Failed to delete worker', 'error');

@@ -240,7 +240,7 @@ export class WorkerCard extends BaseComponent {
             headerBgColor = '#fff3cd'; // warning light
         } else if (worker.status === 'stopped') {
             headerBgColor = '#e2e3e5'; // secondary light
-        } else if (worker.status === 'pending' || worker.status === 'stopping') {
+        } else if (worker.status === 'pending' || worker.status === 'stopping' || worker.status === 'shutting-down') {
             headerBgColor = '#cff4fc'; // info light
         }
 

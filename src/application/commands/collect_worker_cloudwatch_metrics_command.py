@@ -170,7 +170,7 @@ class CollectWorkerCloudWatchMetricsCommandHandler(
             next_refresh_at = datetime.now(timezone.utc) + timedelta(seconds=poll_interval) if poll_interval else None
 
             # Use labs count from worker state (may be None -> treat as 0)
-            active_labs_count = worker.state.cml_labs_count or 0
+            active_labs_count = worker.state.metrics.labs_count or 0
 
             # Update CloudWatch metrics if we have data (stores in cloudwatch_* fields)
             if cpu_util is not None or memory_util is not None:

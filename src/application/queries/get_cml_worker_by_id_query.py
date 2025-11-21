@@ -56,9 +56,9 @@ class GetCMLWorkerByIdQueryHandler(QueryHandler[GetCMLWorkerByIdQuery, Operation
                 "ami_creation_date": worker.state.ami_creation_date,
                 "status": worker.state.status.value,
                 "service_status": worker.state.service_status.value,
-                "cml_version": worker.state.cml_version,
-                "license_status": worker.state.license_status.value,
-                "license_token": worker.state.license_token,
+                "cml_version": worker.state.metrics.version,
+                "license_status": worker.state.license.status.value,
+                "license_token": worker.state.license.token,
                 "https_endpoint": worker.state.https_endpoint,
                 "public_ip": worker.state.public_ip,
                 "private_ip": worker.state.private_ip,
@@ -80,20 +80,20 @@ class GetCMLWorkerByIdQueryHandler(QueryHandler[GetCMLWorkerByIdQuery, Operation
                 ),
                 "cloudwatch_detailed_monitoring_enabled": worker.state.cloudwatch_detailed_monitoring_enabled,
                 # CML Metrics
-                "cml_system_info": worker.state.cml_system_info,
-                "cml_system_health": worker.state.cml_system_health,
-                "cml_license_info": worker.state.cml_license_info,
-                "cml_ready": worker.state.cml_ready,
-                "cml_uptime_seconds": worker.state.cml_uptime_seconds,
-                "cml_labs_count": worker.state.cml_labs_count,
+                "cml_system_info": worker.state.metrics.system_info,
+                "cml_system_health": worker.state.metrics.system_health,
+                "cml_license_info": worker.state.license.raw_info,
+                "cml_ready": worker.state.metrics.ready,
+                "cml_uptime_seconds": worker.state.metrics.uptime_seconds,
+                "cml_labs_count": worker.state.metrics.labs_count,
                 "cml_last_synced_at": (
-                    worker.state.cml_last_synced_at.isoformat() if worker.state.cml_last_synced_at else None
+                    worker.state.metrics.last_synced_at.isoformat() if worker.state.metrics.last_synced_at else None
                 ),
                 # Metrics Timing
                 "poll_interval": worker.state.poll_interval,
                 "next_refresh_at": (worker.state.next_refresh_at.isoformat() if worker.state.next_refresh_at else None),
                 # Backward compatibility (deprecated - use cloudwatch_last_collected_at)
-                "active_labs_count": worker.state.cml_labs_count,
+                "active_labs_count": worker.state.metrics.labs_count,
                 "cpu_utilization": worker.state.cloudwatch_cpu_utilization,
                 "memory_utilization": worker.state.cloudwatch_memory_utilization,
                 "created_at": worker.state.created_at.isoformat(),

@@ -138,6 +138,7 @@ export const eventBus = new EventBus();
 export const EventTypes = {
     // Worker events
     WORKER_CREATED: 'worker.created',
+    WORKER_IMPORTED: 'worker.imported',
     WORKER_UPDATED: 'worker.updated',
     WORKER_DELETED: 'worker.deleted',
     WORKER_STATUS_CHANGED: 'worker.status.changed',

@@ -5,6 +5,7 @@ It manages the lifecycle of the instance, monitors telemetry, and provides
 access to CML labs hosted on the instance.
 """
 
+from dataclasses import replace
 from datetime import datetime, timezone
 from typing import cast
 from uuid import uuid4
@@ -44,6 +45,8 @@ from domain.events.worker_metrics_events import (
     EC2InstanceDetailsUpdatedDomainEvent,
     EC2MetricsUpdatedDomainEvent,
 )
+from domain.value_object.cml_license import CMLLicense
+from domain.value_object.cml_metrics import CMLMetrics
 
 
 class CMLWorkerState(AggregateState[str]):
@@ -62,11 +65,11 @@ class CMLWorkerState(AggregateState[str]):
     service_status: CMLServiceStatus
 
     # CML-specific attributes
-    cml_version: str | None
-    license_status: LicenseStatus
-    license_token: str | None
-    license_operation_in_progress: bool  # Track if registration/deregistration is ongoing
     https_endpoint: str | None
+
+    # Value Objects
+    metrics: CMLMetrics
+    license: CMLLicense
 
     # Network details
     public_ip: str | None
@@ -85,15 +88,6 @@ class CMLWorkerState(AggregateState[str]):
     cloudwatch_memory_utilization: float | None
     cloudwatch_last_collected_at: datetime | None
     cloudwatch_detailed_monitoring_enabled: bool
-
-    # CML Metrics (from CML API /api/v0/system_information)
-    cml_system_info: dict | None  # Full system info from CML
-    cml_system_health: dict | None  # System health checks from CML
-    cml_license_info: dict | None  # License information from CML
-    cml_ready: bool  # CML application ready state
-    cml_uptime_seconds: int | None  # CML uptime
-    cml_labs_count: int  # Number of labs from CML API
-    cml_last_synced_at: datetime | None  # Last successful CML API sync
 
     # Metrics Timing (for UI countdown timer)
     poll_interval: int | None  # Metrics collection interval in seconds
@@ -144,10 +138,8 @@ class CMLWorkerState(AggregateState[str]):
         self.status = CMLWorkerStatus.PENDING
         self.service_status = CMLServiceStatus.UNAVAILABLE
 
-        self.cml_version = None
-        self.license_status = LicenseStatus.UNREGISTERED
-        self.license_token = None
-        self.license_operation_in_progress = False
+        self.metrics = CMLMetrics()
+        self.license = CMLLicense()
         self.https_endpoint = None
 
         self.public_ip = None
@@ -166,15 +158,6 @@ class CMLWorkerState(AggregateState[str]):
         self.cloudwatch_memory_utilization = None
         self.cloudwatch_last_collected_at = None
         self.cloudwatch_detailed_monitoring_enabled = False
-
-        # CML Metrics
-        self.cml_system_info = None
-        self.cml_system_health = None
-        self.cml_license_info = None
-        self.cml_ready = False
-        self.cml_uptime_seconds = None
-        self.cml_labs_count = 0
-        self.cml_last_synced_at = None
 
         now = datetime.now(timezone.utc)
         self.created_at = now
@@ -219,7 +202,7 @@ class CMLWorkerState(AggregateState[str]):
         self.ami_description = event.ami_description
         self.ami_creation_date = event.ami_creation_date
         self.status = event.status
-        self.cml_version = event.cml_version
+        self.metrics = replace(self.metrics, version=event.cml_version)
         self.created_at = event.created_at
         self.updated_at = event.created_at
         self.created_by = event.created_by
@@ -290,8 +273,11 @@ class CMLWorkerState(AggregateState[str]):
     @dispatch(CMLWorkerLicenseUpdatedDomainEvent)
     def on(self, event: CMLWorkerLicenseUpdatedDomainEvent) -> None:  # type: ignore[override]
         """Apply the license updated event to the state."""
-        self.license_status = event.license_status
-        self.license_token = event.license_token
+        self.license = replace(
+            self.license,
+            status=event.license_status,
+            token=event.license_token,
+        )
         self.updated_at = event.updated_at
 
     @dispatch(EC2MetricsUpdatedDomainEvent)
@@ -325,29 +311,35 @@ class CMLWorkerState(AggregateState[str]):
     @dispatch(CMLMetricsUpdatedDomainEvent)
     def on(self, event: CMLMetricsUpdatedDomainEvent) -> None:  # type: ignore[override]
         """Apply CML API metrics event to the state."""
-        self.cml_version = event.cml_version
-        self.cml_system_info = event.system_info
-        self.cml_system_health = event.system_health
-        self.cml_license_info = event.license_info
-        self.cml_ready = event.ready
-        self.cml_uptime_seconds = event.uptime_seconds
-        self.cml_labs_count = event.labs_count
-        self.cml_last_synced_at = event.synced_at
+        self.metrics = CMLMetrics(
+            version=event.cml_version,
+            system_info=event.system_info,
+            system_health=event.system_health,
+            ready=event.ready,
+            uptime_seconds=event.uptime_seconds,
+            labs_count=event.labs_count,
+            last_synced_at=event.synced_at,
+        )
         self.updated_at = event.updated_at
 
         # Sync license_status from cml_license_info if available
-        if self.cml_license_info:
+        if event.license_info:
             # Handle both flat and nested structure (CML 2.7+ uses nested registration.status)
-            reg_status = self.cml_license_info.get("registration_status")
-            if not reg_status and isinstance(self.cml_license_info.get("registration"), dict):
-                reg_status = self.cml_license_info["registration"].get("status")
+            reg_status = event.license_info.get("registration_status")
+            if not reg_status and isinstance(event.license_info.get("registration"), dict):
+                reg_status = event.license_info["registration"].get("status")
 
             if reg_status:
                 reg_status = reg_status.upper()
+                new_status = self.license.status
                 if reg_status == "COMPLETED" or reg_status == "REGISTERED":
-                    self.license_status = LicenseStatus.REGISTERED
+                    new_status = LicenseStatus.REGISTERED
                 elif reg_status == "EVALUATION":
-                    self.license_status = LicenseStatus.EVALUATION
+                    new_status = LicenseStatus.EVALUATION
+
+                self.license = replace(self.license, status=new_status, raw_info=event.license_info)
+            else:
+                self.license = replace(self.license, raw_info=event.license_info)
 
     @dispatch(CMLWorkerTelemetryUpdatedDomainEvent)
     def on(self, event: CMLWorkerTelemetryUpdatedDomainEvent) -> None:
@@ -384,36 +376,35 @@ class CMLWorkerState(AggregateState[str]):
     @dispatch(CMLWorkerLicenseRegistrationStartedDomainEvent)
     def on(self, event: CMLWorkerLicenseRegistrationStartedDomainEvent) -> None:  # type: ignore[override]
         """Apply license registration started event to the state."""
-        self.license_operation_in_progress = True
+        self.license = replace(self.license, operation_in_progress=True)
         self.updated_at = datetime.fromisoformat(event.started_at)
 
     @dispatch(CMLWorkerLicenseRegistrationCompletedDomainEvent)
     def on(self, event: CMLWorkerLicenseRegistrationCompletedDomainEvent) -> None:  # type: ignore[override]
         """Apply license registration completed event to the state."""
-        self.license_status = LicenseStatus.REGISTERED
-        self.license_operation_in_progress = False
+        self.license = replace(self.license, status=LicenseStatus.REGISTERED, operation_in_progress=False)
         self.updated_at = datetime.fromisoformat(event.completed_at)
 
     @dispatch(CMLWorkerLicenseRegistrationFailedDomainEvent)
     def on(self, event: CMLWorkerLicenseRegistrationFailedDomainEvent) -> None:  # type: ignore[override]
         """Apply license registration failed event to the state."""
-        self.license_operation_in_progress = False
+        self.license = replace(self.license, operation_in_progress=False)
         self.updated_at = datetime.fromisoformat(event.failed_at)
 
     @dispatch(CMLWorkerLicenseDeregisteredDomainEvent)
     def on(self, event: CMLWorkerLicenseDeregisteredDomainEvent) -> None:  # type: ignore[override]
         """Apply license deregistered event to the state."""
-        self.license_status = LicenseStatus.UNREGISTERED
+        self.license = replace(self.license, status=LicenseStatus.UNREGISTERED, raw_info=None)
         self.updated_at = datetime.fromisoformat(event.deregistered_at)
 
         # Clear stale license data to prevent inconsistency
-        self.cml_license_info = None
-        if self.cml_system_health:
-            self.cml_system_health = {
-                **self.cml_system_health,
+        if self.metrics.system_health:
+            new_health = {
+                **self.metrics.system_health,
                 "is_licensed": False,
                 "is_enterprise": False,
             }
+            self.metrics = replace(self.metrics, system_health=new_health)
 
     @dispatch(WorkerDataRefreshRequestedDomainEvent)
     def on(self, event: WorkerDataRefreshRequestedDomainEvent) -> None:  # type: ignore[override]
@@ -706,7 +697,7 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
         Returns:
             True if license was updated, False if unchanged
         """
-        if self.state.license_status == license_status and self.state.license_token == license_token:
+        if self.state.license.status == license_status and self.state.license.token == license_token:
             return False
 
         self.state.on(
@@ -849,54 +840,16 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
         # Domain-level suppression: only emit event if meaningful delta
         # Always emit when no prior system_info or threshold not provided
         emit_event = True
-        if change_threshold_percent is not None and self.state.cml_system_info:
+        if change_threshold_percent is not None and self.state.metrics.system_info:
             try:
-                prev_info = self.state.cml_system_info
+                prev_info = self.state.metrics.system_info
                 prev_first = next(iter(prev_info.values()), {}) if prev_info else {}
                 new_first = next(iter(system_info.values()), {}) if system_info else {}
                 prev_stats = prev_first.get("stats", {})
                 new_stats = new_first.get("stats", {})
 
-                def derive(
-                    stats: dict,
-                ) -> tuple[float | None, float | None, float | None]:
-                    cpu_util = None
-                    mem_util = None
-                    storage_util = None
-                    cpu_stats = stats.get("cpu", {})
-                    mem_stats = stats.get("memory", {})
-                    disk_stats = stats.get("disk", {})
-                    if cpu_stats:
-                        up = cpu_stats.get("user_percent")
-                        sp = cpu_stats.get("system_percent")
-                        if up is not None and sp is not None:
-                            try:
-                                cpu_util = float(up) + float(sp)
-                            except (TypeError, ValueError):
-                                cpu_util = None
-                    if mem_stats:
-                        total_kb = mem_stats.get("total_kb") or mem_stats.get("total")
-                        available_kb = mem_stats.get("available_kb") or mem_stats.get("free")
-                        if (
-                            isinstance(total_kb, (int, float))
-                            and isinstance(available_kb, (int, float))
-                            and total_kb > 0
-                        ):
-                            used_kb = total_kb - available_kb
-                            mem_util = (used_kb / total_kb) * 100
-                    if disk_stats:
-                        size_kb = disk_stats.get("size_kb") or disk_stats.get("used")
-                        capacity_kb = disk_stats.get("capacity_kb") or disk_stats.get("total")
-                        if (
-                            isinstance(size_kb, (int, float))
-                            and isinstance(capacity_kb, (int, float))
-                            and capacity_kb > 0
-                        ):
-                            storage_util = (size_kb / capacity_kb) * 100
-                    return cpu_util, mem_util, storage_util
-
-                prev_cpu, prev_mem, prev_storage = derive(prev_stats)
-                new_cpu, new_mem, new_storage = derive(new_stats)
+                prev_cpu, prev_mem, prev_storage = CMLMetrics.calculate_utilization_from_stats(prev_stats)
+                new_cpu, new_mem, new_storage = CMLMetrics.calculate_utilization_from_stats(new_stats)
 
                 def pct_changed(old: float | None, new: float | None) -> float:
                     if old is None or new is None:
@@ -908,8 +861,8 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
                 cpu_delta = pct_changed(prev_cpu, new_cpu)
                 mem_delta = pct_changed(prev_mem, new_mem)
                 storage_delta = pct_changed(prev_storage, new_storage)
-                labs_changed = labs_count != self.state.cml_labs_count
-                version_changed = cml_version != self.state.cml_version
+                labs_changed = labs_count != self.state.metrics.labs_count
+                version_changed = cml_version != self.state.metrics.version
 
                 emit_event = (
                     labs_changed
@@ -1237,11 +1190,11 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
             True if worker is idle beyond threshold, False otherwise
         """
         # Check last activity from either CloudWatch or CML metrics
-        last_activity = self.state.cloudwatch_last_collected_at or self.state.cml_last_synced_at
+        last_activity = self.state.cloudwatch_last_collected_at or self.state.metrics.last_synced_at
         if not last_activity:
             return False
 
-        if self.state.cml_labs_count > 0:
+        if self.state.metrics.labs_count > 0:
             return False
 
         now = datetime.now(timezone.utc)

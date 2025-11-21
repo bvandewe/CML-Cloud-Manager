@@ -7,15 +7,9 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from neuroglia.data.infrastructure.mongo import MotorRepository
-from neuroglia.eventing.cloud_events.infrastructure.cloud_event_ingestor import (
-    CloudEventIngestor,
-)
-from neuroglia.eventing.cloud_events.infrastructure.cloud_event_middleware import (
-    CloudEventMiddleware,
-)
-from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import (
-    CloudEventPublisher,
-)
+from neuroglia.eventing.cloud_events.infrastructure.cloud_event_ingestor import CloudEventIngestor
+from neuroglia.eventing.cloud_events.infrastructure.cloud_event_middleware import CloudEventMiddleware
+from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import CloudEventPublisher
 from neuroglia.hosting.web import SubAppConfig, WebApplicationBuilder
 from neuroglia.mapping import Mapper
 from neuroglia.mediation import Mediator
@@ -23,11 +17,9 @@ from neuroglia.observability import Observability
 from neuroglia.serialization.json import JsonSerializer
 
 from api.services import DualAuthService
-from api.services.openapi_config import (
-    configure_api_openapi,
-    configure_mounted_apps_openapi_prefix,
-)
+from api.services.openapi_config import configure_api_openapi, configure_mounted_apps_openapi_prefix
 from application.services.background_scheduler import BackgroundTaskScheduler
+from application.services.cml_health_service import CMLHealthService
 from application.services.sse_event_relay import SSEEventRelayHostedService
 from application.services.system_health_service import SystemHealthService
 from application.settings import app_settings, configure_logging
@@ -37,13 +29,10 @@ from domain.entities.lab_record import LabRecord
 from domain.repositories import TaskRepository
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
 from domain.repositories.lab_record_repository import LabRecordRepository
+from domain.services.idle_detection_service import IdleDetectionService
 from infrastructure.services.worker_refresh_throttle import WorkerRefreshThrottle
-from integration.repositories.motor_cml_worker_repository import (
-    MongoCMLWorkerRepository,
-)
-from integration.repositories.motor_lab_record_repository import (
-    MongoLabRecordRepository,
-)
+from integration.repositories.motor_cml_worker_repository import MongoCMLWorkerRepository
+from integration.repositories.motor_lab_record_repository import MongoLabRecordRepository
 from integration.repositories.motor_task_repository import MongoTaskRepository
 from integration.services.aws_ec2_api_client import AwsEc2Client
 from integration.services.cml_api_client import CMLApiClientFactory
@@ -188,34 +177,21 @@ def create_app() -> FastAPI:
         implementation_type=MongoLabRecordRepository,
     )
 
-    # Configure AWS EC2 Client
-    AwsEc2Client.configure(builder)
-
-    # Configure CML API Client Factory
-    CMLApiClientFactory.configure(builder)
-
     # Configure BackgroundTaskScheduler for worker monitoring jobs
     BackgroundTaskScheduler.configure(
         builder,
         modules=["application.jobs"],  # Scan for @backgroundjob decorated classes
     )
 
-    # Configure SystemHealthService (aggregated health checks)
-    SystemHealthService.configure(builder)
-
-    # Configure WorkerRefreshThrottle as singleton for rate-limiting
-    WorkerRefreshThrottle.configure(builder)
-
-    # Configure SSE Event Relay hosted service
-    SSEEventRelayHostedService.configure(builder)
-
-    # Schedule recurring background jobs if monitoring enabled
-    if app_settings.worker_monitoring_enabled:
-        # Jobs will be scheduled after application startup via lifespan context
-        log.info("✅ Worker monitoring enabled - jobs will be scheduled on startup")
-
-    # Configure authentication services (session store + auth service)
+    # Configure Application Services
     DualAuthService.configure(builder)
+    SSEEventRelayHostedService.configure(builder)
+    AwsEc2Client.configure(builder)
+    CMLApiClientFactory.configure(builder)
+    SystemHealthService.configure(builder)
+    CMLHealthService.configure(builder)
+    IdleDetectionService.configure(builder)
+    WorkerRefreshThrottle.configure(builder)
 
     # Add SubApp for API with controllers
     builder.add_sub_app(

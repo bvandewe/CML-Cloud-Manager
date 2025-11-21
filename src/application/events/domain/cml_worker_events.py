@@ -125,7 +125,8 @@ class CMLWorkerImportedDomainEventHandler(DomainEventHandler[CMLWorkerImportedDo
         # Newly imported workers need their data collected regardless of status/throttling
         try:
             job_id = f"import_refresh_{notification.aggregate_id}"
-            job = OnDemandWorkerDataRefreshJob(worker_id=notification.aggregate_id)
+            # force=True ensures we bypass throttle for initial data collection
+            job = OnDemandWorkerDataRefreshJob(worker_id=notification.aggregate_id, force=True)
             job.__task_id__ = job_id
             job.__task_name__ = "OnDemandWorkerDataRefreshJob"
             job.__background_task_type__ = "scheduled"
@@ -161,6 +162,7 @@ class CMLWorkerStatusUpdatedDomainEventHandler(DomainEventHandler[CMLWorkerStatu
             "updated_at": _utc_iso(notification.updated_at),
         }
         if getattr(notification, "transition_initiated_at", None):
+            # type: ignore[arg-type]
             event_data["transition_initiated_at"] = _utc_iso(notification.transition_initiated_at)
         await self._sse_relay.broadcast_event(
             event_type="worker.status.updated",
@@ -265,30 +267,15 @@ class CMLMetricsUpdatedDomainEventHandler(DomainEventHandler[CMLMetricsUpdatedDo
             poll_interval = s.poll_interval
             if s.next_refresh_at:
                 next_refresh_at_iso = s.next_refresh_at.isoformat() + "Z"
-            if s.cml_system_info:
-                first_compute = next(iter(s.cml_system_info.values()), {})
-                stats = first_compute.get("stats", {})
-                disk_stats = stats.get("disk", {})
-                mem_stats = stats.get("memory", {})
-                cpu_stats = stats.get("cpu", {})
-                if cpu_stats:
-                    up = cpu_stats.get("user_percent")
-                    sp = cpu_stats.get("system_percent")
-                    if up is not None and sp is not None:
-                        try:
-                            cpu_util = float(up) + float(sp)
-                        except (TypeError, ValueError):
-                            pass
-                if mem_stats:
-                    total_kb = mem_stats.get("total_kb") or mem_stats.get("total")
-                    available_kb = mem_stats.get("available_kb") or mem_stats.get("free")
-                    if isinstance(total_kb, (int, float)) and isinstance(available_kb, (int, float)) and total_kb > 0:
-                        used_kb = total_kb - available_kb
-                        mem_util = (used_kb / total_kb) * 100
-                size_kb = disk_stats.get("size_kb") or disk_stats.get("used")
-                capacity_kb = disk_stats.get("capacity_kb") or disk_stats.get("total")
-                if isinstance(size_kb, (int, float)) and isinstance(capacity_kb, (int, float)) and capacity_kb > 0:
-                    storage_util = (size_kb / capacity_kb) * 100
+
+            # Use helper method on metrics VO
+            cpu_util, mem_util, storage_util = s.metrics.get_utilization()
+
+            # Fallback to CloudWatch if CML metrics are missing
+            if cpu_util is None and s.cloudwatch_cpu_utilization is not None:
+                cpu_util = s.cloudwatch_cpu_utilization
+            if mem_util is None and s.cloudwatch_memory_utilization is not None:
+                mem_util = s.cloudwatch_memory_utilization
 
         payload = {
             "worker_id": notification.aggregate_id,
@@ -336,8 +323,8 @@ async def _broadcast_worker_snapshot(
         cpu_util = s.cloudwatch_cpu_utilization
         mem_util = s.cloudwatch_memory_utilization
         storage_util = None
-        if s.cml_system_info:
-            first_compute = next(iter(s.cml_system_info.values()), {})
+        if s.metrics.system_info:
+            first_compute = next(iter(s.metrics.system_info.values()), {})
             stats = first_compute.get("stats", {})
             disk_stats = stats.get("disk", {})
             mem_stats = stats.get("memory", {})
@@ -377,13 +364,13 @@ async def _broadcast_worker_snapshot(
             "ami_description": s.ami_description,
             "ami_creation_date": s.ami_creation_date,
             "https_endpoint": s.https_endpoint,
-            "license_status": s.license_status.value if s.license_status else None,
-            "cml_version": s.cml_version,
-            "cml_ready": s.cml_ready,
-            "cml_uptime_seconds": s.cml_uptime_seconds,
-            "cml_labs_count": s.cml_labs_count,
-            "cml_license_info": s.cml_license_info,
-            "cml_system_health": s.cml_system_health,
+            "license_status": s.license.status.value if s.license.status else None,
+            "cml_version": s.metrics.version,
+            "cml_ready": s.metrics.ready,
+            "cml_uptime_seconds": s.metrics.uptime_seconds,
+            "cml_labs_count": s.metrics.labs_count,
+            "cml_license_info": s.license.raw_info,
+            "cml_system_health": s.metrics.system_health,
             "cpu_utilization": cpu_util,
             "memory_utilization": mem_util,
             "storage_utilization": storage_util,

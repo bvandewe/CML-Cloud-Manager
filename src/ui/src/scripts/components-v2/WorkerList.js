@@ -52,6 +52,11 @@ export class WorkerList extends BaseComponent {
             this.addWorker(data);
         });
 
+        this.subscribe(EventTypes.WORKER_IMPORTED, data => {
+            console.log('[WorkerList] Worker imported:', data);
+            this.addWorker(data);
+        });
+
         this.subscribe(EventTypes.WORKER_SNAPSHOT, data => {
             console.log('[WorkerList] Worker snapshot:', data);
             this.updateWorker(data);

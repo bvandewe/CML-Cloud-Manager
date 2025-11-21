@@ -31,13 +31,15 @@ class OnDemandWorkerDataRefreshJob(ScheduledBackgroundJob):
     This ensures complete worker data refresh for one worker, then completes.
     """
 
-    def __init__(self, worker_id: str):
+    def __init__(self, worker_id: str, force: bool = False):
         """Initialize the on-demand refresh job.
 
         Args:
             worker_id: Worker identifier to refresh
+            force: Whether to bypass throttling (default: False)
         """
         self.worker_id = worker_id
+        self.force = force
         self._service_provider = None  # Will be set during configure()
 
     def __getstate__(self):
@@ -94,8 +96,13 @@ class OnDemandWorkerDataRefreshJob(ScheduledBackgroundJob):
 
                     # Step 1: Refresh metrics (EC2, CloudWatch, CML system data)
                     # initiated_by="user" ensures throttle applies (default), protecting against rapid user clicks
+                    # force=True bypasses throttle if requested (e.g. initial import)
                     metrics_result = await mediator.execute_async(
-                        RefreshWorkerMetricsCommand(worker_id=self.worker_id, initiated_by="user")
+                        RefreshWorkerMetricsCommand(
+                            worker_id=self.worker_id,
+                            initiated_by="user",
+                            force=self.force,
+                        )
                     )
 
                     # Check if refresh was skipped due to throttling
@@ -166,5 +173,7 @@ class OnDemandWorkerDataRefreshJob(ScheduledBackgroundJob):
 
             except Exception as e:
                 logger.exception(f"❌ On-demand data refresh job failed for worker {self.worker_id}")
+                span.set_attribute("error", True)
+                span.set_attribute("error.message", str(e))
                 span.set_attribute("error", True)
                 span.set_attribute("error.message", str(e))

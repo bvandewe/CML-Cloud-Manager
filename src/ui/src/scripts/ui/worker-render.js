@@ -405,7 +405,11 @@ export function renderWorkersCards() {
         disk = clamp(disk);
 
         const statusBadgeClass = worker.status === 'running' ? 'bg-light text-success' : 'bg-light text-secondary';
-        const headerClass = worker.status === 'running' ? 'bg-success text-white' : 'bg-secondary text-white';
+        let headerClass = 'bg-secondary text-white';
+        if (worker.status === 'running') headerClass = 'bg-success text-white';
+        else if (worker.status === 'stopped') headerClass = 'bg-warning text-dark';
+        else if (worker.status === 'pending' || worker.status === 'stopping' || worker.status === 'shutting-down') headerClass = 'bg-info text-dark';
+
         const cpuBar = cpu != null ? `<small class='text-muted'>CPU Usage</small><div class='progress mb-2' style='height:20px;'><div class='progress-bar ${getCpuProgressClass(cpu)}' style='width:${cpu}%'>${cpu.toFixed(1)}%</div></div>` : '';
         const memBar = mem != null ? `<small class='text-muted'>Memory Usage</small><div class='progress mb-2' style='height:20px;'><div class='progress-bar ${getMemoryProgressClass(mem)}' style='width:${mem}%'>${mem.toFixed(1)}%</div></div>` : '';
         const diskBar = disk != null ? `<small class='text-muted'>Disk Usage</small><div class='progress' style='height:20px;'><div class='progress-bar ${getDiskProgressClass(disk)}' style='width:${disk}%'>${disk.toFixed(1)}%</div></div>` : '';

@@ -20,6 +20,7 @@ import { isAdmin, isAdminOrManager } from '../utils/roles.js';
 import { formatDateWithRelative, initializeDateTooltips } from '../utils/dates.js';
 import { showToast } from '../ui/notifications.js';
 import { showConfirm } from '../components/modals.js';
+import { showDeleteModal } from '../ui/worker-modals.js';
 
 export class WorkerDetailsModal extends BaseComponent {
     constructor() {
@@ -939,19 +940,11 @@ export class WorkerDetailsModal extends BaseComponent {
     }
 
     async handleDeleteWorker() {
-        const confirmed = await showConfirm('Delete Worker', `Permanently delete worker ${this.currentWorker?.name || this.currentWorkerId}? This cannot be undone.`, () => {});
+        // Use the shared delete modal which supports optional EC2 termination
+        showDeleteModal(this.currentWorkerId, this.currentRegion, this.currentWorker?.name || this.currentWorkerId);
 
-        if (confirmed) {
-            try {
-                const { deleteWorker } = await import('../api/workers.js');
-                await deleteWorker(this.currentRegion, this.currentWorkerId);
-                showToast('Worker deleted', 'success');
-                this.closeModal();
-            } catch (error) {
-                console.error('[WorkerDetailsModal] Failed to delete worker:', error);
-                showToast(`Failed to delete worker: ${error.message}`, 'error');
-            }
-        }
+        // Close details modal so the delete modal is visible
+        this.closeModal();
     }
 
     async handleDeregisterLicense() {

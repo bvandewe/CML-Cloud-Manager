@@ -74,7 +74,7 @@ This document outlines the findings and a phased implementation plan to address 
         5. On failure: Update to `FAILED` and trigger cleanup.
     - **Target:** `src/application/commands/create_cml_worker_command.py`
 
-4. **Refactor `SyncWorkerCMLDataCommandHandler`**
+4. **Refactor `SyncWorkerCMLDataCommandHandler`** (✅ Completed)
     - **Action:** Simplify the nested try/except blocks. Introduce a `CMLHealthService` or similar helper that returns a consolidated health result object.
     - **Target:** `src/application/commands/sync_worker_cml_data_command.py`
 

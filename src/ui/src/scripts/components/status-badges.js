@@ -8,6 +8,7 @@ export function getStatusBadgeClass(status) {
         case 'pending':
             return 'bg-info';
         case 'stopping':
+        case 'shutting-down':
             return 'bg-warning';
         case 'terminated':
             return 'bg-danger';
