@@ -85,6 +85,18 @@ export class WorkerCard extends BaseComponent {
             }
         });
 
+        this.subscribe(EventTypes.WORKER_STATUS_CHANGED, data => {
+            if (data.worker_id === workerId) {
+                this.setState(prevState => ({
+                    worker: {
+                        ...prevState.worker,
+                        status: data.new_status,
+                        updated_at: data.updated_at,
+                    },
+                }));
+            }
+        });
+
         this.subscribe(EventTypes.WORKER_DELETED, data => {
             if (data.worker_id === workerId) {
                 this.remove(); // Self-destruct when worker deleted

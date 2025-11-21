@@ -4,24 +4,16 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_bus import CloudEventBus
-from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import (
-    CloudEventPublishingOptions,
-)
+from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import CloudEventPublishingOptions
 from neuroglia.mapping import Mapper
 from neuroglia.mediation import Mediator
 
-from application.commands.delete_cml_worker_command import (
-    DeleteCMLWorkerCommand,
-    DeleteCMLWorkerCommandHandler,
-)
+from application.commands.delete_cml_worker_command import DeleteCMLWorkerCommand, DeleteCMLWorkerCommandHandler
 from domain.entities.cml_worker import CMLWorker
 from domain.enums import CMLWorkerStatus
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
 from integration.enums import AwsRegion
-from integration.exceptions import (
-    EC2InstanceNotFoundException,
-    EC2InstanceOperationException,
-)
+from integration.exceptions import EC2InstanceNotFoundException, EC2InstanceOperationException
 from integration.services.aws_ec2_api_client import AwsEc2Client
 
 
@@ -159,7 +151,13 @@ class TestDeleteCMLWorkerCommand:
             aws_region=AwsRegion.US_EAST_1,
             instance_id=sample_worker.state.aws_instance_id,
         )
-        mock_repository.delete_async.assert_called_once()
+        # New behavior: record is NOT deleted, but updated to SHUTTING_DOWN
+        mock_repository.delete_async.assert_not_called()
+        mock_repository.update_async.assert_called_once()
+
+        # Verify status update
+        updated_worker = mock_repository.update_async.call_args[0][0]
+        assert updated_worker.state.status == CMLWorkerStatus.SHUTTING_DOWN
 
     async def test_delete_worker_not_found(self, command_handler, mock_repository):
         """Test deleting non-existent worker returns error."""

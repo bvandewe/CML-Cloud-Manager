@@ -71,6 +71,11 @@ export class WorkerList extends BaseComponent {
             console.log('[WorkerList] Metrics updated:', data);
             this.updateWorkerMetrics(data);
         });
+
+        this.subscribe(EventTypes.WORKER_STATUS_CHANGED, data => {
+            console.log('[WorkerList] Status changed:', data);
+            this.updateWorkerStatus(data);
+        });
     }
 
     async loadWorkers() {
@@ -178,6 +183,16 @@ export class WorkerList extends BaseComponent {
             worker.memory_utilization = data.memory_utilization ?? worker.memory_utilization;
             worker.disk_utilization = data.disk_utilization ?? worker.disk_utilization;
             worker.storage_utilization = data.storage_utilization ?? worker.storage_utilization;
+            this.workers.set(data.worker_id, worker);
+            // Cards will update themselves via EventBus
+        }
+    }
+
+    updateWorkerStatus(data) {
+        const worker = this.workers.get(data.worker_id);
+        if (worker) {
+            worker.status = data.new_status;
+            worker.updated_at = data.updated_at;
             this.workers.set(data.worker_id, worker);
             // Cards will update themselves via EventBus
         }

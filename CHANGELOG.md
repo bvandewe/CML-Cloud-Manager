@@ -203,6 +203,26 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
   - Improves testability and follows same pattern as AwsEc2Client
   - Files affected: sync_worker_cml_data_command, control_lab_command, refresh_worker_labs_command, get_worker_telemetry_events_query, labs_refresh_job
 
+### Added
+
+- **Session Management**: Implemented session expiration warning and extension
+  - Added `SessionManager` service in frontend to track user activity and show warnings
+  - Added `/api/auth/session` and `/api/auth/extend-session` endpoints
+  - Configurable session duration via `SESSION_MAX_DURATION_MINUTES`
+
+### Changed
+
+- **Configuration**: Renamed `SESSION_TIMEOUT_MINUTES` to `SESSION_MAX_DURATION_MINUTES` for clarity
+- **Auto-Import Logic**: Enhanced `AutoImportWorkersJob` to handle terminating instances
+  - Workers in `shutting-down` or `terminated` state in AWS are now updated locally instead of being skipped
+  - Ensures UI reflects external termination events correctly
+
+### Fixed
+
+- **UI Synchronization**: Fixed issue where terminating instances were not updating in the UI
+  - `WorkerList` and `WorkerCard` now subscribe to `WORKER_STATUS_CHANGED` events
+  - Real-time status updates for `SHUTTING_DOWN` and `TERMINATED` states
+
 ## [0.1.0] - 2025-11-19
 
 ### Fixed

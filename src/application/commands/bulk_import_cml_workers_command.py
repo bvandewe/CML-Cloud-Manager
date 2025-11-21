@@ -13,6 +13,7 @@ from opentelemetry import trace
 
 from application.settings import Settings
 from domain.entities.cml_worker import CMLWorker
+from domain.enums import CMLWorkerStatus
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
 from integration.enums import AwsRegion
 from integration.exceptions import EC2AuthenticationException, EC2InvalidParameterException, IntegrationException
@@ -166,20 +167,41 @@ class BulkImportCMLWorkersCommandHandler(
                 span.set_attribute("ec2.instances_found", len(instances))
 
             with tracer.start_as_current_span("filter_existing_workers") as span:
-                # Get all existing workers to filter out duplicates
+                # Get all existing workers to filter out duplicates and handle updates
                 existing_workers = await self.cml_worker_repository.get_all_async()
-                existing_instance_ids = {w.state.aws_instance_id for w in existing_workers if w.state.aws_instance_id}
+                existing_workers_map = {w.state.aws_instance_id: w for w in existing_workers if w.state.aws_instance_id}
 
-                log.info(f"Found {len(existing_instance_ids)} existing workers in database")
-                span.set_attribute("workers.existing_count", len(existing_instance_ids))
+                log.info(f"Found {len(existing_workers_map)} existing workers in database")
+                span.set_attribute("workers.existing_count", len(existing_workers_map))
 
             imported_workers = []
             skipped_instances = []
 
             with tracer.start_as_current_span("import_instances") as import_span:
                 for instance in instances:
-                    # Skip if already registered
-                    if instance.id in existing_instance_ids:
+                    # Check if already registered
+                    if instance.id in existing_workers_map:
+                        worker = existing_workers_map[instance.id]
+
+                        # Check for state updates for terminating instances
+                        # If AWS says shutting-down/terminated but local is not, update it
+                        updated = False
+                        if instance.state == "shutting-down" and worker.state.status != CMLWorkerStatus.SHUTTING_DOWN:
+                            log.info(f"🔄 Updating worker {worker.id()} status to SHUTTING_DOWN based on AWS state")
+                            worker.update_status(CMLWorkerStatus.SHUTTING_DOWN)
+                            updated = True
+                        elif instance.state == "terminated" and worker.state.status != CMLWorkerStatus.TERMINATED:
+                            log.info(f"🔄 Marking worker {worker.id()} as TERMINATED based on AWS state")
+                            worker.terminate(terminated_by="system-sync")
+                            updated = True
+
+                        if updated:
+                            try:
+                                await self.cml_worker_repository.update_async(worker)
+                                log.info(f"✅ Worker {worker.id()} status updated to {worker.state.status}")
+                            except Exception as e:
+                                log.error(f"❌ Failed to update worker {worker.id()} status: {e}")
+
                         log.info(f"Skipping instance {instance.id} - already registered")
                         skipped_instances.append(
                             {
@@ -305,5 +327,7 @@ class BulkImportCMLWorkersCommandHandler(
             return self.bad_request(f"Integration error: {str(e)}")
 
         except Exception as e:
+            log.error(f"Unexpected error bulk importing CML Workers: {e}", exc_info=True)
+            return self.bad_request(f"Unexpected error: {str(e)}")
             log.error(f"Unexpected error bulk importing CML Workers: {e}", exc_info=True)
             return self.bad_request(f"Unexpected error: {str(e)}")
