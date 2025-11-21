@@ -11,6 +11,7 @@ import { loadTasks, handleCreateTask, handleUpdateTask } from './ui/tasks.js';
 import { initializeSystemView } from './ui/system.js';
 import { initializeTheme } from './services/theme.js';
 import { sessionManager } from './services/session-manager.js';
+import { eventBus, EventTypes } from './core/EventBus.js';
 
 // Current user and active view
 let currentUser = null;
@@ -36,6 +37,13 @@ async function initializeApp() {
 
         // Start session monitoring
         sessionManager.init();
+
+        // Subscribe to session expiration
+        eventBus.on(EventTypes.AUTH_SESSION_EXPIRED, () => {
+            console.warn('[APP] Session expired via SSE');
+            sessionManager.stop();
+            showLoginForm();
+        });
 
         // Show default view - changed to workers for debugging
         console.log('[APP] Showing default view: workers');

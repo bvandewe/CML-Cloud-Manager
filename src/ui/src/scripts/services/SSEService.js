@@ -88,6 +88,12 @@ export class SSEService {
                 eventBus.emit(EventTypes.LAB_UPDATED, data.data);
             });
 
+            this.eventSource.addEventListener('auth.session.expired', event => {
+                console.warn('[SSE] Session expired event received');
+                eventBus.emit(EventTypes.AUTH_SESSION_EXPIRED, {});
+                this.disconnect();
+            });
+
             // Error handling
             this.eventSource.onerror = error => {
                 console.error('[SSE] Connection error', error);

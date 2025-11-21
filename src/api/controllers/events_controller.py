@@ -14,6 +14,7 @@ from neuroglia.mediation import Mediator
 from neuroglia.mvc import ControllerBase
 
 from api.dependencies import get_current_user
+from api.services import DualAuthService
 from application.events.domain.cml_worker_events import _broadcast_worker_snapshot
 from application.services.sse_event_relay import SSEEventRelay
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
@@ -33,6 +34,7 @@ class EventsController(ControllerBase):
         """Initialize Events Controller."""
         ControllerBase.__init__(self, service_provider, mapper, mediator)
         self._sse_relay = service_provider.get_required_service(SSEEventRelay)
+        self._auth_service = service_provider.get_required_service(DualAuthService)
 
     async def _event_generator(
         self,
@@ -53,6 +55,7 @@ class EventsController(ControllerBase):
             SSE-formatted event strings
         """
         client_id, event_queue = await self._sse_relay.register_client(worker_ids=worker_ids, event_types=event_types)
+        session_id = request.cookies.get("session_id")
 
         try:
             logger.info(f"SSE client connected - user: {user_info.get('username', 'unknown')}, client_id: {client_id}")
@@ -101,11 +104,18 @@ class EventsController(ControllerBase):
                     )
 
                     if disconnect_task in done:
-                        logger.info(
-                            f"SSE client disconnected - user: {user_info.get('username', 'unknown')}, client_id: {client_id}"
-                        )
+                        logger.info(f"SSE client disconnected: {client_id}")
                         get_event_task.cancel()
                         break
+
+                    # Check session validity periodically (on heartbeat or event)
+                    if session_id:
+                        user = self._auth_service.get_user_from_session(session_id)
+                        if not user:
+                            logger.warning(f"Session expired for SSE client {client_id}, closing connection")
+                            yield "event: auth.session.expired\ndata: {}\n\n"
+                            get_event_task.cancel()
+                            break
 
                     if get_event_task in done:
                         event_message = get_event_task.result()

@@ -222,6 +222,10 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 - **UI Synchronization**: Fixed issue where terminating instances were not updating in the UI
   - `WorkerList` and `WorkerCard` now subscribe to `WORKER_STATUS_CHANGED` events
   - Real-time status updates for `SHUTTING_DOWN` and `TERMINATED` states
+- **Session Expiration Handling**: Fixed issue where UI appeared stuck when session expired
+  - Added `auth.session.expired` SSE event triggered by backend when session is invalid
+  - Updated `EventsController` to check session validity periodically
+  - Updated frontend to subscribe to expiration event and redirect to login immediately
 
 ## [0.1.0] - 2025-11-19
 
@@ -655,7 +659,7 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 #### Worker Monitoring Job Cleanup on Termination
 
 - **Background Job Cleanup**: Fixed issue where metrics collection jobs continued running for terminated workers
-  - `CMLWorkerTerminatedDomainEventHandler` now receives `WorkerMonitoringScheduler` via dependency injection
+  - `CMLWorkerTerminatedDomainEventHandler` now receives `SSEEventRelay` via dependency injection
   - Handler stops monitoring job when worker terminates by calling `stop_monitoring_worker_async()`
   - Scheduler registered as singleton in service provider and injected into lifespan startup
   - Jobs are properly unscheduled when termination event fires, preventing continuous error logs
