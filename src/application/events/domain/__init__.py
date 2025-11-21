@@ -22,6 +22,7 @@ from .lab_record_events import (
     LabRecordUpdatedDomainEventHandler,
     LabStateChangedDomainEventHandler,
 )
+from .provision_cml_worker_event_handler import ProvisionCMLWorkerEventHandler
 from .tasks_events import TaskCreatedDomainEventHandler
 from .user_auth_events_handler import UserLoggedInDomainEventHandler
 
@@ -50,4 +51,6 @@ __all__ = [
     "LabStateChangedDomainEventHandler",
     # Task events
     "TaskCreatedDomainEventHandler",
+    # Provisioning events
+    "ProvisionCMLWorkerEventHandler",
 ]

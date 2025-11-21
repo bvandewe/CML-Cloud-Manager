@@ -23,6 +23,7 @@ class CMLWorkerStatus(str, Enum):
     STOPPED = "stopped"  # Instance is stopped
     SHUTTING_DOWN = "shutting-down"  # Instance is being terminated
     TERMINATED = "terminated"  # Instance is terminated
+    FAILED = "failed"  # Instance provisioning failed
     UNKNOWN = "unknown"  # Status cannot be determined
 
 

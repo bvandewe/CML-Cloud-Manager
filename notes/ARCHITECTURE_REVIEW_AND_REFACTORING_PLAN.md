@@ -65,7 +65,7 @@ This document outlines the findings and a phased implementation plan to address 
 
 **Goal:** Ensure no resources are orphaned and error handling is robust.
 
-3. **Implement Saga Pattern for Worker Creation**
+3. **Implement Saga Pattern for Worker Creation** (✅ Completed)
     - **Action:** Refactor `CreateCMLWorkerCommandHandler`.
         1. Create `CMLWorker` in DB (Status: `PENDING`).
         2. Publish `CMLWorkerCreatedDomainEvent`.
