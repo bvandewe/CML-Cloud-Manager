@@ -21,7 +21,7 @@ class DummySessionStore(InMemorySessionStore):
 
 @pytest.fixture()
 def session_store():
-    return DummySessionStore(session_timeout_minutes=60)
+    return DummySessionStore(session_max_duration_minutes=60)
 
 
 @pytest.fixture()

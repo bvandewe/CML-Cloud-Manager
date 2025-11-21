@@ -10,109 +10,11 @@ import { login, logout, showLoginForm, showDashboard } from './ui/auth.js';
 import { loadTasks, handleCreateTask, handleUpdateTask } from './ui/tasks.js';
 import { initializeSystemView } from './ui/system.js';
 import { initializeTheme } from './services/theme.js';
+import { sessionManager } from './services/session-manager.js';
 
 // Current user and active view
 let currentUser = null;
 let activeView = 'tasks';
-
-// Session monitoring
-let sessionCheckInterval = null;
-let sessionWarningShown = false;
-const SESSION_CHECK_INTERVAL = 60000; // Check every 1 minute
-const SESSION_WARNING_THRESHOLD = 300; // Warn when 5 minutes remaining
-const SESSION_REFRESH_INTERVAL = 1800000; // Refresh every 30 minutes during activity
-
-/**
- * Check session expiration and warn/redirect as needed
- */
-async function checkSessionExpiration() {
-    try {
-        const response = await fetch('/api/auth/session', {
-            credentials: 'include',
-        });
-
-        if (!response.ok) {
-            // API error - stop monitoring and redirect to login
-            stopSessionMonitoring();
-            showLoginForm();
-            return;
-        }
-
-        const sessionInfo = await response.json();
-
-        if (!sessionInfo.authenticated) {
-            // Session expired - redirect to login
-            console.log('[Session] Session expired, redirecting to login');
-            stopSessionMonitoring();
-            const { showToastWithAction } = await import('./ui/notifications.js');
-            showToastWithAction(
-                'Your session has expired.',
-                'warning',
-                'Extend Session',
-                async () => {
-                    // Refresh the page to trigger re-authentication
-                    window.location.reload();
-                },
-                10000
-            );
-            setTimeout(() => showLoginForm(), 10000);
-            return;
-        }
-
-        const expiresInSeconds = sessionInfo.expires_in_seconds;
-        if (expiresInSeconds !== null && expiresInSeconds <= SESSION_WARNING_THRESHOLD) {
-            // Session expiring soon - warn user once
-            if (!sessionWarningShown) {
-                sessionWarningShown = true;
-                const { showToast } = await import('./ui/notifications.js');
-                const minutes = Math.ceil(expiresInSeconds / 60);
-                showToast(`Your session will expire in ${minutes} minute${minutes !== 1 ? 's' : ''}. Please save your work.`, 'warning');
-            }
-        }
-
-        // Auto-redirect when session expires
-        if (expiresInSeconds !== null && expiresInSeconds <= 0) {
-            console.log('[Session] Session expired, redirecting to login');
-            stopSessionMonitoring();
-            const { showToast } = await import('./ui/notifications.js');
-            showToast('Your session has expired. Please log in again.', 'warning');
-            showLoginForm();
-        }
-    } catch (error) {
-        console.error('[Session] Error checking session expiration:', error);
-        // Continue monitoring - transient errors shouldn't force logout
-    }
-}
-
-/**
- * Start monitoring session expiration
- */
-function startSessionMonitoring() {
-    if (sessionCheckInterval) {
-        return; // Already monitoring
-    }
-
-    console.log('[Session] Starting session monitoring');
-    sessionWarningShown = false;
-
-    // Check immediately
-    checkSessionExpiration();
-
-    // Then check periodically
-    sessionCheckInterval = setInterval(checkSessionExpiration, SESSION_CHECK_INTERVAL);
-}
-
-/**
- * Stop monitoring session expiration
- */
-function stopSessionMonitoring() {
-    if (sessionCheckInterval) {
-        console.log('[Session] Stopping session monitoring');
-        clearInterval(sessionCheckInterval);
-        sessionCheckInterval = null;
-        sessionWarningShown = false;
-    }
-}
 
 /**
  * Initialize the application
@@ -133,14 +35,14 @@ async function initializeApp() {
         }
 
         // Start session monitoring
-        startSessionMonitoring();
+        sessionManager.init();
 
         // Show default view - changed to workers for debugging
         console.log('[APP] Showing default view: workers');
         showView('workers');
     } else {
         // Not logged in - show login button
-        stopSessionMonitoring();
+        sessionManager.stop();
         showLoginForm();
     }
 }

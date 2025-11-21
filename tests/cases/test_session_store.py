@@ -14,7 +14,7 @@ def test_in_memory_store():
     """Test InMemorySessionStore."""
     print("🧪 Testing InMemorySessionStore...")
 
-    store = InMemorySessionStore(session_timeout_minutes=60)
+    store = InMemorySessionStore(session_max_duration_minutes=60)
 
     # Create session
     tokens = {
@@ -57,7 +57,7 @@ def test_redis_store():
     try:
         store = RedisSessionStore(
             redis_url="redis://localhost:6379/0",
-            session_timeout_hours=1,
+            session_max_duration_minutes=60,
             key_prefix="test_session:",
         )
 

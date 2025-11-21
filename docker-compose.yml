@@ -44,7 +44,7 @@ services:
             EXPECTED_AUDIENCE: '["cml-cloud-manager"]' # JSON array format required for list[str]
             REFRESH_AUTO_LEEWAY_SECONDS: 60
 
-            SESSION_TIMEOUT_MINUTES: ${SESSION_TIMEOUT_MINUTES} # Sessions expire in 5 minutes
+            SESSION_MAX_DURATION_MINUTES: ${SESSION_MAX_DURATION_MINUTES} # Sessions expire in 5 minutes
 
             # Application settings
             ENABLE_CORS: 'true'

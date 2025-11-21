@@ -143,7 +143,7 @@ class AuthController(ControllerBase):
                 httponly=True,
                 secure=app_settings.environment == "production",
                 samesite="lax",
-                max_age=app_settings.session_timeout_minutes * 60,  # Convert minutes to seconds
+                max_age=app_settings.session_max_duration_minutes * 60,  # Convert minutes to seconds
                 path="/",
             )
 
@@ -190,9 +190,17 @@ class AuthController(ControllerBase):
                 "authenticated": True,
                 "expires_at": expires_at.isoformat(),
                 "expires_in_seconds": max(0, expires_in_seconds),
+                "session_max_duration_minutes": app_settings.session_max_duration_minutes,
+                "session_expiration_warning_minutes": app_settings.session_expiration_warning_minutes,
             }
 
-        return {"authenticated": True, "expires_at": None, "expires_in_seconds": None}
+        return {
+            "authenticated": True,
+            "expires_at": None,
+            "expires_in_seconds": None,
+            "session_max_duration_minutes": app_settings.session_max_duration_minutes,
+            "session_expiration_warning_minutes": app_settings.session_expiration_warning_minutes,
+        }
 
     @post("/refresh")
     async def refresh(self, session_id: str | None = Cookie(None)):
@@ -301,3 +309,18 @@ class AuthController(ControllerBase):
 
         # Return user info (never expose tokens to browser)
         return session["user_info"]
+
+    @post("/extend-session")
+    async def extend_session(self, session_id: str = Cookie(None)) -> dict:
+        """Extend the current session."""
+        if not session_id:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No session")
+
+        session = self.session_store.get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session")
+
+        # Extend session
+        self.session_store.refresh_session(session_id, {})
+
+        return {"message": "Session extended"}

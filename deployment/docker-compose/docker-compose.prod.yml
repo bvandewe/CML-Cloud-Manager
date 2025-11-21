@@ -78,7 +78,7 @@ services:
             VERIFY_AUDIENCE: ${VERIFY_AUDIENCE:-true}
             EXPECTED_AUDIENCE: ${EXPECTED_AUDIENCE:-["cml-cloud-manager"]}
             REFRESH_AUTO_LEEWAY_SECONDS: ${REFRESH_AUTO_LEEWAY_SECONDS:-60}
-            SESSION_TIMEOUT_MINUTES: ${SESSION_TIMEOUT_MINUTES:-30}
+            SESSION_MAX_DURATION_MINUTES: ${SESSION_MAX_DURATION_MINUTES:-30}
 
             # Application settings
             ENABLE_CORS: 'true'
@@ -177,7 +177,7 @@ services:
             VERIFY_AUDIENCE: ${VERIFY_AUDIENCE:-true}
             EXPECTED_AUDIENCE: ${EXPECTED_AUDIENCE:-["cml-cloud-manager"]}
             REFRESH_AUTO_LEEWAY_SECONDS: ${REFRESH_AUTO_LEEWAY_SECONDS:-60}
-            SESSION_TIMEOUT_MINUTES: ${SESSION_TIMEOUT_MINUTES:-30}
+            SESSION_MAX_DURATION_MINUTES: ${SESSION_MAX_DURATION_MINUTES:-30}
 
             # Application settings
             ENABLE_CORS: 'true'

@@ -70,14 +70,14 @@ class InMemorySessionStore(SessionStore):
     For production, use RedisSessionStore or similar.
     """
 
-    def __init__(self, session_timeout_minutes: int = 60):
+    def __init__(self, session_max_duration_minutes: int = 60):
         """Initialize the in-memory session store.
 
         Args:
-            session_timeout_minutes: How long sessions remain valid in minutes (default: 60 minutes / 1 hour)
+            session_max_duration_minutes: How long sessions remain valid in minutes (default: 60 minutes / 1 hour)
         """
         self._sessions: dict[str, dict] = {}
-        self._session_timeout = timedelta(minutes=session_timeout_minutes)
+        self._session_timeout = timedelta(minutes=session_max_duration_minutes)
 
     def create_session(self, tokens: dict, user_info: dict) -> str:
         """Create a new session and return session ID."""
@@ -150,14 +150,14 @@ class RedisSessionStore(SessionStore):
     def __init__(
         self,
         redis_url: str,
-        session_timeout_minutes: int = 480,
+        session_max_duration_minutes: int = 480,
         key_prefix: str = "session:",
     ):
         """Initialize the Redis session store.
 
         Args:
             redis_url: Redis connection URL (e.g., redis://localhost:6379/0)
-            session_timeout_minutes: How long sessions remain valid in minutes (default: 480 minutes / 8 hours)
+            session_max_duration_minutes: How long sessions remain valid in minutes (default: 480 minutes / 8 hours)
             key_prefix: Prefix for all session keys in Redis (default: "session:")
 
         Raises:
@@ -167,7 +167,7 @@ class RedisSessionStore(SessionStore):
             raise RuntimeError("redis package is required for RedisSessionStore. " "Install with: pip install redis")
 
         self._client = redis.from_url(redis_url, decode_responses=True)  # type: ignore[union-attr]
-        self._session_timeout_seconds = int(timedelta(minutes=session_timeout_minutes).total_seconds())
+        self._session_timeout_seconds = int(timedelta(minutes=session_max_duration_minutes).total_seconds())
         self._key_prefix = key_prefix
 
     def _make_key(self, session_id: str) -> str:
