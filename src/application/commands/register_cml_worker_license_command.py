@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from neuroglia.core import OperationResult
 from neuroglia.mediation.mediator import Command, CommandHandler
 
+from application.jobs.license_registration_job import LicenseRegistrationJob
 from application.services.background_scheduler import BackgroundTaskScheduler
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
 
@@ -60,8 +61,6 @@ class RegisterCMLWorkerLicenseCommandHandler(CommandHandler[RegisterCMLWorkerLic
             return self.bad_request(f"Worker must be running to register license (current: {worker.state.status})")
 
         # Schedule background job
-        from application.jobs.license_registration_job import LicenseRegistrationJob
-
         job_id = f"license_reg_{request.worker_id}_{int(datetime.now(UTC).timestamp())}"
 
         try:

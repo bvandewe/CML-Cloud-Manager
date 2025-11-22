@@ -177,3 +177,5 @@ class OnDemandWorkerDataRefreshJob(ScheduledBackgroundJob):
                 span.set_attribute("error.message", str(e))
                 span.set_attribute("error", True)
                 span.set_attribute("error.message", str(e))
+                span.set_attribute("error", True)
+                span.set_attribute("error.message", str(e))

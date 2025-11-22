@@ -9,13 +9,9 @@ from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 
 from application.commands.pause_worker_command import PauseWorkerCommand
-from application.commands.update_worker_activity_command import (
-    UpdateWorkerActivityCommand,
-)
+from application.commands.update_worker_activity_command import UpdateWorkerActivityCommand
 from application.queries.get_worker_idle_status_query import GetWorkerIdleStatusQuery
-from application.queries.get_worker_telemetry_events_query import (
-    GetWorkerTelemetryEventsQuery,
-)
+from application.queries.get_worker_telemetry_events_query import GetWorkerTelemetryEventsQuery
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)

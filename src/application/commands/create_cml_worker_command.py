@@ -76,6 +76,7 @@ class CreateCMLWorkerCommandHandler(
         Args:
             request: Create command with worker specifications
 
+
         Returns:
             OperationResult with created worker details or error
         """
@@ -174,5 +175,6 @@ class CreateCMLWorkerCommandHandler(
 
         except Exception as e:
             log.error(f"Unexpected error creating CML Worker: {e}", exc_info=True)
+            return self.bad_request(f"Unexpected error: {str(e)}")
             return self.bad_request(f"Unexpected error: {str(e)}")
             return self.bad_request(f"Unexpected error: {str(e)}")

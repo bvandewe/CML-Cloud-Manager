@@ -171,6 +171,9 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
                                 )
                                 return worker_id, True, "labs_skipped"
 
+                        except asyncio.CancelledError:
+                            logger.warning(f"⚠️ Processing cancelled for worker {worker.id()}")
+                            return worker.id(), False, "cancelled"
                         except Exception as e:
                             logger.error(
                                 f"❌ Failed to process worker {worker.id()}: {e}",
@@ -213,6 +216,10 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
                     errors,
                 )
 
+            except asyncio.CancelledError:
+                logger.warning("⚠️ WorkerMetricsCollectionJob was cancelled")
+                span.set_status(trace.Status(trace.StatusCode.ERROR, "Cancelled"))
+                raise
             except Exception as e:
                 logger.error(
                     f"❌ Failed to collect metrics: {e}",
@@ -222,6 +229,8 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
                 raise
             finally:
                 # Dispose the scope to release scoped services
+                if scope:
+                    scope.dispose()
                 if scope:
                     scope.dispose()
                 if scope:
