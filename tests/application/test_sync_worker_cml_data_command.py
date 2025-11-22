@@ -13,6 +13,7 @@ from application.settings import Settings
 from domain.entities.cml_worker import CMLWorker
 from domain.enums import CMLServiceStatus, CMLWorkerStatus
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
+from integration.services.cml_api_client import CMLSystemStats
 from tests.fixtures.mixins import BaseTestCase
 
 
@@ -86,7 +87,24 @@ class TestSyncWorkerCMLDataCommand(BaseTestCase):
             is_healthy=True,
             version="2.7.0",
             ready=True,
-            system_stats=MagicMock(computes={"node1": "ok"}, running_nodes=10),
+            system_stats=CMLSystemStats(
+                computes={"node1": "ok"},
+                all_cpu_count=10,
+                all_cpu_percent=10.0,
+                all_memory_total=1000,
+                all_memory_free=500,
+                all_memory_used=500,
+                all_disk_total=1000,
+                all_disk_free=500,
+                all_disk_used=500,
+                controller_disk_total=1000,
+                controller_disk_free=500,
+                controller_disk_used=500,
+                allocated_cpus=0,
+                allocated_memory=0,
+                total_nodes=0,
+                running_nodes=10,
+            ),
             system_health=MagicMock(valid=True, is_licensed=True, is_enterprise=True, computes={}, controller={}),
             license_info={"status": "Registered"},
         )

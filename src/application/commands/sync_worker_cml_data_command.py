@@ -5,7 +5,7 @@ version, health status, system stats, licensing, and labs.
 """
 
 import logging
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 from neuroglia.core import OperationResult
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_bus import CloudEventBus
@@ -206,7 +206,7 @@ class SyncWorkerCMLDataCommandHandler(
                 # Update metrics (even with partial data)
                 worker.update_cml_metrics(
                     cml_version=health_result.version,
-                    system_info=health_result.system_stats.computes if health_result.system_stats else {},
+                    system_info=asdict(health_result.system_stats) if health_result.system_stats else {},
                     system_health=system_health_dict,
                     license_info=health_result.license_info,
                     ready=health_result.ready,
@@ -260,4 +260,5 @@ class SyncWorkerCMLDataCommandHandler(
                 f"Failed to sync CML data for worker {command.worker_id}: {ex}",
                 exc_info=True,
             )
+            return self.internal_server_error(f"Failed to sync worker CML data: {str(ex)}")
             return self.internal_server_error(f"Failed to sync worker CML data: {str(ex)}")

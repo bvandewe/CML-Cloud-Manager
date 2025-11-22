@@ -42,6 +42,7 @@ class GetCMLWorkersQueryHandler(QueryHandler[GetCMLWorkersQuery, OperationResult
             filtered_workers = [worker for worker in workers if worker.state.aws_region == request.aws_region.value]
 
             # Convert to dict representations
+            # (Should use neuroglia mapper and serialization in future)
             result = [
                 {
                     "id": worker.state.id,
@@ -67,7 +68,9 @@ class GetCMLWorkersQueryHandler(QueryHandler[GetCMLWorkersQuery, OperationResult
                         worker.state.stop_initiated_at.isoformat() if worker.state.stop_initiated_at else None
                     ),
                     # Include raw system info so UI can derive additional metrics/fallbacks
-                    "cml_system_info": worker.state.metrics.system_info,
+                    "cml_system_info": (
+                        worker.state.metrics.system_info.to_dict() if worker.state.metrics.system_info else None
+                    ),
                 }
                 for worker in filtered_workers
             ]
