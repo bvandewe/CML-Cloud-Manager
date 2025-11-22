@@ -71,6 +71,29 @@ class DeregisterCMLWorkerLicenseCommandHandler(
                     deregistered_at=datetime.now(UTC).isoformat(),
                     initiated_by=request.initiated_by,
                 )
+
+                # Fetch full system state to persist license info and health
+                try:
+                    sys_stats = await cml_client.get_system_stats()
+                    sys_health = await cml_client.get_system_health()
+                    sys_info = await cml_client.get_system_information()
+                    license_info = await cml_client.get_licensing()
+
+                    if sys_stats and sys_health and sys_info and license_info:
+                        worker.update_cml_metrics(
+                            cml_version=sys_info.version,
+                            system_info=sys_stats.__dict__,
+                            system_health=sys_health.__dict__,
+                            license_info=license_info.raw_data,
+                            ready=sys_info.ready,
+                            uptime_seconds=worker.state.metrics.uptime_seconds,
+                            labs_count=worker.state.metrics.labs_count,
+                            synced_at=datetime.now(UTC),
+                            change_threshold_percent=0.0,  # Force update
+                        )
+                except Exception as e:
+                    log.warning(f"Failed to fetch post-deregistration metrics: {e}")
+
                 await self._repository.update_async(worker)
 
                 log.info(f"✅ Successfully deregistered license for worker {request.worker_id}")

@@ -141,12 +141,36 @@ class LicenseRegistrationJob(ScheduledBackgroundJob):
                         elapsed = (datetime.now(UTC) - started_at).total_seconds()
                         log.info(f"✅ License registration completed for worker {self.worker_id} " f"in {elapsed:.1f}s")
 
+                        # 1. Mark registration as completed
                         worker.complete_license_registration(
                             registration_status=reg_status,
                             smart_account=license_info.smart_account,
                             virtual_account=license_info.virtual_account,
                             completed_at=datetime.now(UTC).isoformat(),
                         )
+
+                        # 2. Fetch full system state to persist license info and health
+                        try:
+                            sys_stats = await cml_client.get_system_stats()
+                            sys_health = await cml_client.get_system_health()
+                            sys_info = await cml_client.get_system_information()
+                            # We already have license_info
+
+                            if sys_stats and sys_health and sys_info:
+                                worker.update_cml_metrics(
+                                    cml_version=sys_info.version,
+                                    system_info=sys_stats.__dict__,
+                                    system_health=sys_health.__dict__,
+                                    license_info=license_info.raw_data,
+                                    ready=sys_info.ready,
+                                    uptime_seconds=worker.state.metrics.uptime_seconds,
+                                    labs_count=worker.state.metrics.labs_count,
+                                    synced_at=datetime.now(UTC),
+                                    change_threshold_percent=0.0,  # Force update
+                                )
+                        except Exception as e:
+                            log.warning(f"Failed to fetch post-registration metrics: {e}")
+
                         await repository.update_async(worker)
                         return
 
@@ -181,5 +205,6 @@ class LicenseRegistrationJob(ScheduledBackgroundJob):
             await repository.update_async(worker)
 
         except Exception as e:
+            log.error(f"License registration job failed for worker {self.worker_id}: {e}")
             log.error(f"License registration job failed for worker {self.worker_id}: {e}")
             log.error(f"License registration job failed for worker {self.worker_id}: {e}")
