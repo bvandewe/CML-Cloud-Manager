@@ -6,6 +6,17 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ## [Unreleased]
 
+### Added
+
+- **Strongly Typed Metrics**: Refactored `CMLMetrics` to use nested Value Objects (`CMLSystemInfoCompute`, `CpuStats`, etc.) instead of raw dictionaries
+- **License Persistence**: Enhanced license registration/deregistration to immediately persist full system state to DB
+- **UI Resource Utilization**: Improved resource utilization display in Worker Details modal with human-readable units and rounded values
+
+### Fixed
+
+- **Serialization Error**: Fixed `TypeError: Any cannot be instantiated` in `GetCMLWorkerByIdQuery` by manually constructing response dictionaries
+- **License Event Propagation**: Fixed issue where license status changes were not triggering SSE updates by adding explicit change detection in `update_cml_metrics`
+
 ### Changed
 
 - **Worker Deletion Workflow**: Enhanced "Delete Worker" functionality
