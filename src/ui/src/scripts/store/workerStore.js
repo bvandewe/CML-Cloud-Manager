@@ -98,6 +98,17 @@ export function upsertWorkerSnapshot(snapshot) {
         eventBus.emit(EventTypes.WORKER_CREATED, merged);
     } else {
         eventBus.emit(EventTypes.WORKER_SNAPSHOT, merged);
+
+        // Check for status change and emit specific event
+        if (existing.status !== merged.status) {
+            console.log('[workerStore] Status changed:', existing.status, '->', merged.status);
+            eventBus.emit(EventTypes.WORKER_STATUS_CHANGED, {
+                worker_id: merged.id,
+                old_status: existing.status,
+                new_status: merged.status,
+                updated_at: merged.updated_at || new Date().toISOString(),
+            });
+        }
     }
 
     // Legacy emit (backward compatibility)

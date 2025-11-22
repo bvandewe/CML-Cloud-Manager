@@ -64,23 +64,32 @@ export function showConfirm(title, message, onConfirm, options = {}) {
     confirmButton.textContent = actionLabel;
     confirmButton.className = `btn ${actionClass}`;
 
-    // Remove any existing event listeners by cloning
-    const newConfirmButton = confirmButton.cloneNode(true);
-    confirmButton.parentNode.replaceChild(newConfirmButton, confirmButton);
-
-    newConfirmButton.addEventListener('click', async () => {
+    // Use onclick to replace previous handler (cleaner than cloneNode)
+    confirmButton.onclick = async () => {
         if (dismissOnAction) {
+            // Try to get existing instance
             const bsModalInstance = bootstrap.Modal.getInstance(modal);
-            bsModalInstance && bsModalInstance.hide();
+            if (bsModalInstance) {
+                bsModalInstance.hide();
+            } else {
+                // Fallback if instance lost
+                const temp = new bootstrap.Modal(modal);
+                temp.hide();
+            }
         }
         try {
+            console.log('[modals] Confirm button clicked, executing callback');
             await onConfirm();
         } catch (err) {
             console.error('Confirmation action error:', err);
         }
-    });
+    };
 
-    const bsModal = new bootstrap.Modal(modal);
+    // Show modal (reuse instance if exists)
+    let bsModal = bootstrap.Modal.getInstance(modal);
+    if (!bsModal) {
+        bsModal = new bootstrap.Modal(modal);
+    }
     bsModal.show();
 }
 

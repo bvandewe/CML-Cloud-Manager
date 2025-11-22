@@ -2,7 +2,11 @@
 
 ## Features
 
-- Expand real-time UI
+- resolve serialization with neuroglia.serialization
+- map domain to DTO with neuroglia.mapper
+
+- idle activity detection
+
 - Expand on Monitoring
 - Manage Labs
 - List CML Nodes and Images

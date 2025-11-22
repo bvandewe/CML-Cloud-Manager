@@ -66,6 +66,7 @@ export function initWorkerSSE({ upsertWorkerSnapshot, updateWorkerMetrics, updat
             ami_creation_date: data.ami_creation_date,
             https_endpoint: data.https_endpoint,
             license_status: data.license_status,
+            is_licensed: data.license_status === 'registered' || data.license_status === 'authorized',
             cml_version: data.cml_version,
             cml_ready: data.cml_ready,
             cml_uptime_seconds: data.cml_uptime_seconds,
@@ -248,6 +249,7 @@ export function initWorkerSSE({ upsertWorkerSnapshot, updateWorkerMetrics, updat
             updateWorkerMetrics(workerId, {
                 license_operation_in_progress: false,
                 license_status: 'registered',
+                is_licensed: true,
             });
 
             // Snapshot is already broadcasted by event handler, no need to refetch
@@ -271,6 +273,7 @@ export function initWorkerSSE({ upsertWorkerSnapshot, updateWorkerMetrics, updat
         if (workerId) {
             updateWorkerMetrics(workerId, {
                 license_status: 'unregistered',
+                is_licensed: false,
             });
 
             // Snapshot is already broadcasted by event handler, no need to refetch

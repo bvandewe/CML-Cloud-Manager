@@ -294,8 +294,9 @@ async function loadWorkers() {
 
 /**
  * Load CML tab data - displays CML-specific application details
+ * @param {Object|null} workerData - Optional worker data to use instead of fetching
  */
-async function loadCMLTab() {
+async function loadCMLTab(workerData = null) {
     const modal = document.getElementById('workerDetailsModal');
     const workerId = modal.dataset.workerId;
     const region = modal.dataset.workerRegion;
@@ -307,16 +308,19 @@ async function loadCMLTab() {
         setTimeout(() => {
             const m = document.getElementById('workerDetailsModal');
             if (m?.dataset.workerId && m?.dataset.workerRegion) {
-                loadCMLTab();
+                loadCMLTab(workerData);
             }
         }, 250);
         return;
     }
 
-    cmlContent.innerHTML = '<div class="text-center py-4"><div class="spinner-border"></div><p class="mt-2">Loading CML details...</p></div>';
+    // Only show loading spinner if we are fetching data
+    if (!workerData) {
+        cmlContent.innerHTML = '<div class="text-center py-4"><div class="spinner-border"></div><p class="mt-2">Loading CML details...</p></div>';
+    }
 
     try {
-        const worker = await fetchWorkerDetails(region, workerId);
+        const worker = workerData || (await fetchWorkerDetails(region, workerId));
 
         // Parse system health data
         const health = worker.cml_system_health || {};
@@ -368,7 +372,7 @@ async function loadCMLTab() {
 
         // First priority: explicit license_status field (set by backend during registration/deregistration)
         if (worker.license_status) {
-            isLicensed = worker.license_status === 'registered';
+            isLicensed = worker.license_status === 'registered' || worker.license_status === 'authorized';
         } else if (licenseInfo && licenseInfo.product_license) {
             // Second priority: detailed license info if available
             isEnterprise = licenseInfo.product_license.is_enterprise ?? false;
@@ -1091,8 +1095,8 @@ function handleStoreUpdate(storeState) {
             // Update CML section if it's visible (license, system health, resource utilization)
             const cmlSection = document.getElementById('worker-details-cml');
             if (cmlSection && cmlSection.offsetParent !== null) {
-                // Tab is visible, reload it
-                window.workersInternal?.loadCMLTab && window.workersInternal.loadCMLTab();
+                // Tab is visible, reload it with fresh data from store
+                window.workersInternal?.loadCMLTab && window.workersInternal.loadCMLTab(w);
             }
 
             updateLastRefreshedDisplay();

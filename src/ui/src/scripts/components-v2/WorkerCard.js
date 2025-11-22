@@ -58,11 +58,12 @@ export class WorkerCard extends BaseComponent {
 
         // Subscribe to worker updates
         this.subscribe(EventTypes.WORKER_SNAPSHOT, data => {
-            if (data.worker_id === workerId) {
+            const id = data.id || data.worker_id;
+            if (id === workerId) {
                 // Normalize worker data to ensure consistent field names
                 const normalizedWorker = {
-                    id: data.id || data.worker_id,
-                    worker_id: data.worker_id,
+                    id: id,
+                    worker_id: id,
                     name: data.name,
                     aws_region: data.aws_region || data.region,
                     region: data.region || data.aws_region,

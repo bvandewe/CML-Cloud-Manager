@@ -49,21 +49,26 @@ export class WorkerDetailsModal extends BaseComponent {
 
         // Subscribe to worker updates
         this.subscribe(EventTypes.WORKER_SNAPSHOT, data => {
-            if (data.worker_id === this.currentWorkerId) {
+            const id = data.id || data.worker_id;
+            if (id === this.currentWorkerId) {
+                console.log('[WorkerDetailsModal] Received snapshot update for current worker');
                 this.currentWorker = data;
                 this.refreshCurrentTab();
             }
         });
 
         this.subscribe(EventTypes.WORKER_DELETED, data => {
-            if (data.worker_id === this.currentWorkerId) {
+            const id = data.id || data.worker_id;
+            if (id === this.currentWorkerId) {
                 this.closeModal();
                 showToast('Worker has been deleted', 'info');
             }
         });
 
         this.subscribe(EventTypes.WORKER_STATUS_CHANGED, data => {
-            if (data.worker_id === this.currentWorkerId) {
+            const id = data.id || data.worker_id;
+            if (id === this.currentWorkerId) {
+                console.log('[WorkerDetailsModal] Received status update for current worker');
                 this.currentWorker = {
                     ...this.currentWorker,
                     status: data.new_status,
@@ -1007,33 +1012,81 @@ export class WorkerDetailsModal extends BaseComponent {
     }
 
     async handleStartWorker() {
-        const confirmed = await showConfirm('Start Worker', `Start worker ${this.currentWorker?.name || this.currentWorkerId}?`, () => {});
+        // Use showConfirm with a callback, NOT as a promise that returns boolean
+        showConfirm(
+            'Start Worker',
+            `Start worker ${this.currentWorker?.name || this.currentWorkerId}?`,
+            async () => {
+                try {
+                    const { startWorker } = await import('../api/workers.js');
+                    const { upsertWorkerSnapshot } = await import('../store/workerStore.js');
 
-        if (confirmed) {
-            try {
-                const { startWorker } = await import('../api/workers.js');
-                await startWorker(this.currentRegion, this.currentWorkerId);
-                showToast('Worker start initiated', 'success');
-            } catch (error) {
-                console.error('[WorkerDetailsModal] Failed to start worker:', error);
-                showToast(`Failed to start worker: ${error.message}`, 'error');
+                    // Optimistic update
+                    try {
+                        upsertWorkerSnapshot({
+                            id: this.currentWorkerId,
+                            status: 'pending',
+                            start_initiated_at: new Date().toISOString(),
+                        });
+                    } catch (e) {
+                        console.warn('[WorkerDetailsModal] Optimistic update failed', e);
+                    }
+
+                    await startWorker(this.currentRegion, this.currentWorkerId);
+                    showToast('Worker start initiated', 'success');
+                } catch (error) {
+                    console.error('[WorkerDetailsModal] Failed to start worker:', error);
+                    showToast(`Failed to start worker: ${error.message}`, 'error');
+                    // Revert optimistic update if needed (refresh)
+                    const { refreshWorkers } = await import('../ui/worker-actions.js');
+                    refreshWorkers();
+                }
+            },
+            {
+                actionLabel: 'Start Worker',
+                actionClass: 'btn-success',
+                iconClass: 'bi bi-play-fill text-success me-2',
             }
-        }
+        );
     }
 
     async handleStopWorker() {
-        const confirmed = await showConfirm('Stop Worker', `Stop worker ${this.currentWorker?.name || this.currentWorkerId}?`, () => {});
+        // Use showConfirm with a callback, NOT as a promise that returns boolean
+        showConfirm(
+            'Stop Worker',
+            `Stop worker ${this.currentWorker?.name || this.currentWorkerId}?`,
+            async () => {
+                try {
+                    const { stopWorker } = await import('../api/workers.js');
+                    const { upsertWorkerSnapshot } = await import('../store/workerStore.js');
 
-        if (confirmed) {
-            try {
-                const { stopWorker } = await import('../api/workers.js');
-                await stopWorker(this.currentRegion, this.currentWorkerId);
-                showToast('Worker stop initiated', 'success');
-            } catch (error) {
-                console.error('[WorkerDetailsModal] Failed to stop worker:', error);
-                showToast(`Failed to stop worker: ${error.message}`, 'error');
+                    // Optimistic update
+                    try {
+                        upsertWorkerSnapshot({
+                            id: this.currentWorkerId,
+                            status: 'stopping',
+                            stop_initiated_at: new Date().toISOString(),
+                        });
+                    } catch (e) {
+                        console.warn('[WorkerDetailsModal] Optimistic update failed', e);
+                    }
+
+                    await stopWorker(this.currentRegion, this.currentWorkerId);
+                    showToast('Worker stop initiated', 'success');
+                } catch (error) {
+                    console.error('[WorkerDetailsModal] Failed to stop worker:', error);
+                    showToast(`Failed to stop worker: ${error.message}`, 'error');
+                    // Revert optimistic update if needed (refresh)
+                    const { refreshWorkers } = await import('../ui/worker-actions.js');
+                    refreshWorkers();
+                }
+            },
+            {
+                actionLabel: 'Stop Worker',
+                actionClass: 'btn-warning',
+                iconClass: 'bi bi-stop-fill text-warning me-2',
             }
-        }
+        );
     }
 
     async handleDeleteWorker() {
