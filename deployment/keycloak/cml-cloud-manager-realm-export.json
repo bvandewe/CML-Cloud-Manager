@@ -260,8 +260,8 @@
             "enabled": true,
             "publicClient": true,
             "protocol": "openid-connect",
-            "redirectUris": ["http://localhost:8030/*", "http://localhost:8034/*", "http://localhost:1234/*"],
-            "webOrigins": ["http://localhost:8030", "http://localhost:8034", "http://localhost:1234"],
+            "redirectUris": ["http://localhost:8030/*", "http://localhost:8034/*", "http://localhost:1234/*", "http://localhost/*", "http://localhost:80/*"],
+            "webOrigins": ["http://localhost:8030", "http://localhost:8034", "http://localhost:1234", "http://localhost", "http://localhost:80"],
             "standardFlowEnabled": true,
             "implicitFlowEnabled": false,
             "directAccessGrantsEnabled": true,
@@ -276,6 +276,46 @@
                         "included.client.audience": "cml-cloud-manager",
                         "id.token.claim": "false",
                         "access.token.claim": "true"
+                    }
+                }
+            ]
+        },
+        {
+            "clientId": "grafana",
+            "name": "Grafana",
+            "enabled": true,
+            "publicClient": false,
+            "secret": "grafana-client-secret-123",
+            "redirectUris": ["https://admin.system.io/grafana/login/generic_oauth", "http://admin.system.io/grafana/login/generic_oauth"],
+            "webOrigins": ["https://admin.system.io", "http://admin.system.io"],
+            "standardFlowEnabled": true,
+            "directAccessGrantsEnabled": true,
+            "serviceAccountsEnabled": true,
+            "protocolMappers": [
+                {
+                    "name": "audience-mapper",
+                    "protocol": "openid-connect",
+                    "protocolMapper": "oidc-audience-mapper",
+                    "consentRequired": false,
+                    "config": {
+                        "included.client.audience": "grafana",
+                        "id.token.claim": "false",
+                        "access.token.claim": "true"
+                    }
+                },
+                {
+                    "name": "realm roles",
+                    "protocol": "openid-connect",
+                    "protocolMapper": "oidc-usermodel-realm-role-mapper",
+                    "consentRequired": false,
+                    "config": {
+                        "user.attribute": "roles",
+                        "claim.name": "roles",
+                        "jsonType.label": "String",
+                        "id.token.claim": "true",
+                        "access.token.claim": "true",
+                        "userinfo.token.claim": "true",
+                        "multivalued": "true"
                     }
                 }
             ]
