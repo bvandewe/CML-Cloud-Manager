@@ -16,6 +16,10 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 - **Serialization Error**: Fixed `TypeError: Any cannot be instantiated` in `GetCMLWorkerByIdQuery` by manually constructing response dictionaries
 - **License Event Propagation**: Fixed issue where license status changes were not triggering SSE updates by adding explicit change detection in `update_cml_metrics`
+- **Session Timer**: Fixed session countdown timer in UI to be live and accurate
+- **Serialization Reliability**: Refactored SSE and Redis event broadcasting to use `JsonSerializer` consistently, resolving `Any cannot be instantiated` and `bytearray` errors
+- **SSE Race Condition**: Fixed race condition in `SSEEventRelay` startup that caused `readuntil()` errors
+- **Frontend Reconnection**: Added handling for `system.sse.shutdown` event to allow graceful frontend disconnect/reconnect during backend restarts
 
 ### Changed
 
@@ -24,6 +28,8 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
   - Updated `DeleteCMLWorkerCommand` to support asynchronous termination tracking
   - Workers marked for termination now transition to `SHUTTING_DOWN` status instead of immediate deletion
   - UI displays `SHUTTING_DOWN` status (yellow badge) and prevents local removal until termination confirmed
+
+- **Dependency Injection**: Updated `EventsController` and worker event handlers to use injected `JsonSerializer` instead of local instantiation or `json.dumps`
 
 ### Fixed
 
