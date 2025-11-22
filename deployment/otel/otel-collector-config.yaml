@@ -6,6 +6,47 @@ receivers:
             http:
                 endpoint: 0.0.0.0:4318
 
+    # Host metrics receiver
+    hostmetrics:
+        root_path: /hostfs
+        collection_interval: 10s
+        scrapers:
+            cpu:
+            memory:
+            load:
+            disk:
+            filesystem:
+            network:
+
+    # Docker stats receiver
+    docker_stats:
+        endpoint: unix:///var/run/docker.sock
+        collection_interval: 10s
+        timeout: 20s
+        api_version: '1.25'
+
+    # Redis receiver
+    redis:
+        endpoint: 'redis:6379'
+        collection_interval: 10s
+
+    # MongoDB receiver
+    mongodb:
+        hosts:
+            - endpoint: 'mongodb:27017'
+        collection_interval: 10s
+        username: ${env:MONGODB_USERNAME}
+        password: ${env:MONGODB_PASSWORD}
+        tls:
+            insecure: true
+        metrics:
+            mongodb.index.access.count:
+                enabled: false
+            mongodb.index.count:
+                enabled: false
+            mongodb.index.size:
+                enabled: false
+
 processors:
     batch:
         timeout: 10s
@@ -13,6 +54,12 @@ processors:
     memory_limiter:
         check_interval: 1s
         limit_mib: 512
+    # Add resource attributes to distinguish metrics
+    resource:
+        attributes:
+            - key: service.name
+              value: 'cml-cloud-manager-host'
+              action: insert
 
 exporters:
     logging:
@@ -36,8 +83,8 @@ service:
             processors: [memory_limiter, batch]
             exporters: [logging, otlp/tempo]
         metrics:
-            receivers: [otlp]
-            processors: [memory_limiter, batch]
+            receivers: [otlp, hostmetrics, docker_stats, redis, mongodb]
+            processors: [memory_limiter, batch, resource]
             exporters: [logging, prometheus]
         logs:
             receivers: [otlp]

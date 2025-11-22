@@ -55,9 +55,6 @@ limits_config:
     per_stream_rate_limit: 5MB
     per_stream_rate_limit_burst: 15MB
 
-chunk_store_config:
-    max_look_back_period: 168h # 7 days
-
 table_manager:
     retention_deletes_enabled: true
     retention_period: 168h # 7 days
