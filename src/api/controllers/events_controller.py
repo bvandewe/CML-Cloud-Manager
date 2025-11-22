@@ -12,6 +12,7 @@ from neuroglia.dependency_injection import ServiceProviderBase
 from neuroglia.mapping import Mapper
 from neuroglia.mediation import Mediator
 from neuroglia.mvc import ControllerBase
+from neuroglia.serialization.json import JsonSerializer
 
 from api.dependencies import get_current_user
 from api.services import DualAuthService
@@ -35,6 +36,7 @@ class EventsController(ControllerBase):
         ControllerBase.__init__(self, service_provider, mapper, mediator)
         self._sse_relay = service_provider.get_required_service(SSEEventRelay)
         self._auth_service = service_provider.get_required_service(DualAuthService)
+        self._serializer = service_provider.get_required_service(JsonSerializer)
 
     async def _event_generator(
         self,
@@ -72,12 +74,16 @@ class EventsController(ControllerBase):
                     if worker_ids:
                         # Specific workers only
                         for wid in worker_ids:
-                            await _broadcast_worker_snapshot(worker_repo, self._sse_relay, wid, reason="initial")
+                            await _broadcast_worker_snapshot(
+                                worker_repo, self._sse_relay, self._serializer, wid, reason="initial"
+                            )
                     else:
                         # All active workers
                         workers = await worker_repo.get_active_workers_async()
                         for w in workers:
-                            await _broadcast_worker_snapshot(worker_repo, self._sse_relay, w.id(), reason="initial")
+                            await _broadcast_worker_snapshot(
+                                worker_repo, self._sse_relay, self._serializer, w.id(), reason="initial"
+                            )
             except Exception as e:
                 logger.warning(f"Failed to send initial worker snapshots: {e}")
 
@@ -121,16 +127,12 @@ class EventsController(ControllerBase):
                         event_message = get_event_task.result()
                         event_type = event_message.get("type", "message")
 
-                        # Use a custom default function to handle non-serializable objects
-                        def json_default(obj):
-                            # Handle sets (common issue)
-                            if isinstance(obj, set):
-                                return list(obj)
-                            # Handle any other non-serializable objects by converting to string
-                            # This catches the "Object of type Any is not JSON serializable" error
-                            return str(obj)
+                        # JsonSerializer returns bytearray/bytes, need to decode to string for SSE
+                        payload = self._serializer.serialize(event_message)
+                        if isinstance(payload, (bytes, bytearray)):
+                            payload = payload.decode("utf-8")
 
-                        yield f"event: {event_type}\ndata: {json.dumps(event_message, default=json_default)}\n\n"
+                        yield f"event: {event_type}\ndata: {payload}\n\n"
                     else:
                         # Timeout occurred (Heartbeat)
                         get_event_task.cancel()

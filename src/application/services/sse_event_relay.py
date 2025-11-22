@@ -1,13 +1,16 @@
-"""Event relay service for SSE (Server-Sent Events) broadcasting."""
-
 import asyncio
+import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
+import redis.asyncio as redis
 from neuroglia.hosting.abstractions import HostedService
+from neuroglia.serialization.json import JsonSerializer
+
+from application.settings import app_settings
 
 if TYPE_CHECKING:
     from neuroglia.hosting.web import WebApplicationBuilder
@@ -52,15 +55,79 @@ class SSEEventRelay:
 
     This service maintains a registry of connected SSE clients and
     broadcasts worker-related events to subscribed clients with optional filtering.
+    It uses Redis Pub/Sub to synchronize events across multiple instances (API/Worker).
 
     Filters:
     - worker_ids: Only send events for specific workers
     - event_types: Only send specific event types
     """
 
-    def __init__(self):
+    REDIS_CHANNEL = "cml-cloud-manager:events"
+
+    def __init__(self, serializer: JsonSerializer):
         self._clients: dict[str, SSEClientSubscription] = {}
         self._lock = asyncio.Lock()
+        self._redis_client = None
+        self._redis_pubsub = None
+        self._listen_task = None
+        self._serializer = serializer
+
+    async def start_redis_listener(self):
+        """Start listening to Redis Pub/Sub channel."""
+        async with self._lock:
+            if not app_settings.redis_enabled:
+                logger.warning("Redis disabled, SSE events will not be synchronized across processes")
+                return
+
+            if self._listen_task and not self._listen_task.done():
+                logger.warning("Redis listener already running")
+                return
+
+            try:
+                self._redis_client = redis.from_url(app_settings.redis_url, decode_responses=True)
+                self._redis_pubsub = self._redis_client.pubsub()
+                await self._redis_pubsub.subscribe(self.REDIS_CHANNEL)
+                logger.info(f"Subscribed to Redis channel: {self.REDIS_CHANNEL}")
+
+                async def listen():
+                    try:
+                        async for message in self._redis_pubsub.listen():
+                            if message["type"] == "message":
+                                await self._handle_redis_message(message["data"])
+                    except asyncio.CancelledError:
+                        logger.info("Redis listener task cancelled")
+                        raise
+                    except Exception as e:
+                        logger.error(f"Redis listener error: {e}")
+
+                self._listen_task = asyncio.create_task(listen())
+            except Exception as e:
+                logger.error(f"Failed to start Redis listener: {e}")
+
+    async def stop_redis_listener(self):
+        """Stop listening to Redis Pub/Sub channel."""
+        if self._listen_task:
+            self._listen_task.cancel()
+            try:
+                await self._listen_task
+            except asyncio.CancelledError:
+                pass
+
+        if self._redis_pubsub:
+            await self._redis_pubsub.unsubscribe(self.REDIS_CHANNEL)
+            await self._redis_pubsub.close()
+
+        if self._redis_client:
+            await self._redis_client.close()
+
+    async def _handle_redis_message(self, message_data: str):
+        """Handle message received from Redis."""
+        try:
+            event = json.loads(message_data)
+            # Broadcast to local clients only (internal method)
+            await self._broadcast_local(event)
+        except Exception as e:
+            logger.error(f"Failed to handle Redis message: {e}")
 
     async def register_client(
         self,
@@ -96,16 +163,12 @@ class SSEEventRelay:
                 logger.info(f"SSE client unregistered: {client_id} (remaining: {len(self._clients)})")
 
     async def broadcast_event(self, event_type: str, data: dict, source: str = "cml-cloud-manager") -> None:
-        """Broadcast event to all matching clients based on their filters.
+        """Broadcast event to all matching clients via Redis Pub/Sub.
 
         Args:
             event_type: Type of event (e.g., "worker.metrics.updated")
             data: Event data dictionary (must include worker_id if filtering by worker)
             source: Event source identifier
-
-        Note:
-            Events are only sent to clients whose filters match the event.
-            If a client has no filters, it receives all events.
         """
         event_message = {
             "type": event_type,
@@ -113,6 +176,29 @@ class SSEEventRelay:
             "time": datetime.now(timezone.utc).isoformat() + "Z",
             "data": data,
         }
+
+        # Publish to Redis if enabled
+        if self._redis_client:
+            try:
+                # Redis client requires bytes, string, int or float
+                # JsonSerializer returns bytearray, so we need to convert to bytes
+                payload = self._serializer.serialize(event_message)
+                if isinstance(payload, bytearray):
+                    payload = bytes(payload)
+                await self._redis_client.publish(self.REDIS_CHANNEL, payload)
+            except Exception as e:
+                logger.error(f"Failed to publish event to Redis: {e}")
+                # Fallback to local broadcast if Redis fails
+                await self._broadcast_local(event_message)
+        else:
+            # Local broadcast only
+            await self._broadcast_local(event_message)
+
+    async def _broadcast_local(self, event_message: dict) -> None:
+        """Broadcast event to locally connected clients."""
+        event_type = event_message["type"]
+        data = event_message["data"]
+
         async with self._lock:
             matching_clients = [
                 subscription for subscription in self._clients.values() if subscription.matches_event(event_type, data)
@@ -150,6 +236,7 @@ class SSEEventRelayHostedService(HostedService):
         if self._started:
             return
         logger.info("Starting SSEEventRelayHostedService")
+        await self._relay.start_redis_listener()
         self._started = True
 
     async def stop_async(self):
@@ -164,6 +251,8 @@ class SSEEventRelayHostedService(HostedService):
             )
         except Exception as e:
             logger.warning(f"Exception when broadcasting shutdown event: {e}")
+
+        await self._relay.stop_redis_listener()
         self._started = False
 
     @staticmethod
@@ -173,8 +262,11 @@ class SSEEventRelayHostedService(HostedService):
         Args:
             builder: Application builder instance
         """
-        # Register SSEEventRelay as singleton (no dependencies)
-        builder.services.add_singleton(SSEEventRelay)
+        # Register SSEEventRelay as singleton
+        builder.services.add_singleton(
+            SSEEventRelay,
+            implementation_factory=lambda provider: SSEEventRelay(provider.get_required_service(JsonSerializer)),
+        )
 
         # Register SSEEventRelayHostedService with factory (depends on relay)
         builder.services.add_singleton(

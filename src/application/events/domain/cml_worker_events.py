@@ -6,10 +6,12 @@ frontend components for real-time UI updates.
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime
 
 from neuroglia.mediation import DomainEventHandler
+from neuroglia.serialization.json import JsonSerializer
 
 from application.services.sse_event_relay import SSEEventRelay
 from domain.events.cml_worker import (
@@ -25,14 +27,17 @@ from domain.repositories.cml_worker_repository import CMLWorkerRepository
 log = logging.getLogger(__name__)
 
 
-def _utc_iso(dt: datetime) -> str:
+def _utc_iso(dt: datetime | None) -> str | None:
+    if dt is None:
+        return None
     return dt.isoformat() + "Z"
 
 
 class CMLWorkerCreatedDomainEventHandler(DomainEventHandler[CMLWorkerCreatedDomainEvent]):
-    def __init__(self, sse_relay: SSEEventRelay, repository: CMLWorkerRepository):
+    def __init__(self, sse_relay: SSEEventRelay, repository: CMLWorkerRepository, serializer: JsonSerializer):
         self._sse_relay = sse_relay
         self._repository = repository
+        self._serializer = serializer
 
     async def handle_async(self, notification: CMLWorkerCreatedDomainEvent) -> None:  # type: ignore[override]
         # Original specific event
@@ -52,6 +57,7 @@ class CMLWorkerCreatedDomainEventHandler(DomainEventHandler[CMLWorkerCreatedDoma
         await _broadcast_worker_snapshot(
             self._repository,
             self._sse_relay,
+            self._serializer,
             notification.aggregate_id,
             reason="created",
         )
@@ -67,12 +73,14 @@ class CMLWorkerImportedDomainEventHandler(DomainEventHandler[CMLWorkerImportedDo
         sse_relay: SSEEventRelay,
         repository: CMLWorkerRepository,
         scheduler,
+        serializer: JsonSerializer,
     ):
         from application.services.background_scheduler import BackgroundTaskScheduler
 
         self._sse_relay = sse_relay
         self._repository = repository
         self._scheduler: BackgroundTaskScheduler = scheduler
+        self._serializer = serializer
 
     async def handle_async(self, notification: CMLWorkerImportedDomainEvent) -> None:  # type: ignore[override]
         """Broadcast worker.imported SSE event and schedule immediate data collection."""
@@ -112,6 +120,7 @@ class CMLWorkerImportedDomainEventHandler(DomainEventHandler[CMLWorkerImportedDo
         await _broadcast_worker_snapshot(
             self._repository,
             self._sse_relay,
+            self._serializer,
             notification.aggregate_id,
             reason="imported",
         )
@@ -149,9 +158,10 @@ class CMLWorkerImportedDomainEventHandler(DomainEventHandler[CMLWorkerImportedDo
 
 
 class CMLWorkerStatusUpdatedDomainEventHandler(DomainEventHandler[CMLWorkerStatusUpdatedDomainEvent]):
-    def __init__(self, sse_relay: SSEEventRelay, repository: CMLWorkerRepository):
+    def __init__(self, sse_relay: SSEEventRelay, repository: CMLWorkerRepository, serializer: JsonSerializer):
         self._sse_relay = sse_relay
         self._repository = repository
+        self._serializer = serializer
 
     async def handle_async(self, notification: CMLWorkerStatusUpdatedDomainEvent) -> None:  # type: ignore[override]
         # Include transition initiation timestamp if present so UI can start elapsed timer immediately
@@ -172,6 +182,7 @@ class CMLWorkerStatusUpdatedDomainEventHandler(DomainEventHandler[CMLWorkerStatu
         await _broadcast_worker_snapshot(
             self._repository,
             self._sse_relay,
+            self._serializer,
             notification.aggregate_id,
             reason="status_updated",
         )
@@ -183,9 +194,10 @@ class CMLWorkerStatusUpdatedDomainEventHandler(DomainEventHandler[CMLWorkerStatu
 
 
 class CMLWorkerTerminatedDomainEventHandler(DomainEventHandler[CMLWorkerTerminatedDomainEvent]):
-    def __init__(self, sse_relay: SSEEventRelay, repository: CMLWorkerRepository):
+    def __init__(self, sse_relay: SSEEventRelay, repository: CMLWorkerRepository, serializer: JsonSerializer):
         self._sse_relay = sse_relay
         self._repository = repository
+        self._serializer = serializer
 
     async def handle_async(self, notification: CMLWorkerTerminatedDomainEvent) -> None:  # type: ignore[override]
         await self._sse_relay.broadcast_event(
@@ -200,6 +212,7 @@ class CMLWorkerTerminatedDomainEventHandler(DomainEventHandler[CMLWorkerTerminat
         await _broadcast_worker_snapshot(
             self._repository,
             self._sse_relay,
+            self._serializer,
             notification.aggregate_id,
             reason="terminated",
         )
@@ -208,9 +221,10 @@ class CMLWorkerTerminatedDomainEventHandler(DomainEventHandler[CMLWorkerTerminat
 
 
 class CMLWorkerTelemetryUpdatedDomainEventHandler(DomainEventHandler[CMLWorkerTelemetryUpdatedDomainEvent]):
-    def __init__(self, sse_relay: SSEEventRelay, repository: CMLWorkerRepository):
+    def __init__(self, sse_relay: SSEEventRelay, repository: CMLWorkerRepository, serializer: JsonSerializer):
         self._sse_relay = sse_relay
         self._repository = repository
+        self._serializer = serializer
 
     async def handle_async(self, notification: CMLWorkerTelemetryUpdatedDomainEvent) -> None:  # type: ignore[override]
         event_data = {
@@ -234,6 +248,7 @@ class CMLWorkerTelemetryUpdatedDomainEventHandler(DomainEventHandler[CMLWorkerTe
         await _broadcast_worker_snapshot(
             self._repository,
             self._sse_relay,
+            self._serializer,
             notification.aggregate_id,
             reason="telemetry_updated",
         )
@@ -311,6 +326,7 @@ class CMLMetricsUpdatedDomainEventHandler(DomainEventHandler[CMLMetricsUpdatedDo
 async def _broadcast_worker_snapshot(
     repository: CMLWorkerRepository,
     relay: SSEEventRelay,
+    serializer: JsonSerializer,
     worker_id: str,
     reason: str | None = None,
 ) -> None:
@@ -327,6 +343,29 @@ async def _broadcast_worker_snapshot(
             cpu_util = s.cloudwatch_cpu_utilization
         if mem_util is None and s.cloudwatch_memory_utilization is not None:
             mem_util = s.cloudwatch_memory_utilization
+
+        # Safely serialize nested objects
+        cml_system_info = None
+        if s.metrics.system_info:
+            try:
+                # Serialize to JSON string/bytes then parse back to dict to ensure JSON compatibility
+                # This avoids "Any cannot be instantiated" errors while keeping the structure
+                serialized = serializer.serialize(value=s.metrics.system_info)
+                if isinstance(serialized, (bytes, bytearray)):
+                    serialized = serialized.decode("utf-8")
+                cml_system_info = json.loads(serialized)
+            except Exception as e:
+                log.warning("Failed to serialize system_info for %s: %s", worker_id, e)
+
+        cml_system_health = None
+        if s.metrics.system_health:
+            try:
+                serialized = serializer.serialize(value=s.metrics.system_health)
+                if isinstance(serialized, (bytes, bytearray)):
+                    serialized = serialized.decode("utf-8")
+                cml_system_health = json.loads(serialized)
+            except Exception as e:
+                log.warning("Failed to serialize system_health for %s: %s", worker_id, e)
 
         snapshot = {
             "worker_id": s.id,
@@ -350,8 +389,8 @@ async def _broadcast_worker_snapshot(
             "cml_uptime_seconds": s.metrics.uptime_seconds,
             "cml_labs_count": s.metrics.labs_count,
             "cml_license_info": s.license.raw_info,
-            "cml_system_info": s.metrics.system_info,
-            "cml_system_health": s.metrics.system_health,
+            "cml_system_info": cml_system_info,
+            "cml_system_health": cml_system_health,
             "cpu_utilization": cpu_util,
             "memory_utilization": mem_util,
             "storage_utilization": storage_util,
@@ -370,4 +409,4 @@ async def _broadcast_worker_snapshot(
             source="domain.cml_worker.snapshot",
         )
     except Exception as e:
-        log.warning("Failed to broadcast worker snapshot for %s: %s", worker_id, e)
+        log.warning("Failed to broadcast worker snapshot for %s: %s", worker_id, e, exc_info=True)

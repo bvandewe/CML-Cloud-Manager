@@ -3,6 +3,7 @@
 import logging
 
 from neuroglia.mediation import DomainEventHandler
+from neuroglia.serialization.json import JsonSerializer
 
 from application.events.domain.cml_worker_events import _broadcast_worker_snapshot
 from application.services.sse_event_relay import SSEEventRelay
@@ -50,9 +51,10 @@ class CMLWorkerLicenseRegistrationCompletedEventHandler(
 ):
     """Broadcasts SSE event when license registration completes."""
 
-    def __init__(self, sse_relay: SSEEventRelay, worker_repository: CMLWorkerRepository):
+    def __init__(self, sse_relay: SSEEventRelay, worker_repository: CMLWorkerRepository, serializer: JsonSerializer):
         self._sse_relay = sse_relay
         self._repository = worker_repository
+        self._serializer = serializer
 
     async def handle_async(self, notification: CMLWorkerLicenseRegistrationCompletedDomainEvent) -> None:  # type: ignore[override]
         """Broadcast license registration completed event via SSE."""
@@ -78,6 +80,7 @@ class CMLWorkerLicenseRegistrationCompletedEventHandler(
         await _broadcast_worker_snapshot(
             self._repository,
             self._sse_relay,
+            self._serializer,
             notification.worker_id,
             reason="license_registered",
         )
@@ -87,9 +90,10 @@ class CMLWorkerLicenseRegistrationCompletedEventHandler(
 class CMLWorkerLicenseRegistrationFailedEventHandler(DomainEventHandler[CMLWorkerLicenseRegistrationFailedDomainEvent]):
     """Broadcasts SSE event when license registration fails."""
 
-    def __init__(self, sse_relay: SSEEventRelay, worker_repository: CMLWorkerRepository):
+    def __init__(self, sse_relay: SSEEventRelay, worker_repository: CMLWorkerRepository, serializer: JsonSerializer):
         self._sse_relay = sse_relay
         self._repository = worker_repository
+        self._serializer = serializer
 
     async def handle_async(self, notification: CMLWorkerLicenseRegistrationFailedDomainEvent) -> None:  # type: ignore[override]
         """Broadcast license registration failed event via SSE."""
@@ -114,6 +118,7 @@ class CMLWorkerLicenseRegistrationFailedEventHandler(DomainEventHandler[CMLWorke
         await _broadcast_worker_snapshot(
             self._repository,
             self._sse_relay,
+            self._serializer,
             notification.worker_id,
             reason="license_registration_failed",
         )
@@ -123,9 +128,10 @@ class CMLWorkerLicenseRegistrationFailedEventHandler(DomainEventHandler[CMLWorke
 class CMLWorkerLicenseDeregisteredEventHandler(DomainEventHandler[CMLWorkerLicenseDeregisteredDomainEvent]):
     """Broadcasts SSE event when license is deregistered."""
 
-    def __init__(self, sse_relay: SSEEventRelay, worker_repository: CMLWorkerRepository):
+    def __init__(self, sse_relay: SSEEventRelay, worker_repository: CMLWorkerRepository, serializer: JsonSerializer):
         self._sse_relay = sse_relay
         self._repository = worker_repository
+        self._serializer = serializer
 
     async def handle_async(self, notification: CMLWorkerLicenseDeregisteredDomainEvent) -> None:  # type: ignore[override]
         """Broadcast license deregistered event via SSE."""
@@ -144,6 +150,7 @@ class CMLWorkerLicenseDeregisteredEventHandler(DomainEventHandler[CMLWorkerLicen
         await _broadcast_worker_snapshot(
             self._repository,
             self._sse_relay,
+            self._serializer,
             notification.worker_id,
             reason="license_deregistered",
         )
