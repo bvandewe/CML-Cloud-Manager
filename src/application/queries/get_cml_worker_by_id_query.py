@@ -43,6 +43,27 @@ class GetCMLWorkerByIdQueryHandler(QueryHandler[GetCMLWorkerByIdQuery, Operation
             if not worker:
                 return self.not_found("CML Worker", identifier)
 
+            # Get utilization from CML metrics
+            cpu_util, memory_util, storage_util = worker.state.metrics.get_utilization()
+
+            # Fallback to CloudWatch CPU if CML not available
+            if cpu_util is None and worker.state.cloudwatch_cpu_utilization is not None:
+                cpu_util = worker.state.cloudwatch_cpu_utilization
+
+            # Fallback to CloudWatch memory if CML not available
+            if memory_util is None and worker.state.cloudwatch_memory_utilization is not None:
+                memory_util = worker.state.cloudwatch_memory_utilization
+
+            # Clamp values to [0,100]
+            def _clamp(v):
+                if v is None:
+                    return None
+                try:
+                    fv = float(v)
+                except (ValueError, TypeError):
+                    return None
+                return max(0.0, min(100.0, fv))
+
             # Convert to dict representation
             result = {
                 "id": worker.state.id,
@@ -80,8 +101,20 @@ class GetCMLWorkerByIdQueryHandler(QueryHandler[GetCMLWorkerByIdQuery, Operation
                 ),
                 "cloudwatch_detailed_monitoring_enabled": worker.state.cloudwatch_detailed_monitoring_enabled,
                 # CML Metrics
-                "cml_system_info": worker.state.metrics.system_info,
-                "cml_system_health": worker.state.metrics.system_health,
+                "cml_system_info": (
+                    worker.state.metrics.system_info.to_dict() if worker.state.metrics.system_info else None
+                ),
+                "cml_system_health": (
+                    {
+                        "valid": worker.state.metrics.system_health.valid,
+                        "is_licensed": worker.state.metrics.system_health.is_licensed,
+                        "is_enterprise": worker.state.metrics.system_health.is_enterprise,
+                        "computes": worker.state.metrics.system_health.computes,
+                        "controller": worker.state.metrics.system_health.controller,
+                    }
+                    if worker.state.metrics.system_health
+                    else None
+                ),
                 "cml_license_info": worker.state.license.raw_info,
                 "cml_ready": worker.state.metrics.ready,
                 "cml_uptime_seconds": worker.state.metrics.uptime_seconds,
@@ -94,8 +127,10 @@ class GetCMLWorkerByIdQueryHandler(QueryHandler[GetCMLWorkerByIdQuery, Operation
                 "next_refresh_at": (worker.state.next_refresh_at.isoformat() if worker.state.next_refresh_at else None),
                 # Backward compatibility (deprecated - use cloudwatch_last_collected_at)
                 "active_labs_count": worker.state.metrics.labs_count,
-                "cpu_utilization": worker.state.cloudwatch_cpu_utilization,
-                "memory_utilization": worker.state.cloudwatch_memory_utilization,
+                "cpu_utilization": _clamp(cpu_util),
+                "memory_utilization": _clamp(memory_util),
+                "storage_utilization": _clamp(storage_util),
+                "disk_utilization": _clamp(storage_util),  # Alias for UI compatibility
                 "created_at": worker.state.created_at.isoformat(),
                 "updated_at": worker.state.updated_at.isoformat(),
                 "start_initiated_at": (
