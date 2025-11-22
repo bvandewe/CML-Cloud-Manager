@@ -12,6 +12,7 @@
 import { BaseComponent } from '../core/BaseComponent.js';
 import eventBus, { EventTypes } from '../core/EventBus.js';
 import './WorkerCard.js';
+import * as bootstrap from 'bootstrap';
 
 export class WorkerList extends BaseComponent {
     static get observedAttributes() {
@@ -65,11 +66,6 @@ export class WorkerList extends BaseComponent {
         this.subscribe(EventTypes.WORKER_DELETED, data => {
             console.log('[WorkerList] Worker deleted:', data);
             this.removeWorker(data.worker_id);
-        });
-
-        this.subscribe(EventTypes.WORKER_METRICS_UPDATED, data => {
-            console.log('[WorkerList] Metrics updated:', data);
-            this.updateWorkerMetrics(data);
         });
 
         this.subscribe(EventTypes.WORKER_STATUS_CHANGED, data => {
@@ -175,17 +171,6 @@ export class WorkerList extends BaseComponent {
             this.render();
             this.renderTimeout = null;
         }, delay);
-    }
-    updateWorkerMetrics(data) {
-        const worker = this.workers.get(data.worker_id);
-        if (worker) {
-            worker.cpu_utilization = data.cpu_utilization ?? worker.cpu_utilization;
-            worker.memory_utilization = data.memory_utilization ?? worker.memory_utilization;
-            worker.disk_utilization = data.disk_utilization ?? worker.disk_utilization;
-            worker.storage_utilization = data.storage_utilization ?? worker.storage_utilization;
-            this.workers.set(data.worker_id, worker);
-            // Cards will update themselves via EventBus
-        }
     }
 
     updateWorkerStatus(data) {
@@ -324,13 +309,30 @@ export class WorkerList extends BaseComponent {
         const licenseStatus = worker.license_status || 'unknown';
         const isLicensed = licenseStatus === 'registered';
 
+        // Status icon mapping
+        let statusIcon = 'bi-question-circle-fill';
+        const s = (worker.status || '').toLowerCase();
+        if (s === 'running') statusIcon = 'bi-play-circle-fill';
+        else if (s === 'stopped') statusIcon = 'bi-stop-circle-fill';
+        else if (s === 'pending') statusIcon = 'bi-hourglass-split';
+        else if (s === 'stopping' || s === 'shutting-down') statusIcon = 'bi-power';
+        else if (s === 'terminated') statusIcon = 'bi-x-circle-fill';
+
         return `
             <tr class="worker-row" data-worker-id="${worker.id}" style="cursor: pointer;">
                 <td><strong>${this.escapeHtml(worker.name)}</strong></td>
                 <td>${this.escapeHtml(worker.aws_region)}</td>
-                <td><span class="badge bg-${statusClass}">${this.escapeHtml(worker.status)}</span></td>
                 <td>
-                    ${isLicensed ? '<span class="badge bg-success" title="Licensed"><i class="bi bi-key-fill"></i></span>' : '<span class="badge bg-warning" title="Unlicensed"><i class="bi bi-key"></i></span>'}
+                    <span class="badge bg-${statusClass}" data-bs-toggle="tooltip" title="${this.escapeHtml(worker.status)}">
+                        <i class="bi ${statusIcon}"></i>
+                    </span>
+                </td>
+                <td>
+                    ${
+                        isLicensed
+                            ? '<span class="badge bg-success" data-bs-toggle="tooltip" title="Licensed"><i class="bi bi-key-fill"></i></span>'
+                            : '<span class="badge bg-warning" data-bs-toggle="tooltip" title="Unlicensed"><i class="bi bi-key"></i></span>'
+                    }
                 </td>
                 <td>${this.escapeHtml(worker.instance_type || 'N/A')}</td>
                 <td>${worker.cpu_utilization ? worker.cpu_utilization.toFixed(1) + '%' : 'N/A'}</td>
@@ -364,6 +366,11 @@ export class WorkerList extends BaseComponent {
     }
 
     attachTableEventListeners() {
+        // Initialize tooltips
+        this.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
+            new bootstrap.Tooltip(el);
+        });
+
         // Click on table rows to open details
         this.querySelectorAll('.worker-row').forEach(row => {
             row.addEventListener('click', e => {

@@ -34,7 +34,11 @@ export function showLicenseModal(workerId, region, workerName = '', hasLicense =
         deregisterBtn.style.display = hasLicense ? 'inline-block' : 'none';
     }
 
-    new bootstrap.Modal(document.getElementById('registerLicenseModal')).show();
+    const modalEl = document.getElementById('registerLicenseModal');
+    if (modalEl) {
+        modalEl.style.zIndex = '1060'; // Ensure it shows above worker details modal
+        new bootstrap.Modal(modalEl).show();
+    }
 }
 
 export async function showLicenseDetailsModal() {

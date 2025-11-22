@@ -130,8 +130,9 @@ function setupEventListeners() {
     // Logout button
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) {
-        logoutBtn.addEventListener('click', () => {
-            stopSessionMonitoring();
+        logoutBtn.addEventListener('click', e => {
+            e.preventDefault();
+            sessionManager.stop();
             logout();
         });
     }

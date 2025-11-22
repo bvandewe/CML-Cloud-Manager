@@ -12,6 +12,10 @@ import { BaseComponent } from '../core/BaseComponent.js';
 import { EventTypes } from '../core/EventBus.js';
 
 export class FilterBar extends BaseComponent {
+    static get observedAttributes() {
+        return ['view'];
+    }
+
     constructor() {
         super();
     }
@@ -21,7 +25,18 @@ export class FilterBar extends BaseComponent {
         this.attachEventListeners();
     }
 
+    onAttributeChange(name, oldValue, newValue) {
+        if (name === 'view' && oldValue !== newValue) {
+            const select = this.$('#view-toggle');
+            if (select) {
+                select.value = newValue;
+            }
+        }
+    }
+
     render() {
+        const currentView = this.getAttr('view') || 'cards';
+
         this.innerHTML = `
             <div class="filter-bar mb-3">
                 <div class="row g-3">
@@ -56,8 +71,8 @@ export class FilterBar extends BaseComponent {
                     <div class="col-md-2">
                         <label for="view-toggle" class="form-label">View</label>
                         <select id="view-toggle" class="form-select">
-                            <option value="cards">Cards</option>
-                            <option value="table">Table</option>
+                            <option value="cards" ${currentView === 'cards' ? 'selected' : ''}>Cards</option>
+                            <option value="table" ${currentView === 'table' ? 'selected' : ''}>Table</option>
                         </select>
                     </div>
                 </div>

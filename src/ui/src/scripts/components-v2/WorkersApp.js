@@ -11,9 +11,10 @@
  * - Component initialization
  */
 
+import * as bootstrap from 'bootstrap';
 import { eventBus, EventTypes } from '../core/EventBus.js';
 import { sseService } from '../services/SSEService.js';
-import { setupCreateWorkerModal, setupImportWorkerModal, setupDeleteWorkerModal } from '../ui/worker-modals.js';
+import { setupCreateWorkerModal, setupImportWorkerModal, setupDeleteWorkerModal, setupLicenseModal } from '../ui/worker-modals.js';
 import { isAdminOrManager } from '../utils/roles.js';
 import '../components-v2/WorkerCard.js';
 import '../components-v2/WorkerList.js';
@@ -59,6 +60,7 @@ class WorkersApp {
         setupCreateWorkerModal();
         setupImportWorkerModal();
         setupDeleteWorkerModal();
+        setupLicenseModal();
 
         // Expose refresh method for modals
         // Note: We attach to the existing window.workersApp object or create it
@@ -183,10 +185,15 @@ class WorkersApp {
         container.innerHTML = `
             <!-- Action Buttons -->
             <div class="row mb-4">
-                <div class="col">
-                    <h2>
+                <div class="col d-flex align-items-center gap-2">
+                    <h2 class="mb-0">
                         <i class="bi bi-server"></i> CML Workers Management
                     </h2>
+                    <div id="sse-connection-status">
+                        <span class="badge bg-secondary" data-bs-toggle="tooltip" data-bs-placement="right" title="Connecting to real-time updates...">
+                            <i class="bi bi-wifi"></i>
+                        </span>
+                    </div>
                 </div>
                 <div class="col-auto">
                     <div class="btn-group" role="group">
@@ -209,27 +216,88 @@ class WorkersApp {
                 </div>
             </div>
 
-            <!-- SSE Connection Status -->
-            <div id="sse-connection-status" class="mb-3">
-                <span class="badge bg-secondary">
-                    <i class="bi bi-wifi"></i> Connecting to real-time updates...
-                </span>
+            <!-- Tabs -->
+            <ul class="nav nav-tabs" id="workersTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="workers-tab" data-bs-toggle="tab" data-bs-target="#workers-panel" type="button" role="tab" aria-controls="workers-panel" aria-selected="true">
+                        <i class="bi bi-server me-2"></i>Workers
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="lablets-tab" data-bs-toggle="tab" data-bs-target="#lablets-panel" type="button" role="tab" aria-controls="lablets-panel" aria-selected="false">
+                        <i class="bi bi-diagram-3 me-2"></i>Lablets
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="reports-tab" data-bs-toggle="tab" data-bs-target="#reports-panel" type="button" role="tab" aria-controls="reports-panel" aria-selected="false">
+                        <i class="bi bi-file-earmark-bar-graph me-2"></i>Reports
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="tracks-tab" data-bs-toggle="tab" data-bs-target="#tracks-panel" type="button" role="tab" aria-controls="tracks-panel" aria-selected="false">
+                        <i class="bi bi-signpost-split me-2"></i>Tracks
+                    </button>
+                </li>
+            </ul>
+
+            <!-- Tab Content -->
+            <div class="tab-content border border-top-0 p-4 bg-body" id="workersTabContent">
+                <!-- Workers Panel -->
+                <div class="tab-pane fade show active" id="workers-panel" role="tabpanel" aria-labelledby="workers-tab">
+                    <!-- Filter Bar -->
+                    <filter-bar view="${this.currentView}"></filter-bar>
+
+                    <!-- Workers List -->
+                    <worker-list
+                        region="${this.currentRegion}"
+                        view="${this.currentView}"
+                    ></worker-list>
+                </div>
+
+                <!-- Lablets Panel (Placeholder) -->
+                <div class="tab-pane fade" id="lablets-panel" role="tabpanel" aria-labelledby="lablets-tab">
+                    <div class="text-center py-5 text-muted">
+                        <i class="bi bi-diagram-3 display-1"></i>
+                        <h3 class="mt-3">Lablets Management</h3>
+                        <p>Coming soon...</p>
+                    </div>
+                </div>
+
+                <!-- Reports Panel (Placeholder) -->
+                <div class="tab-pane fade" id="reports-panel" role="tabpanel" aria-labelledby="reports-tab">
+                    <div class="text-center py-5 text-muted">
+                        <i class="bi bi-file-earmark-bar-graph display-1"></i>
+                        <h3 class="mt-3">Reports & Analytics</h3>
+                        <p>Coming soon...</p>
+                    </div>
+                </div>
+
+                <!-- Tracks Panel (Placeholder) -->
+                <div class="tab-pane fade" id="tracks-panel" role="tabpanel" aria-labelledby="tracks-tab">
+                    <div class="text-center py-5 text-muted">
+                        <i class="bi bi-signpost-split display-1"></i>
+                        <h3 class="mt-3">Learning Tracks</h3>
+                        <p>Coming soon...</p>
+                    </div>
+                </div>
             </div>
-
-            <!-- Filter Bar -->
-            <filter-bar></filter-bar>
-
-            <!-- Workers List -->
-            <worker-list
-                region="${this.currentRegion}"
-                view="${this.currentView}"
-            ></worker-list>
 
             <!-- Worker Details Modal -->
             <worker-details-modal></worker-details-modal>
         `;
 
         console.log('[WorkersApp] Rendered with view:', this.currentView);
+
+        // Initialize tooltip for SSE status
+        const sseStatusEl = document.getElementById('sse-connection-status');
+        if (sseStatusEl) {
+            const badge = sseStatusEl.querySelector('.badge');
+            if (badge) {
+                new bootstrap.Tooltip(badge, {
+                    trigger: 'hover',
+                });
+            }
+        }
     }
 
     /**
@@ -280,10 +348,18 @@ class WorkersApp {
         const config = statusConfig[status] || statusConfig.disconnected;
 
         statusEl.innerHTML = `
-            <span class="badge ${config.class}">
-                <i class="bi bi-${config.icon}"></i> ${config.text}
+            <span class="badge ${config.class}" data-bs-toggle="tooltip" data-bs-placement="right" title="${config.text}">
+                <i class="bi bi-${config.icon}"></i>
             </span>
         `;
+
+        // Initialize tooltip
+        const badge = statusEl.querySelector('.badge');
+        if (badge) {
+            new bootstrap.Tooltip(badge, {
+                trigger: 'hover',
+            });
+        }
     }
 
     /**

@@ -15,6 +15,7 @@ import { EventTypes } from '../core/EventBus.js';
 import { escapeHtml } from '../components/escape.js';
 import { getStatusBadgeClass, getCpuProgressClass, getMemoryProgressClass } from '../components/status-badges.js';
 import { formatDateWithRelative } from '../utils/dates.js';
+import * as bootstrap from 'bootstrap';
 
 export class WorkerCard extends BaseComponent {
     static get observedAttributes() {
@@ -23,7 +24,7 @@ export class WorkerCard extends BaseComponent {
 
     constructor() {
         super();
-        this.attachShadow({ mode: 'open' });
+        // Use Light DOM for better Bootstrap integration
     }
 
     onAttributeChange(name, oldValue, newValue) {
@@ -69,19 +70,10 @@ export class WorkerCard extends BaseComponent {
                     service_status: data.service_status,
                     instance_type: data.instance_type,
                     license_status: data.license_status,
-                    cpu_utilization: data.cpu_utilization,
-                    memory_utilization: data.memory_utilization,
-                    disk_utilization: data.disk_utilization || data.storage_utilization,
                     updated_at: data.updated_at,
                     ...data, // Keep all other fields
                 };
                 this.setState({ worker: normalizedWorker });
-            }
-        });
-
-        this.subscribe(EventTypes.WORKER_METRICS_UPDATED, data => {
-            if (data.worker_id === workerId) {
-                this.updateMetrics(data);
             }
         });
 
@@ -114,107 +106,57 @@ export class WorkerCard extends BaseComponent {
         this.render();
     }
 
-    updateMetrics(metricsData) {
-        const state = this.getState();
-        if (state.worker) {
-            this.setState({
-                worker: {
-                    ...state.worker,
-                    cpu_utilization: metricsData.cpu_utilization,
-                    memory_utilization: metricsData.memory_utilization,
-                    disk_utilization: metricsData.disk_utilization,
-                },
-            });
-        }
-    }
-
     render() {
         const { worker } = this.getState();
         const isCompact = this.getBoolAttr('compact');
 
         if (!worker) {
-            this.shadowRoot.innerHTML = this.renderLoading();
+            this.innerHTML = this.renderLoading();
             return;
         }
 
-        this.shadowRoot.innerHTML = this.html`
+        this.innerHTML = this.html`
             ${this.renderStyles()}
             ${isCompact ? this.renderCompactCard(worker) : this.renderFullCard(worker)}
         `;
 
         this.attachEventListeners();
+        this.initTooltips();
+    }
+
+    initTooltips() {
+        const tooltips = this.querySelectorAll('[data-bs-toggle="tooltip"]');
+        tooltips.forEach(el => {
+            // Dispose existing if any (though innerHTML replacement usually handles this)
+            const existing = bootstrap.Tooltip.getInstance(el);
+            if (existing) existing.dispose();
+            new bootstrap.Tooltip(el);
+        });
     }
 
     renderStyles() {
+        // Minimal custom styles that don't conflict with Bootstrap
+        // Most styling should come from global Bootstrap classes
         return `
             <style>
-                :host {
+                worker-card {
                     display: block;
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-                }
-                .card {
-                    border: 1px solid #dee2e6;
-                    border-radius: 0.375rem;
-                    background: white;
-                    transition: box-shadow 0.2s, transform 0.2s;
                     height: 100%;
                 }
-                .card:hover {
+                worker-card .card {
+                    cursor: pointer;
+                    transition: box-shadow 0.2s, transform 0.2s;
+                }
+                worker-card .card:hover {
                     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
                     transform: translateY(-2px);
-                    cursor: pointer;
                 }
-                .card-header {
-                    padding: 1rem;
-                    border-bottom: 1px solid #dee2e6;
-                    background-color: #f8f9fa;
-                }
-                .card-body {
-                    padding: 1rem;
-                }
-                .badge {
-                    padding: 0.25rem 0.5rem;
-                    border-radius: 0.25rem;
-                    font-size: 0.75rem;
-                    font-weight: 600;
-                }
-                .badge-success { background: #198754; color: white; }
-                .badge-danger { background: #dc3545; color: white; }
-                .badge-warning { background: #ffc107; color: #000; }
-                .badge-secondary { background: #6c757d; color: white; }
-                .progress {
-                    height: 0.5rem;
-                    background-color: #e9ecef;
-                    border-radius: 0.25rem;
-                    overflow: hidden;
-                }
-                .progress-bar {
-                    height: 100%;
-                    transition: width 0.3s ease;
-                }
-                .progress-bar-success { background: #198754; }
-                .progress-bar-warning { background: #ffc107; }
-                .progress-bar-danger { background: #dc3545; }
-                .metric-row {
+                /* Custom metric row helper */
+                worker-card .metric-row {
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
                     margin-bottom: 0.5rem;
-                }
-                .text-muted {
-                    color: #6c757d;
-                    font-size: 0.875rem;
-                }
-                button {
-                    padding: 0.375rem 0.75rem;
-                    border: 1px solid #dee2e6;
-                    border-radius: 0.25rem;
-                    background: white;
-                    cursor: pointer;
-                    transition: all 0.2s;
-                }
-                button:hover {
-                    background: #f8f9fa;
                 }
             </style>
         `;
@@ -244,16 +186,17 @@ export class WorkerCard extends BaseComponent {
         const memClass = getMemoryProgressClass(worker.memory_utilization);
         const diskClass = getMemoryProgressClass(worker.disk_utilization); // Reuse memory colors
 
-        // Determine header color based on overall status
-        let headerBgColor = '#f8f9fa'; // default
-        if (worker.status === 'running' && worker.service_status === 'ready') {
-            headerBgColor = '#d1e7dd'; // success light
-        } else if (worker.status === 'running' && worker.service_status !== 'ready') {
-            headerBgColor = '#fff3cd'; // warning light
-        } else if (worker.status === 'stopped') {
-            headerBgColor = '#e2e3e5'; // secondary light
-        } else if (worker.status === 'pending' || worker.status === 'stopping' || worker.status === 'shutting-down') {
-            headerBgColor = '#cff4fc'; // info light
+        // Determine header class based on overall status
+        // Contextual colors with subtle background for better contrast/readability
+        let headerClass = 'bg-secondary-subtle text-secondary-emphasis'; // default/stopped
+        const s = (worker.status || '').toLowerCase();
+
+        if (s === 'running') {
+            headerClass = 'bg-success-subtle text-success-emphasis';
+        } else if (s === 'pending' || s === 'stopping' || s === 'shutting-down') {
+            headerClass = 'bg-warning-subtle text-warning-emphasis';
+        } else if (s === 'terminated' || s === 'error' || s === 'failed') {
+            headerClass = 'bg-danger-subtle text-danger-emphasis';
         }
 
         const licenseStatus = worker.license_status || 'unknown';
@@ -261,14 +204,28 @@ export class WorkerCard extends BaseComponent {
         const registrationStatus = worker.cml_license_info?.registration?.status;
         const isLicensed = licenseStatus === 'registered' || registrationStatus === 'COMPLETED' || registrationStatus === 'REGISTERED';
 
+        // Status icon mapping
+        let statusIcon = 'bi-question-circle-fill';
+        if (s === 'running') statusIcon = 'bi-play-circle-fill';
+        else if (s === 'stopped') statusIcon = 'bi-stop-circle-fill';
+        else if (s === 'pending') statusIcon = 'bi-hourglass-split';
+        else if (s === 'stopping' || s === 'shutting-down') statusIcon = 'bi-power';
+        else if (s === 'terminated') statusIcon = 'bi-x-circle-fill';
+
         return `
             <div class="card" data-action="open-details">
-                <div class="card-header" style="background-color: ${headerBgColor};">
+                <div class="card-header ${headerClass}">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <strong>${escapeHtml(worker.name)}</strong>
                         <div style="display: flex; gap: 0.25rem;">
-                            ${isLicensed ? '<span class="badge badge-success" title="Licensed"><i class="bi bi-key-fill"></i></span>' : '<span class="badge badge-warning" title="Unlicensed"><i class="bi bi-key"></i></span>'}
-                            <span class="badge badge-${statusClass}">${escapeHtml(worker.status)}</span>
+                            ${
+                                isLicensed
+                                    ? '<span class="badge bg-success" data-bs-toggle="tooltip" title="Licensed"><i class="bi bi-key-fill"></i></span>'
+                                    : '<span class="badge bg-warning" data-bs-toggle="tooltip" title="Unlicensed"><i class="bi bi-key"></i></span>'
+                            }
+                            <span class="badge ${statusClass}" data-bs-toggle="tooltip" title="${escapeHtml(worker.status)}">
+                                <i class="bi ${statusIcon}"></i>
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -324,6 +281,15 @@ export class WorkerCard extends BaseComponent {
     renderCompactCard(worker) {
         const statusClass = getStatusBadgeClass(worker.status);
 
+        // Status icon mapping
+        let statusIcon = 'bi-question-circle-fill';
+        const s = (worker.status || '').toLowerCase();
+        if (s === 'running') statusIcon = 'bi-play-circle-fill';
+        else if (s === 'stopped') statusIcon = 'bi-stop-circle-fill';
+        else if (s === 'pending') statusIcon = 'bi-hourglass-split';
+        else if (s === 'stopping' || s === 'shutting-down') statusIcon = 'bi-power';
+        else if (s === 'terminated') statusIcon = 'bi-x-circle-fill';
+
         return `
             <div class="card" data-action="open-details" style="padding: 0.75rem;">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -333,14 +299,16 @@ export class WorkerCard extends BaseComponent {
                             ${escapeHtml(worker.aws_region)}
                         </div>
                     </div>
-                    <span class="badge badge-${statusClass}">${escapeHtml(worker.status)}</span>
+                    <span class="badge ${statusClass}" data-bs-toggle="tooltip" title="${escapeHtml(worker.status)}">
+                        <i class="bi ${statusIcon}"></i>
+                    </span>
                 </div>
             </div>
         `;
     }
 
     attachEventListeners() {
-        const card = this.shadowRoot.querySelector('[data-action="open-details"]');
+        const card = this.querySelector('[data-action="open-details"]');
         if (card) {
             card.addEventListener('click', () => {
                 const worker = this.getState().worker;

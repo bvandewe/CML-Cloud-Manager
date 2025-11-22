@@ -64,7 +64,7 @@ export function renderMonitoringTab(worker) {
     html += `
         <div class="col-md-6">
             <div class="card h-100">
-                <div class="card-header bg-primary text-white">
+                <div class="card-header bg-body-tertiary">
                     <h6 class="mb-0"><i class="bi bi-activity"></i> Idle Detection</h6>
                 </div>
                 <div class="card-body">
