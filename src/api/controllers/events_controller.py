@@ -120,7 +120,17 @@ class EventsController(ControllerBase):
                     if get_event_task in done:
                         event_message = get_event_task.result()
                         event_type = event_message.get("type", "message")
-                        yield f"event: {event_type}\ndata: {json.dumps(event_message)}\n\n"
+
+                        # Use a custom default function to handle non-serializable objects
+                        def json_default(obj):
+                            # Handle sets (common issue)
+                            if isinstance(obj, set):
+                                return list(obj)
+                            # Handle any other non-serializable objects by converting to string
+                            # This catches the "Object of type Any is not JSON serializable" error
+                            return str(obj)
+
+                        yield f"event: {event_type}\ndata: {json.dumps(event_message, default=json_default)}\n\n"
                     else:
                         # Timeout occurred (Heartbeat)
                         get_event_task.cancel()

@@ -320,33 +320,13 @@ async def _broadcast_worker_snapshot(
             return
         s = worker.state
         # Derive utilization from CML stats if available
-        cpu_util = s.cloudwatch_cpu_utilization
-        mem_util = s.cloudwatch_memory_utilization
-        storage_util = None
-        if s.metrics.system_info:
-            first_compute = next(iter(s.metrics.system_info.values()), {})
-            stats = first_compute.get("stats", {})
-            disk_stats = stats.get("disk", {})
-            mem_stats = stats.get("memory", {})
-            cpu_stats = stats.get("cpu", {})
-            # CPU (prefer CML percent sum if present)
-            if cpu_stats:
-                user_percent = cpu_stats.get("user_percent")
-                system_percent = cpu_stats.get("system_percent")
-                if user_percent is not None and system_percent is not None:
-                    cpu_util = user_percent + system_percent
-            # Memory utilization from total/available
-            if mem_stats:
-                total_kb = mem_stats.get("total_kb") or mem_stats.get("total")
-                available_kb = mem_stats.get("available_kb") or mem_stats.get("free")
-                if isinstance(total_kb, (int, float)) and isinstance(available_kb, (int, float)) and total_kb > 0:
-                    used_kb = total_kb - available_kb
-                    mem_util = (used_kb / total_kb) * 100
-            # Disk utilization
-            size_kb = disk_stats.get("size_kb") or disk_stats.get("used")
-            capacity_kb = disk_stats.get("capacity_kb") or disk_stats.get("total")
-            if isinstance(size_kb, (int, float)) and isinstance(capacity_kb, (int, float)) and capacity_kb > 0:
-                storage_util = (size_kb / capacity_kb) * 100
+        cpu_util, mem_util, storage_util = s.metrics.get_utilization()
+
+        # Fallback to CloudWatch if CML metrics are missing
+        if cpu_util is None and s.cloudwatch_cpu_utilization is not None:
+            cpu_util = s.cloudwatch_cpu_utilization
+        if mem_util is None and s.cloudwatch_memory_utilization is not None:
+            mem_util = s.cloudwatch_memory_utilization
 
         snapshot = {
             "worker_id": s.id,
@@ -370,6 +350,7 @@ async def _broadcast_worker_snapshot(
             "cml_uptime_seconds": s.metrics.uptime_seconds,
             "cml_labs_count": s.metrics.labs_count,
             "cml_license_info": s.license.raw_info,
+            "cml_system_info": s.metrics.system_info,
             "cml_system_health": s.metrics.system_health,
             "cpu_utilization": cpu_util,
             "memory_utilization": mem_util,
