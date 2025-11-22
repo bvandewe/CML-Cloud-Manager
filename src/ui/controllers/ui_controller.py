@@ -44,5 +44,4 @@ class UIController(ControllerBase):
     async def index(self, request: Request) -> FileResponse:
         """Serve the main application page (built by Parcel)."""
         index_path = self.static_dir / "index.html"
-
         return FileResponse(index_path, media_type="text/html")
