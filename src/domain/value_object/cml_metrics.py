@@ -1,8 +1,109 @@
 """Value Object for CML Metrics."""
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import Any
+
+
+@dataclass(frozen=True)
+class CpuStats:
+    """Value Object for CPU statistics."""
+
+    load: list[float] = field(default_factory=list)
+    count: int | None = None
+    percent: float | None = None
+    model: str | None = None
+    predicted: int | None = None
+
+
+@dataclass(frozen=True)
+class MemoryStats:
+    """Value Object for Memory statistics."""
+
+    total: int | None = None
+    free: int | None = None
+    used: int | None = None
+
+
+@dataclass(frozen=True)
+class DiskStats:
+    """Value Object for Disk statistics."""
+
+    total: int | None = None
+    free: int | None = None
+    used: int | None = None
+
+
+@dataclass(frozen=True)
+class DomInfoStats:
+    """Value Object for Domain Info statistics."""
+
+    allocated_cpus: int | None = None
+    allocated_memory: int | None = None
+    total_nodes: int | None = None
+    total_orphans: int | None = None
+    running_nodes: int | None = None
+    running_orphans: int | None = None
+
+
+@dataclass(frozen=True)
+class CMLSystemInfoComputeStats:
+    """Value Object for CML system information Compute stats."""
+
+    cpu: CpuStats | None = None
+    memory: MemoryStats | None = None
+    disk: DiskStats | None = None
+    dominfo: DomInfoStats | None = None
+
+
+@dataclass(frozen=True)
+class CMLSystemInfoCompute:
+    """Value Object for CML system information Compute."""
+
+    hostname: str | None = None
+    is_controller: bool | None = None
+    stats: CMLSystemInfoComputeStats | None = None
+
+
+@dataclass(frozen=True)
+class CMLSystemInfo:
+    """Value Object for CML system information."""
+
+    cpu_count: int | None = None
+    cpu_utilization: float | None = None  # from all_cpu_percent
+    memory_total: int | None = None  # from all_memory_total
+    memory_free: int | None = None  # from all_memory_free
+    memory_used: int | None = None  # from all_memory_used
+    disk_total: int | None = None  # from all_disk_total
+    disk_free: int | None = None  # from all_disk_free
+    disk_used: int | None = None  # from all_disk_used
+    controller_disk_total: int | None = None
+    controller_disk_free: int | None = None
+    controller_disk_used: int | None = None
+    allocated_cpus: int | None = None
+    allocated_memory: int | None = None
+    total_nodes: int | None = None
+    running_nodes: int | None = None
+    computes: dict[str, CMLSystemInfoCompute] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary."""
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class CMLSystemHealth:
+    """Value Object for CML system health."""
+
+    valid: bool = False
+    is_licensed: bool = False
+    is_enterprise: bool = False
+    computes: dict[str, Any] = field(default_factory=dict)
+    controller: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary."""
+        return asdict(self)
 
 
 @dataclass(frozen=True)
@@ -13,68 +114,72 @@ class CMLMetrics:
     ready: bool = False
     uptime_seconds: int | None = None
     labs_count: int = 0
-    system_info: dict[str, Any] | None = None
-    system_health: dict[str, Any] | None = None
+
+    system_info: CMLSystemInfo | None = None
+    system_health: CMLSystemHealth | None = None
+
     last_synced_at: datetime | None = None
 
     def get_utilization(self) -> tuple[float | None, float | None, float | None]:
-        """Calculate CPU, memory, and storage utilization from system_info.
+        """Calculate CPU, memory, and storage utilization.
 
         Returns:
             Tuple of (cpu_util, mem_util, storage_util) percentages or None.
         """
-        if not self.system_info or not isinstance(self.system_info, dict):
+        # 1. Try direct fields from system_info first
+        if self.system_info:
+            cpu_util = self.system_info.cpu_utilization
+            mem_util = None
+            storage_util = None
+
+            if self.system_info.memory_total and self.system_info.memory_used and self.system_info.memory_total > 0:
+                mem_util = (self.system_info.memory_used / self.system_info.memory_total) * 100
+
+            if self.system_info.disk_total and self.system_info.disk_used and self.system_info.disk_total > 0:
+                storage_util = (self.system_info.disk_used / self.system_info.disk_total) * 100
+
+            if cpu_util is not None or mem_util is not None or storage_util is not None:
+                return cpu_util, mem_util, storage_util
+
+        # 2. Fallback to parsing nested stats in system_info.computes
+        if not self.system_info:
             return None, None, None
 
-        # Extract stats from the first value in system_info (CML API structure)
-        first_value = next(iter(self.system_info.values()), {})
-        if not isinstance(first_value, dict):
-            return None, None, None
+        stats = None
+        computes = self.system_info.computes
 
-        stats = first_value.get("stats", {})
-        return self.calculate_utilization_from_stats(stats)
+        if computes:
+            # Try to extract from 'computes' collection
+            # Handle both dict-like objects (values()) and lists
+            if hasattr(computes, "values"):
+                try:
+                    first_compute = next(iter(computes.values()))
+                    stats = first_compute.stats
+                except StopIteration:
+                    pass
 
-    @staticmethod
-    def calculate_utilization_from_stats(stats: dict[str, Any]) -> tuple[float | None, float | None, float | None]:
-        """Calculate utilization metrics from a stats dictionary."""
-        if not isinstance(stats, dict):
+        if not stats:
             return None, None, None
 
         cpu_util = None
         mem_util = None
         storage_util = None
 
-        cpu_stats = stats.get("cpu", {})
-        mem_stats = stats.get("memory", {})
-        disk_stats = stats.get("disk", {})
+        if stats.cpu and stats.cpu.percent is not None:
+            cpu_util = stats.cpu.percent
 
-        # CPU Calculation
-        if cpu_stats:
-            up = cpu_stats.get("user_percent")
-            sp = cpu_stats.get("system_percent")
-            if up is not None and sp is not None:
-                try:
-                    cpu_util = float(up) + float(sp)
-                except (TypeError, ValueError):
-                    cpu_util = None
+        if stats.memory and stats.memory.total and stats.memory.used:
+            if stats.memory.total > 0:
+                mem_util = (stats.memory.used / stats.memory.total) * 100
 
-        # Memory Calculation
-        if mem_stats:
-            total_kb = mem_stats.get("total_kb") or mem_stats.get("total")
-            available_kb = mem_stats.get("available_kb") or mem_stats.get("free")
-
-            has_valid_values = isinstance(total_kb, (int, float)) and isinstance(available_kb, (int, float))
-            if has_valid_values and total_kb > 0:
-                used_kb = total_kb - available_kb
-                mem_util = (used_kb / total_kb) * 100
-
-        # Storage Calculation
-        if disk_stats:
-            size_kb = disk_stats.get("size_kb") or disk_stats.get("used")
-            capacity_kb = disk_stats.get("capacity_kb") or disk_stats.get("total")
-
-            has_valid_values = isinstance(size_kb, (int, float)) and isinstance(capacity_kb, (int, float))
-            if has_valid_values and capacity_kb > 0:
-                storage_util = (size_kb / capacity_kb) * 100
+        if stats.disk and stats.disk.total and stats.disk.used:
+            if stats.disk.total > 0:
+                storage_util = (stats.disk.used / stats.disk.total) * 100
 
         return cpu_util, mem_util, storage_util
+
+    @staticmethod
+    def calculate_utilization_from_stats(stats: dict[str, Any]) -> tuple[float | None, float | None, float | None]:
+        """Calculate utilization metrics from a stats dictionary."""
+        # Deprecated: kept for backward compatibility if needed, but logic moved to get_utilization
+        return None, None, None

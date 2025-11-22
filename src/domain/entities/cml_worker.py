@@ -46,7 +46,17 @@ from domain.events.worker_metrics_events import (
     EC2MetricsUpdatedDomainEvent,
 )
 from domain.value_object.cml_license import CMLLicense
-from domain.value_object.cml_metrics import CMLMetrics
+from domain.value_object.cml_metrics import (
+    CMLMetrics,
+    CMLSystemHealth,
+    CMLSystemInfo,
+    CMLSystemInfoCompute,
+    CMLSystemInfoComputeStats,
+    CpuStats,
+    DiskStats,
+    DomInfoStats,
+    MemoryStats,
+)
 
 
 class CMLWorkerState(AggregateState[str]):
@@ -311,10 +321,103 @@ class CMLWorkerState(AggregateState[str]):
     @dispatch(CMLMetricsUpdatedDomainEvent)
     def on(self, event: CMLMetricsUpdatedDomainEvent) -> None:  # type: ignore[override]
         """Apply CML API metrics event to the state."""
+        info = event.system_info or {}
+        health = event.system_health or {}
+
+        # Parse computes
+        computes_dict = {}
+        raw_computes = info.get("computes", {})
+        if isinstance(raw_computes, dict):
+            for compute_id, compute_data in raw_computes.items():
+                if not isinstance(compute_data, dict):
+                    continue
+
+                stats_data = compute_data.get("stats", {})
+                stats_vo = None
+
+                if stats_data:
+                    cpu_data = stats_data.get("cpu", {})
+                    mem_data = stats_data.get("memory", {})
+                    disk_data = stats_data.get("disk", {})
+                    dom_data = stats_data.get("dominfo", {})
+
+                    stats_vo = CMLSystemInfoComputeStats(
+                        cpu=(
+                            CpuStats(
+                                load=cpu_data.get("load", []),
+                                count=cpu_data.get("count"),
+                                percent=cpu_data.get("percent"),
+                                model=cpu_data.get("model"),
+                                predicted=cpu_data.get("predicted"),
+                            )
+                            if cpu_data
+                            else None
+                        ),
+                        memory=(
+                            MemoryStats(
+                                total=mem_data.get("total"), free=mem_data.get("free"), used=mem_data.get("used")
+                            )
+                            if mem_data
+                            else None
+                        ),
+                        disk=(
+                            DiskStats(
+                                total=disk_data.get("total"), free=disk_data.get("free"), used=disk_data.get("used")
+                            )
+                            if disk_data
+                            else None
+                        ),
+                        dominfo=(
+                            DomInfoStats(
+                                allocated_cpus=dom_data.get("allocated_cpus"),
+                                allocated_memory=dom_data.get("allocated_memory"),
+                                total_nodes=dom_data.get("total_nodes"),
+                                total_orphans=dom_data.get("total_orphans"),
+                                running_nodes=dom_data.get("running_nodes"),
+                                running_orphans=dom_data.get("running_orphans"),
+                            )
+                            if dom_data
+                            else None
+                        ),
+                    )
+
+                computes_dict[compute_id] = CMLSystemInfoCompute(
+                    hostname=compute_data.get("hostname"),
+                    is_controller=compute_data.get("is_controller"),
+                    stats=stats_vo,
+                )
+
+        system_info_vo = CMLSystemInfo(
+            cpu_count=info.get("all_cpu_count"),
+            cpu_utilization=info.get("all_cpu_percent"),
+            memory_total=info.get("all_memory_total"),
+            memory_free=info.get("all_memory_free"),
+            memory_used=info.get("all_memory_used"),
+            disk_total=info.get("all_disk_total"),
+            disk_free=info.get("all_disk_free"),
+            disk_used=info.get("all_disk_used"),
+            controller_disk_total=info.get("controller_disk_total"),
+            controller_disk_free=info.get("controller_disk_free"),
+            controller_disk_used=info.get("controller_disk_used"),
+            allocated_cpus=info.get("allocated_cpus"),
+            allocated_memory=info.get("allocated_memory"),
+            total_nodes=info.get("total_nodes"),
+            running_nodes=info.get("running_nodes"),
+            computes=computes_dict,
+        )
+
+        system_health_vo = CMLSystemHealth(
+            valid=health.get("valid", False),
+            is_licensed=health.get("is_licensed", False),
+            is_enterprise=health.get("is_enterprise", False),
+            computes=health.get("computes", {}),
+            controller=health.get("controller", {}),
+        )
+
         self.metrics = CMLMetrics(
             version=event.cml_version,
-            system_info=event.system_info,
-            system_health=event.system_health,
+            system_info=system_info_vo,
+            system_health=system_health_vo,
             ready=event.ready,
             uptime_seconds=event.uptime_seconds,
             labs_count=event.labs_count,
@@ -399,11 +502,12 @@ class CMLWorkerState(AggregateState[str]):
 
         # Clear stale license data to prevent inconsistency
         if self.metrics.system_health:
-            new_health = {
-                **self.metrics.system_health,
-                "is_licensed": False,
-                "is_enterprise": False,
-            }
+            # Create new health object with updated license status
+            new_health = replace(
+                self.metrics.system_health,
+                is_licensed=False,
+                is_enterprise=False,
+            )
             self.metrics = replace(self.metrics, system_health=new_health)
 
     @dispatch(WorkerDataRefreshRequestedDomainEvent)
@@ -842,14 +946,22 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
         emit_event = True
         if change_threshold_percent is not None and self.state.metrics.system_info:
             try:
-                prev_info = self.state.metrics.system_info
-                prev_first = next(iter(prev_info.values()), {}) if prev_info else {}
-                new_first = next(iter(system_info.values()), {}) if system_info else {}
-                prev_stats = prev_first.get("stats", {})
-                new_stats = new_first.get("stats", {})
+                prev_metrics = self.state.metrics
+                prev_cpu, prev_mem, prev_storage = prev_metrics.get_utilization()
 
-                prev_cpu, prev_mem, prev_storage = CMLMetrics.calculate_utilization_from_stats(prev_stats)
-                new_cpu, new_mem, new_storage = CMLMetrics.calculate_utilization_from_stats(new_stats)
+                # Calculate new utilization using temporary metrics object
+                # This avoids duplicating the calculation logic
+                temp_metrics = CMLMetrics(
+                    system_info=CMLSystemInfo(
+                        cpu_utilization=system_info.get("all_cpu_percent"),
+                        memory_total=system_info.get("all_memory_total"),
+                        memory_used=system_info.get("all_memory_used"),
+                        disk_total=system_info.get("all_disk_total"),
+                        disk_used=system_info.get("all_disk_used"),
+                        computes=system_info.get("computes", {}),
+                    )
+                )
+                new_cpu, new_mem, new_storage = temp_metrics.get_utilization()
 
                 def pct_changed(old: float | None, new: float | None) -> float:
                     if old is None or new is None:
@@ -864,9 +976,33 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
                 labs_changed = labs_count != self.state.metrics.labs_count
                 version_changed = cml_version != self.state.metrics.version
 
+                # Check for license changes
+                license_changed = False
+                if license_info:
+                    current_reg = (
+                        self.state.license.raw_info.get("registration_status") if self.state.license.raw_info else None
+                    )
+                    new_reg = license_info.get("registration_status")
+                    if current_reg != new_reg:
+                        license_changed = True
+                    elif self.state.license.status == LicenseStatus.UNREGISTERED and new_reg == "COMPLETED":
+                        license_changed = True
+
+                # Check for system health changes (is_licensed)
+                health_changed = False
+                if system_health:
+                    current_licensed = (
+                        self.state.metrics.system_health.is_licensed if self.state.metrics.system_health else False
+                    )
+                    new_licensed = system_health.get("is_licensed", False)
+                    if current_licensed != new_licensed:
+                        health_changed = True
+
                 emit_event = (
                     labs_changed
                     or version_changed
+                    or license_changed
+                    or health_changed
                     or cpu_delta >= change_threshold_percent
                     or mem_delta >= change_threshold_percent
                     or storage_delta >= change_threshold_percent
@@ -1352,4 +1488,5 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
 
         now = datetime.now(timezone.utc)
         idle_duration = now - self.state.last_activity_at
+        return idle_duration.total_seconds() / 60
         return idle_duration.total_seconds() / 60
