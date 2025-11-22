@@ -169,7 +169,7 @@ class Settings(ApplicationSettings):
     worker_activity_excluded_user_pattern: str = "^00000000-0000-.*"  # Admin UUID pattern (automated API calls)
     worker_notification_webhooks: list[str] = []  # List of webhook URLs for notifications
     # Metrics Change Threshold (percentage delta required to broadcast utilization updates)
-    metrics_change_threshold_percent: float = 1.0  # Override via METRICS_CHANGE_THRESHOLD_PERCENT
+    metrics_change_threshold_percent: float = 5.0  # Override via METRICS_CHANGE_THRESHOLD_PERCENT
     # Labs Refresh Background Job Configuration
     labs_refresh_interval: int = 1800  # Seconds between labs refresh runs (default: 30 minutes)
 
