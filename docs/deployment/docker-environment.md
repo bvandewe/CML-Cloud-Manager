@@ -1,13 +1,12 @@
 # Docker Environment
 
-This document outlines the Docker environment for the starter application.
+This document outlines the Docker environment for the CML Cloud Manager.
 
-## Services
+## Development Environment
 
-The `docker-compose.yml` file defines the following services:
+The `docker-compose.yml` file defines the local development stack:
 
-- **app**: The main Python application.
-- **ui-builder**: A service that automatically rebuilds UI assets on file changes.
+- **app**: The main Python application (API + UI).
 - **keycloak**: The authentication server.
 - **mongodb**: The database.
 - **mongo-express**: A web-based MongoDB admin interface.
@@ -15,7 +14,34 @@ The `docker-compose.yml` file defines the following services:
 - **event-player**: A tool for event gateway/sink, visualization and replay.
 - **otel-collector**: The OpenTelemetry collector for observability.
 
-## Data Flow Diagram
+### Usage
+
+```bash
+make dev
+```
+
+## Production Environment
+
+The `deployment/docker-compose/docker-compose.prod.yml` file defines the hardened production stack:
+
+- **nginx**: Reverse proxy and single entry point.
+- **api**: The API service (no background jobs).
+- **worker**: The background worker service.
+- **keycloak**: Identity provider.
+- **mongodb**: Database.
+- **redis**: Session store.
+- **event-player**: Event gateway.
+- **observability**: Full stack (OTEL Collector, Prometheus, Loki, Tempo, Grafana).
+
+### Usage
+
+```bash
+make prod-up
+```
+
+See [AWS EC2 Deployment](aws-ec2.md) for detailed production instructions.
+
+## Data Flow Diagram (Development)
 
 The following diagram illustrates the services and their interactions within the Docker environment.
 

@@ -44,10 +44,13 @@
 - **Labs Refresh Job**: Recurrent global job (`labs-refresh-global`) runs every 30 minutes + initial startup run
 - **Metrics Polling**: Configurable interval for AWS/CML metrics collection
 - **Status Badge**: Live connection indicator in Workers UI
+- **Admin Services Menu**: Quick access to Grafana, Event Player, and Identity Management for admins
 
 ## 🐳 Development & Deployment
 
 - **[Docker](https://www.docker.com/)** + **[Docker Compose](https://docs.docker.com/compose/)**: Complete local development stack
+- **Production Stack**: Hardened Docker Compose setup with Nginx, Keycloak, and Observability
+- **Observability Stack**: Full OTEL pipeline with Prometheus, Loki, Tempo, and Grafana dashboards
 - **[Poetry](https://python-poetry.org/)**: Modern Python dependency management
 - **[pytest](https://docs.pytest.org/)**: Comprehensive test suite with 98% coverage
 - **[Black](https://github.com/psf/black)** + **[Ruff](https://github.com/astral-sh/ruff)**: Code formatting and linting

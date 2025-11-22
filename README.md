@@ -98,6 +98,47 @@ cml-cloud-manager/
 - Python 3.11+
 - Poetry
 - Node.js 20+ (for UI build)
+- Docker & Docker Compose
+
+### Local Development
+
+1. **Install Dependencies**:
+   ```bash
+   make install
+   make install-ui
+   ```
+
+2. **Build UI**:
+   ```bash
+   make build-ui
+   ```
+
+3. **Run Application**:
+   ```bash
+   make run
+   ```
+   Access at `http://localhost:8000`
+
+### Production Deployment
+
+1. **Configure Environment**:
+   Copy the example environment file and update secrets:
+   ```bash
+   cp deployment/docker-compose/.env.prod.example deployment/docker-compose/.env.prod
+   nano deployment/docker-compose/.env.prod
+   ```
+
+2. **Start Stack**:
+   ```bash
+   make prod-up
+   ```
+
+3. **Access Services**:
+   - **UI**: `http://localhost/`
+   - **Keycloak**: `http://localhost/auth/`
+   - **Grafana**: `http://localhost/grafana/`
+
+See [Deployment Documentation](deployment/README.md) for details.
 - Docker & Docker Compose (optional)
 
 ### Quick Setup (Recommended)

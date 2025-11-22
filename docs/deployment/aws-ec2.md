@@ -147,6 +147,12 @@ This command uses `docker-compose` with the production file and environment vari
     make prod-restart
     ```
 
+- **Restart Single Service**:
+
+    ```bash
+    make prod-restart-service SERVICE=nginx
+    ```
+
 - **Stop Services**:
 
     ```bash

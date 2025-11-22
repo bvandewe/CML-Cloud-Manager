@@ -8,6 +8,7 @@ To get started with the application, please refer to the **[Getting Started](get
 - **[Security](security/authentication-flows.md)**: Understand the dual authentication system, including session-based and JWT bearer token flows, plus authorization with OAuth2/OIDC.
 - **[Development](development/makefile-reference.md)**: Find information on the development workflow, including the `Makefile` commands and documentation setup.
 - **[Deployment](deployment/docker-environment.md)**: Learn how to deploy the application using Docker and other related technologies.
+- **[Production](deployment/aws-ec2.md)**: Guide for deploying the production stack to AWS EC2.
 
 
 ```mermaid
