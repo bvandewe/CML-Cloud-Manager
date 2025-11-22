@@ -119,3 +119,7 @@ site/
 .mkdocs_cache/
 .memory
 .ruff_cache/
+
+# private environment files
+deployment/docker-compose/.env.prod
+assets/
