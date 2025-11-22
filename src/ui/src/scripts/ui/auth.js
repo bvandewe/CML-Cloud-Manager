@@ -1,3 +1,5 @@
+import * as bootstrap from 'bootstrap';
+
 /**
  * Authentication UI Module
  * Handles login/logout UI interactions
@@ -27,6 +29,13 @@ export function showLoginForm() {
         const modalInstance = bootstrap.Modal.getInstance(modalElement);
         if (modalInstance) {
             modalInstance.hide();
+        } else {
+            // Fallback: manually hide if instance not found
+            modalElement.classList.remove('show');
+            modalElement.style.display = 'none';
+            modalElement.setAttribute('aria-hidden', 'true');
+            modalElement.removeAttribute('aria-modal');
+            modalElement.removeAttribute('role');
         }
     });
 

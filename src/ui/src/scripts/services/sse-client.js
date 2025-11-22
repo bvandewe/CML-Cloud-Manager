@@ -152,6 +152,19 @@ class SSEClient {
                 this.emit('worker.data.refreshed', data.data);
             });
 
+            // System shutdown event - server is restarting or shutting down
+            this.eventSource.addEventListener('system.sse.shutdown', event => {
+                console.log('SSE: System shutdown received', event.data);
+                showToast('Server restarting, reconnecting...', 'warning');
+                // Close connection immediately to allow server to shutdown cleanly
+                this.disconnect();
+                // Attempt to reconnect after a short delay
+                setTimeout(() => {
+                    console.log('SSE: Attempting to reconnect after shutdown...');
+                    this.connect();
+                }, 2000);
+            });
+
             // License registration started event
             this.eventSource.addEventListener('worker.license.registration.started', event => {
                 const data = JSON.parse(event.data);

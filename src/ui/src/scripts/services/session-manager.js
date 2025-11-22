@@ -4,8 +4,10 @@ import { login } from '../ui/auth.js';
 class SessionManager {
     constructor() {
         this.checkInterval = null;
+        this.countdownInterval = null;
         this.warningShown = false;
         this.bannerId = 'session-warning-banner';
+        this.secondsRemaining = 0;
     }
 
     async init() {
@@ -20,13 +22,6 @@ class SessionManager {
             const data = await response.json();
 
             if (!data.authenticated) {
-                // If not authenticated, client.js handles 401, but if it returns 200 with auth=false
-                // (e.g. public endpoint or logic), we might need to handle it.
-                // But get_session_info returns 200 even if not authenticated (if no cookie).
-                // If we are in the app, we expect to be authenticated.
-                // However, we don't want to force login if we are already on login page.
-                // But SessionManager is likely initialized in main.js which runs on all pages?
-                // We should check if we are already on login page.
                 return;
             }
 
@@ -49,16 +44,11 @@ class SessionManager {
     }
 
     showWarning(secondsRemaining) {
-        const minutes = Math.floor(secondsRemaining / 60);
-        const seconds = secondsRemaining % 60;
-        const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        this.secondsRemaining = secondsRemaining;
+        this.updateTimerDisplay();
 
         if (this.warningShown) {
-            // Update timer if needed
-            const timerEl = document.getElementById('session-timer');
-            if (timerEl) {
-                timerEl.textContent = timeString;
-            }
+            // Timer is already running via countdownInterval
             return;
         }
 
@@ -72,7 +62,7 @@ class SessionManager {
         banner.innerHTML = `
             <span class="me-3">
                 <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                Your session will expire in <strong id="session-timer">${timeString}</strong>.
+                Your session will expire in <strong id="session-timer">--:--</strong>.
             </span>
             <button id="extend-session-btn" class="btn btn-sm btn-primary me-2">Extend Session</button>
             <button type="button" class="btn-close" aria-label="Close"></button>
@@ -85,14 +75,35 @@ class SessionManager {
 
         // Handle dismiss
         banner.querySelector('.btn-close').addEventListener('click', () => {
-            banner.remove();
-            // We keep warningShown = true so it doesn't pop up again immediately on next check
-            // unless we want it to.
-            // If we want it to reappear, we should set warningShown = false.
-            // But if it checks every minute, it will reappear every minute.
-            // Let's keep it dismissed until we decide otherwise (e.g. critical threshold).
-            // For now, just dismiss.
+            this.hideWarning();
         });
+
+        // Start countdown
+        this.startCountdown();
+    }
+
+    startCountdown() {
+        if (this.countdownInterval) clearInterval(this.countdownInterval);
+
+        this.updateTimerDisplay();
+
+        this.countdownInterval = setInterval(() => {
+            this.secondsRemaining--;
+            if (this.secondsRemaining <= 0) {
+                this.handleExpiration();
+            } else {
+                this.updateTimerDisplay();
+            }
+        }, 1000);
+    }
+
+    updateTimerDisplay() {
+        const timerEl = document.getElementById('session-timer');
+        if (timerEl && this.secondsRemaining >= 0) {
+            const minutes = Math.floor(this.secondsRemaining / 60);
+            const seconds = this.secondsRemaining % 60;
+            timerEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
     }
 
     hideWarning() {
@@ -101,6 +112,10 @@ class SessionManager {
             banner.remove();
         }
         this.warningShown = false;
+        if (this.countdownInterval) {
+            clearInterval(this.countdownInterval);
+            this.countdownInterval = null;
+        }
     }
 
     async extendSession() {
