@@ -490,7 +490,7 @@ export class WorkerDetailsModal extends BaseComponent {
 
         // Extract details from sysInfo (preferred) or fallback to compute stats
         const cpuCores = sysInfo.cpu_count ?? stats.cpu?.count ?? 'N/A';
-        const cpuLoad = stats.cpu?.load ? stats.cpu.load.join(', ') : 'N/A';
+        const cpuLoad = stats.cpu?.load ? stats.cpu.load.map(v => (parseFloat(v) * 100).toFixed(1) + '%').join(', ') : 'N/A';
 
         const memTotal = sysInfo.memory_total ?? stats.memory?.total;
         const memFree = sysInfo.memory_free ?? stats.memory?.free;
