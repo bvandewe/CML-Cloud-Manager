@@ -19,9 +19,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from neuroglia.core import ModuleLoader, TypeFinder
 
-# Removed dynamic interval logic; app_settings import no longer needed here.
-# If reintroducing dynamic intervals later, re-add the import.
-# from application.settings import app_settings
+from application.settings import app_settings
 
 # Import APScheduler components
 
@@ -88,6 +86,13 @@ def backgroundjob(
         cls.__background_task_type__ = task_type if task_type in ("scheduled", "recurrent") else None
         if interval is not None:
             cls.__interval__ = interval
+        # If interval is not provided but task_type is recurrent, try to get it from app_settings dynamically
+        elif task_type == "recurrent" and not hasattr(cls, "__interval__"):
+            # This handles cases where interval is passed as a variable (like app_settings.foo)
+            # but the decorator receives the value at import time.
+            # If the value was None/0 at import time, we might need to re-evaluate or warn.
+            pass
+
         if scheduled_at is not None:
             cls.__scheduled_at__ = scheduled_at
         return cls
@@ -423,6 +428,13 @@ class BackgroundTaskScheduler(HostedService):
             log.warning("Background task scheduler is already started")
             return
 
+        if not app_settings.worker_monitoring_enabled:
+            log.info("Starting background task scheduler in PAUSED mode (producer only)")
+            # Start scheduler paused so it can accept jobs but won't run them
+            self._scheduler.start(paused=True)
+            self._started = True
+            return
+
         log.info("Starting background task scheduler")
         try:
             # Set service provider in context variable (thread-safe, async-safe)
@@ -721,6 +733,14 @@ class BackgroundTaskScheduler(HostedService):
             log.error(f"Error getting task info for '{task_id}': {ex}")
             return None
 
+    def get_jobs(self) -> List[Any]:
+        """Get all scheduled jobs."""
+        return self._scheduler.get_jobs()
+
+    def get_job_count(self) -> int:
+        """Get the number of scheduled jobs."""
+        return len(self.get_jobs())
+
     @staticmethod
     def configure(builder: "WebApplicationBuilder", modules: list[str]) -> None:
         """Register and configure background task services in the application builder.
@@ -827,7 +847,14 @@ class BackgroundTaskScheduler(HostedService):
 
                 # Check for incomplete configurations
                 elif any(key.startswith(("redis_", "mongo_")) for key in job_store_config.keys()):
-                    log.warning("Incomplete job store configuration found - check Redis or MongoDB settings")
+                    # Check if we have enough Redis config to proceed despite missing keys (e.g. defaults)
+                    redis_essential = ["redis_host"]
+                    if all(key in job_store_config for key in redis_essential):
+                        # We have host, port defaults to 6379, db defaults to 0 if missing.
+                        # This is likely a valid config that just relies on defaults.
+                        pass
+                    else:
+                        log.warning("Incomplete job store configuration found - check Redis or MongoDB settings")
 
                 else:
                     log.info("No job store configuration found, using in-memory job store")
@@ -867,5 +894,6 @@ class BackgroundTaskScheduler(HostedService):
 
         except Exception as ex:
             log.error(f"Error configuring background task scheduler: {ex}")
+            raise BackgroundTaskException(f"Failed to configure background task scheduler: {ex}")
             raise BackgroundTaskException(f"Failed to configure background task scheduler: {ex}")
             raise BackgroundTaskException(f"Failed to configure background task scheduler: {ex}")

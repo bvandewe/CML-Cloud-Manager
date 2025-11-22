@@ -40,9 +40,13 @@ from integration.services.cml_api_client import CMLApiClientFactory
 """Pre-config logging file truncation for LOCAL_DEV before handlers attach."""
 try:
     if os.getenv("LOCAL_DEV", "").lower() in ("1", "true", "yes", True):
-        logs_dir = Path(__file__).parent / "logs"
-        logs_dir.mkdir(parents=True, exist_ok=True)
-        debug_log_path = logs_dir / "debug.log"  # actual log file used by configure_logging
+        log_file = os.getenv("LOG_FILE", "logs/debug.log")
+        if os.path.isabs(log_file):
+            debug_log_path = Path(log_file)
+        else:
+            debug_log_path = Path(__file__).parent / log_file
+
+        debug_log_path.parent.mkdir(parents=True, exist_ok=True)
         # Truncate (create empty) before FileHandler opens in append mode
         debug_log_path.write_text("")
 except Exception:
@@ -178,10 +182,14 @@ def create_app() -> FastAPI:
     )
 
     # Configure BackgroundTaskScheduler for worker monitoring jobs
-    BackgroundTaskScheduler.configure(
-        builder,
-        modules=["application.jobs"],  # Scan for @backgroundjob decorated classes
-    )
+    # import pkgutil
+
+    # import application.jobs
+
+    # job_modules = [
+    #     f"application.jobs.{name}" for _, name, _ in pkgutil.iter_modules(application.jobs.__path__)
+    # ]
+    BackgroundTaskScheduler.configure(builder, modules=["application.jobs"])
 
     # Configure Application Services
     DualAuthService.configure(builder)
@@ -257,6 +265,13 @@ def create_app() -> FastAPI:
 if __name__ == "__main__":
     import uvicorn
 
+    uvicorn.run(
+        "main:create_app",
+        factory=True,
+        host=app_settings.app_host,
+        port=app_settings.app_port,
+        reload=app_settings.debug,
+    )
     uvicorn.run(
         "main:create_app",
         factory=True,

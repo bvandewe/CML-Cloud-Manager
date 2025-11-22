@@ -101,6 +101,18 @@ class Settings(ApplicationSettings):
         "mongo": "mongodb://root:pass@mongodb:27017/?authSource=admin"  # pragma: allowlist secret
     }
 
+    # Background Job Store Configuration (APScheduler persistence)
+    background_job_store: dict[str, Any] = {
+        # Redis configuration (recommended for production)
+        "redis_host": "redis",
+        "redis_port": 6379,
+        "redis_db": 1,  # Use separate DB from session storage (DB 0)
+        # Alternatively, use MongoDB (if Redis not available)
+        # "mongo_uri": "mongodb://root:password123@mongodb:27017/?authSource=admin",  # pragma: allowlist secret
+        # "mongo_db": "cml_cloud_manager",
+        # "mongo_collection": "background_jobs",
+    }
+
     # Cloud Events Configuration
     cloud_event_sink: str | None = None
     cloud_event_source: str | None = None
@@ -183,18 +195,6 @@ class Settings(ApplicationSettings):
     auto_import_workers_interval: int = 3600  # Seconds between auto-import runs (default: 1 hour)
     auto_import_workers_region: str = "us-east-1"  # AWS region to scan for workers
     auto_import_workers_ami_name: str = ""  # AMI name pattern to search for (e.g., "CML-2.7.0-*")
-
-    # Background Job Store Configuration (APScheduler persistence)
-    background_job_store: dict[str, Any] = {
-        # Redis configuration (recommended for production)
-        "redis_host": "redis",
-        "redis_port": 6379,
-        "redis_db": 1,  # Use separate DB from session storage (DB 0)
-        # Alternatively, use MongoDB (if Redis not available)
-        # "mongo_uri": "mongodb://root:password123@mongodb:27017/?authSource=admin",  # pragma: allowlist secret
-        # "mongo_db": "cml_cloud_manager",
-        # "mongo_collection": "background_jobs",
-    }
 
     class Config:
         env_file = ".env"
