@@ -644,7 +644,7 @@ export class WorkerDetailsModal extends BaseComponent {
                             <div class="row">
                                 ${renderProgressWithDetails(cpuVal, 'CPU', [
                                     { label: 'Cores', value: cpuCores },
-                                    { label: 'Load', value: cpuLoad },
+                                    { label: 'Load <i class="bi bi-info-circle text-muted" data-bs-toggle="tooltip" title="Load Avg: 1 min, 5 min, 15 min"></i>', value: cpuLoad },
                                 ])}
                                 ${renderProgressWithDetails(memVal, 'Memory', [
                                     { label: 'Total', value: formatBytes(memTotal) },
