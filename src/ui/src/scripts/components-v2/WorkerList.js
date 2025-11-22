@@ -127,6 +127,7 @@ export class WorkerList extends BaseComponent {
             cml_version: worker.cml_version,
             cml_ready: worker.cml_ready,
             cml_labs_count: worker.cml_labs_count,
+            cml_system_info: worker.cml_system_info,
             cpu_utilization: worker.cpu_utilization,
             memory_utilization: worker.memory_utilization,
             disk_utilization: worker.disk_utilization || worker.storage_utilization,
@@ -287,6 +288,7 @@ export class WorkerList extends BaseComponent {
                             <th>CPU</th>
                             <th>Memory</th>
                             <th>Disk</th>
+                            <th>Nodes</th>
                             <th>Labs</th>
                             <th>Actions</th>
                         </tr>
@@ -304,6 +306,24 @@ export class WorkerList extends BaseComponent {
         return html;
     }
 
+    renderProgressBar(value) {
+        if (value === null || value === undefined) return '<span class="text-muted">N/A</span>';
+
+        const val = parseFloat(value);
+        let colorClass = 'bg-success';
+        if (val >= 90) colorClass = 'bg-danger';
+        else if (val >= 70) colorClass = 'bg-warning';
+
+        return `
+            <div class="d-flex align-items-center" style="width: 100px;">
+                <div class="progress flex-grow-1" style="height: 6px;" title="${val.toFixed(1)}%">
+                    <div class="progress-bar ${colorClass}" role="progressbar" style="width: ${val}%" aria-valuenow="${val}" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+                <span class="ms-2 small text-muted" style="width: 35px; text-align: right;">${Math.round(val)}%</span>
+            </div>
+        `;
+    }
+
     renderTableRow(worker) {
         const statusClass = this.getStatusClass(worker.status);
         const licenseStatus = worker.license_status || 'unknown';
@@ -318,6 +338,26 @@ export class WorkerList extends BaseComponent {
         else if (s === 'stopping' || s === 'shutting-down') statusIcon = 'bi-power';
         else if (s === 'terminated') statusIcon = 'bi-x-circle-fill';
 
+        // Extract node counts
+        let runningNodes = 0;
+        let totalNodes = 0;
+
+        if (worker.cml_system_info) {
+            if (worker.cml_system_info.running_nodes !== undefined && worker.cml_system_info.running_nodes !== null && worker.cml_system_info.total_nodes !== undefined && worker.cml_system_info.total_nodes !== null) {
+                runningNodes = worker.cml_system_info.running_nodes;
+                totalNodes = worker.cml_system_info.total_nodes;
+            } else if (worker.cml_system_info.computes) {
+                const computes = worker.cml_system_info.computes;
+                for (const key in computes) {
+                    const domInfo = computes[key]?.stats?.dominfo;
+                    if (domInfo) {
+                        runningNodes += domInfo.running_nodes || 0;
+                        totalNodes += domInfo.total_nodes || 0;
+                    }
+                }
+            }
+        }
+        const nodesDisplay = totalNodes > 0 ? `${runningNodes} / ${totalNodes}` : '—';
         return `
             <tr class="worker-row" data-worker-id="${worker.id}" style="cursor: pointer;">
                 <td><strong>${this.escapeHtml(worker.name)}</strong></td>
@@ -335,9 +375,10 @@ export class WorkerList extends BaseComponent {
                     }
                 </td>
                 <td>${this.escapeHtml(worker.instance_type || 'N/A')}</td>
-                <td>${worker.cpu_utilization ? worker.cpu_utilization.toFixed(1) + '%' : 'N/A'}</td>
-                <td>${worker.memory_utilization ? worker.memory_utilization.toFixed(1) + '%' : 'N/A'}</td>
-                <td>${worker.disk_utilization ? worker.disk_utilization.toFixed(1) + '%' : 'N/A'}</td>
+                <td>${this.renderProgressBar(worker.cpu_utilization)}</td>
+                <td>${this.renderProgressBar(worker.memory_utilization)}</td>
+                <td>${this.renderProgressBar(worker.disk_utilization)}</td>
+                <td>${nodesDisplay}</td>
                 <td>${worker.cml_labs_count ?? 0}</td>
                 <td>
                     <button class="btn btn-sm btn-primary view-details-btn" data-worker-id="${worker.id}">

@@ -4,8 +4,8 @@ from datetime import datetime, timezone
 
 from domain.entities.cml_worker import CMLWorker
 from domain.enums import CMLWorkerStatus, LicenseStatus
-from domain.value_object.cml_license import CMLLicense
-from domain.value_object.cml_metrics import CMLMetrics
+from domain.value_objects.cml_license import CMLLicense
+from domain.value_objects.cml_metrics import CMLMetrics, CMLSystemInfo
 
 
 class TestCMLWorker:
@@ -26,7 +26,7 @@ class TestCMLWorker:
         """Test updating CML metrics."""
         worker = CMLWorker(name="test-worker", aws_region="us-east-1", instance_type="t3.medium")
 
-        system_info = {"version": "2.7.0", "ready": True}
+        system_info = {"running_nodes": 5, "total_nodes": 10}
         system_health = {"valid": True}
         license_info = {"registration_status": "COMPLETED"}
 
@@ -44,7 +44,8 @@ class TestCMLWorker:
         assert worker.state.metrics.ready is True
         assert worker.state.metrics.uptime_seconds == 100
         assert worker.state.metrics.labs_count == 2
-        assert worker.state.metrics.system_info == system_info
+        # system_info is converted to CMLSystemInfo object, so we compare dict representation
+        assert worker.state.metrics.system_info.to_dict() == CMLSystemInfo(**system_info).to_dict()
 
         # Check license status update side-effect
         assert worker.state.license.status == LicenseStatus.REGISTERED

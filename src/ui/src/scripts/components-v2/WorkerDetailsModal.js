@@ -515,6 +515,27 @@ export class WorkerDetailsModal extends BaseComponent {
             return `<span class="text-${condition ? 'success' : 'danger'}"><i class="bi bi-${condition ? 'check-circle-fill' : 'x-circle-fill'}"></i> ${condition ? 'Yes' : 'No'}</span>`;
         };
 
+        // Extract node counts
+        let runningNodes = 0;
+        let totalNodes = 0;
+
+        if (sysInfo) {
+            if (sysInfo.running_nodes !== undefined && sysInfo.running_nodes !== null && sysInfo.total_nodes !== undefined && sysInfo.total_nodes !== null) {
+                runningNodes = sysInfo.running_nodes;
+                totalNodes = sysInfo.total_nodes;
+            } else if (sysInfo.computes) {
+                const computes = sysInfo.computes;
+                for (const key in computes) {
+                    const domInfo = computes[key]?.stats?.dominfo;
+                    if (domInfo) {
+                        runningNodes += domInfo.running_nodes || 0;
+                        totalNodes += domInfo.total_nodes || 0;
+                    }
+                }
+            }
+        }
+        const nodesDisplay = totalNodes > 0 ? `<strong>${runningNodes}</strong> / ${totalNodes}` : '—';
+
         // Helper for progress bars with details
         const renderProgressWithDetails = (val, label, details = []) => {
             const v = parseFloat(val) || 0;
@@ -566,7 +587,7 @@ export class WorkerDetailsModal extends BaseComponent {
                                 <tr><td class="text-muted">Version:</td><td><strong>${escapeHtml(w.cml_version || 'N/A')}</strong></td></tr>
                                 <tr><td class="text-muted">Ready State:</td><td>${renderBadge(w.cml_ready, 'READY', 'NOT READY')}</td></tr>
                                 <tr><td class="text-muted">Uptime:</td><td>${sysStats.uptime || 'Unknown'}</td></tr>
-                                <tr><td class="text-muted">Active Nodes:</td><td><strong>${sysStats.active_nodes || 0}</strong> / ${sysStats.total_nodes || '?'}</td></tr>
+                                <tr><td class="text-muted">Active Nodes: <i class="bi bi-info-circle text-muted" data-bs-toggle="tooltip" title="Count excludes external connector nodes"></i></td><td>${nodesDisplay}</td></tr>
                                 <tr><td class="text-muted">Last Synced:</td><td>${w.last_synced_at ? formatDateWithRelative(w.last_synced_at) : 'N/A'} <i class="bi bi-info-circle text-muted" title="Last time data was synced from CML"></i></td></tr>
                             </table>
                         </div>
@@ -738,6 +759,10 @@ export class WorkerDetailsModal extends BaseComponent {
             this.$('#btn-deregister-license')?.addEventListener('click', () => {
                 showLicenseModal(this.currentWorkerId, this.currentRegion, this.currentWorker.name, hasLicense);
             });
+
+            // Initialize tooltips
+            const tooltipTriggerList = container.querySelectorAll('[data-bs-toggle="tooltip"]');
+            [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
         } catch (error) {
             console.error('[WorkerDetailsModal] Failed to render CML tab:', error);
             container.innerHTML = `<div class="alert alert-danger">Failed to load CML details: ${escapeHtml(error.message)}</div>`;

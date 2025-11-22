@@ -3,8 +3,8 @@
 from datetime import date, datetime
 
 from domain.enums import LicenseStatus
-from domain.value_object.cml_license import CMLLicense
-from domain.value_object.cml_metrics import CMLMetrics
+from domain.value_objects.cml_license import CMLLicense
+from domain.value_objects.cml_metrics import CMLMetrics
 
 
 def test_cml_metrics_defaults():

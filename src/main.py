@@ -272,10 +272,3 @@ if __name__ == "__main__":
         port=app_settings.app_port,
         reload=app_settings.debug,
     )
-    uvicorn.run(
-        "main:create_app",
-        factory=True,
-        host=app_settings.app_host,
-        port=app_settings.app_port,
-        reload=app_settings.debug,
-    )

@@ -45,8 +45,8 @@ from domain.events.worker_metrics_events import (
     EC2InstanceDetailsUpdatedDomainEvent,
     EC2MetricsUpdatedDomainEvent,
 )
-from domain.value_object.cml_license import CMLLicense
-from domain.value_object.cml_metrics import (
+from domain.value_objects.cml_license import CMLLicense
+from domain.value_objects.cml_metrics import (
     CMLMetrics,
     CMLSystemHealth,
     CMLSystemInfo,
@@ -958,6 +958,8 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
                         memory_used=system_info.get("all_memory_used"),
                         disk_total=system_info.get("all_disk_total"),
                         disk_used=system_info.get("all_disk_used"),
+                        running_nodes=system_info.get("running_nodes"),
+                        total_nodes=system_info.get("total_nodes"),
                         computes=system_info.get("computes", {}),
                     )
                 )

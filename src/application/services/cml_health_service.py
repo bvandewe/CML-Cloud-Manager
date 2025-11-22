@@ -32,6 +32,7 @@ class CMLHealthResult:
     system_health: Any | None = None
     system_stats: Any | None = None
     license_info: dict | None = None
+    labs_count: int = 0
     errors: dict[str, str] = field(default_factory=dict)
 
 
@@ -110,6 +111,16 @@ class CMLHealthService:
             except Exception as e:
                 log.warning(f"Failed to get licensing info from {endpoint}: {e}")
                 result.errors["licensing"] = str(e)
+
+            # 5. Labs Count (Auth Required)
+            try:
+                labs = await cml_client.get_labs(show_all=True)
+                if labs is not None:
+                    result.labs_count = len(labs)
+                    log.debug(f"Labs count retrieved: {result.labs_count}")
+            except IntegrationException as e:
+                log.warning(f"Failed to get labs count from {endpoint}: {e}")
+                result.errors["labs_count"] = str(e)
 
             # Final health determination logic
             # If we got system_health, trust its 'valid' flag

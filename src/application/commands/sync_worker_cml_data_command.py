@@ -219,7 +219,7 @@ class SyncWorkerCMLDataCommandHandler(
                     license_info=health_result.license_info,
                     ready=health_result.ready,
                     uptime_seconds=None,
-                    labs_count=health_result.system_stats.running_nodes if health_result.system_stats else 0,
+                    labs_count=health_result.labs_count,
                     change_threshold_percent=self.settings.metrics_change_threshold_percent,
                 )
 
@@ -268,6 +268,7 @@ class SyncWorkerCMLDataCommandHandler(
                 f"Failed to sync CML data for worker {command.worker_id}: {ex}",
                 exc_info=True,
             )
+            return self.internal_server_error(f"Failed to sync worker CML data: {str(ex)}")
             return self.internal_server_error(f"Failed to sync worker CML data: {str(ex)}")
             return self.internal_server_error(f"Failed to sync worker CML data: {str(ex)}")
             return self.internal_server_error(f"Failed to sync worker CML data: {str(ex)}")
