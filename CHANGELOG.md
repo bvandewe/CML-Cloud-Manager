@@ -8,6 +8,23 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ### Added
 
+- **Admin Services Menu**: Added "Services" dropdown to the main navigation bar (Admin only) for quick access to Grafana, Event Player, and Identity Management
+- **Production Management**: Added `make prod-restart-service` command for restarting individual production services
+
+### Security
+
+- **Infrastructure Hardening**: Removed public port mappings for internal services (Redis, Mongo, Keycloak, etc.) in production Docker Compose configuration, exposing only Nginx on port 80
+
+### Fixed
+
+- **Event Player SSE**: Fixed Server-Side Events streaming for Event Player by disabling Nginx proxy buffering
+- **Event Player Assets**: Fixed 404 errors for Event Player static assets by implementing correct path rewriting in Nginx
+- **Event Player Stability**: Relaxed rate limiting for Event Player endpoints to prevent 503 errors during initial load
+- **Content Security Policy**: Updated Nginx CSP headers to allow loading fonts from Google Fonts
+- **Keycloak Routing**: Fixed Keycloak redirect loops and 502 errors by correcting hostname configuration and DNS resolution
+
+### Changed
+
 - **Strongly Typed Metrics**: Refactored `CMLMetrics` to use nested Value Objects (`CMLSystemInfoCompute`, `CpuStats`, etc.) instead of raw dictionaries
 - **License Persistence**: Enhanced license registration/deregistration to immediately persist full system state to DB
 - **UI Resource Utilization**: Improved resource utilization display in Worker Details modal with human-readable units and rounded values

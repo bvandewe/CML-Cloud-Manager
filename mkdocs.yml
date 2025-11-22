@@ -59,6 +59,7 @@ nav:
           - Docker Environment: infrastructure/docker-environment.md
     - Deployment:
           - Docker Environment: deployment/docker-environment.md
+          - AWS EC2 Deployment: deployment/aws-ec2.md
           - GitHub Pages: deployment/github-pages-setup.md
     - Troubleshooting:
           - Common Issues: troubleshooting/common-issues.md
