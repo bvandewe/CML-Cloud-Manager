@@ -20,7 +20,8 @@ import { isAdmin, isAdminOrManager } from '../utils/roles.js';
 import { formatDateWithRelative, initializeDateTooltips } from '../utils/dates.js';
 import { showToast } from '../ui/notifications.js';
 import { showConfirm } from '../components/modals.js';
-import { showDeleteModal } from '../ui/worker-modals.js';
+import { showDeleteModal, showLicenseModal } from '../ui/worker-modals.js';
+import { renderLicenseRegistration, renderLicenseAuthorization, renderLicenseFeatures, renderLicenseTransport } from '../components/workerLicensePanel.js';
 
 export class WorkerDetailsModal extends BaseComponent {
     constructor() {
@@ -29,6 +30,8 @@ export class WorkerDetailsModal extends BaseComponent {
         this.currentWorkerId = null;
         this.currentRegion = null;
         this.currentWorker = null;
+        this.lastRefreshedAt = null;
+        this.timerInterval = null;
         this.tabs = {
             aws: null,
             cml: null,
@@ -56,6 +59,17 @@ export class WorkerDetailsModal extends BaseComponent {
             if (data.worker_id === this.currentWorkerId) {
                 this.closeModal();
                 showToast('Worker has been deleted', 'info');
+            }
+        });
+
+        this.subscribe(EventTypes.WORKER_STATUS_CHANGED, data => {
+            if (data.worker_id === this.currentWorkerId) {
+                this.currentWorker = {
+                    ...this.currentWorker,
+                    status: data.new_status,
+                    updated_at: data.updated_at,
+                };
+                this.refreshCurrentTab();
             }
         });
 
@@ -249,6 +263,7 @@ export class WorkerDetailsModal extends BaseComponent {
             this.currentWorkerId = null;
             this.currentRegion = null;
             this.currentWorker = null;
+            this.stopTimer();
         });
     }
 
@@ -435,11 +450,48 @@ export class WorkerDetailsModal extends BaseComponent {
         if (!container || !this.currentWorker) return;
 
         const w = this.currentWorker;
-        const sysInfo = w.system_info || {};
+        const sysInfo = w.cml_system_info || w.system_info || {};
         const sysStats = w.system_stats || {};
         // Handle both API field names (cml_*) and potential legacy/mapped names
         const license = w.cml_license_info || w.license_info || {};
         const health = w.cml_system_health || w.system_health || {};
+        const hasLicense = w.license_status === 'registered' || license.registration_status === 'COMPLETED';
+
+        // Extract stats for Resource Utilization
+        const computesInfo = sysInfo.computes || {};
+        let stats = {};
+        const computeKeys = Object.keys(computesInfo);
+        if (computeKeys.length > 0) {
+            const firstKey = computeKeys[0];
+            stats = computesInfo[firstKey].stats || {};
+        }
+
+        // Helper to format bytes
+        const formatBytes = bytes => {
+            if (bytes === undefined || bytes === null) return 'N/A';
+            const b = parseFloat(bytes);
+            if (isNaN(b)) return 'N/A';
+            if (b === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(b) / Math.log(k));
+            return parseFloat((b / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        };
+
+        // Use top-level utilization from API response (calculated by backend)
+        const cpuVal = w.cpu_utilization ?? 0;
+        const memVal = w.memory_utilization ?? 0;
+        const diskVal = w.disk_utilization ?? w.storage_utilization ?? 0;
+
+        // Extract details from sysInfo (preferred) or fallback to compute stats
+        const cpuCores = sysInfo.cpu_count ?? stats.cpu?.count ?? 'N/A';
+        const cpuLoad = stats.cpu?.load ? stats.cpu.load.join(', ') : 'N/A';
+
+        const memTotal = sysInfo.memory_total ?? stats.memory?.total;
+        const memFree = sysInfo.memory_free ?? stats.memory?.free;
+
+        const diskTotal = sysInfo.disk_total ?? stats.disk?.total;
+        const diskFree = sysInfo.disk_free ?? stats.disk?.free;
 
         // Compute nodes are in system health
         const computesDict = health.computes || {};
@@ -461,6 +513,7 @@ export class WorkerDetailsModal extends BaseComponent {
         // Helper for progress bars with details
         const renderProgressWithDetails = (val, label, details = []) => {
             const v = parseFloat(val) || 0;
+            const vRounded = Math.round(v);
             let color = 'success';
             if (v > 70) color = 'warning';
             if (v > 90) color = 'danger';
@@ -481,7 +534,7 @@ export class WorkerDetailsModal extends BaseComponent {
                     <div class="mb-2">
                         <div class="d-flex justify-content-between small mb-1">
                             <span class="fw-bold"><i class="bi bi-${label === 'CPU' ? 'cpu' : label === 'Memory' ? 'memory' : 'hdd'}"></i> ${label}</span>
-                            <span class="fw-bold">${v}%</span>
+                            <span class="fw-bold">${vRounded}%</span>
                         </div>
                         <div class="progress" style="height: 8px;">
                             <div class="progress-bar bg-${color}" role="progressbar" style="width: ${v}%" aria-valuenow="${v}" aria-valuemin="0" aria-valuemax="100"></div>
@@ -520,7 +573,11 @@ export class WorkerDetailsModal extends BaseComponent {
                     <div class="card h-100">
                         <div class="card-header bg-light d-flex justify-content-between align-items-center">
                             <h6 class="mb-0"><i class="bi bi-key"></i> License & Edition</h6>
-                            <button class="btn btn-sm btn-outline-primary py-0" id="btn-license-details">Details</button>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary py-0" id="btn-license-details">Details</button>
+                                ${isAdminOrManager() ? `<button class="btn btn-outline-success py-0" id="btn-register-license" ${hasLicense ? 'style="display:none"' : ''}>Register</button>` : ''}
+                                ${isAdminOrManager() ? `<button class="btn btn-outline-danger py-0" id="btn-deregister-license" ${!hasLicense ? 'style="display:none"' : ''}>Deregister</button>` : ''}
+                            </div>
                         </div>
                         <div class="card-body">
                             <table class="table table-sm table-borderless mb-0">
@@ -551,6 +608,31 @@ export class WorkerDetailsModal extends BaseComponent {
                     </div>
                 </div>
 
+                <!-- Resource Utilization -->
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0"><i class="bi bi-speedometer2"></i> Resource Utilization</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                ${renderProgressWithDetails(cpuVal, 'CPU', [
+                                    { label: 'Cores', value: cpuCores },
+                                    { label: 'Load', value: cpuLoad },
+                                ])}
+                                ${renderProgressWithDetails(memVal, 'Memory', [
+                                    { label: 'Total', value: formatBytes(memTotal) },
+                                    { label: 'Free', value: formatBytes(memFree) },
+                                ])}
+                                ${renderProgressWithDetails(diskVal, 'Disk', [
+                                    { label: 'Total', value: formatBytes(diskTotal) },
+                                    { label: 'Free', value: formatBytes(diskFree) },
+                                ])}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Controller Status -->
                 <div class="col-md-12">
                     <div class="card">
@@ -567,20 +649,20 @@ export class WorkerDetailsModal extends BaseComponent {
                                 </div>
                                 <div class="col-md-3">
                                     <div class="d-flex justify-content-between">
-                                        <span class="text-muted">Core Connected:</span>
-                                        ${renderCheck(health.controller?.is_connected !== false)}
+                                        <span class="text-muted">Is Primary:</span>
+                                        ${renderCheck(health.controller?.is_primary)}
                                     </div>
                                 </div>
                                 <div class="col-md-3">
                                     <div class="d-flex justify-content-between">
-                                        <span class="text-muted">Nodes Loaded:</span>
-                                        ${renderCheck(health.controller?.has_nodes !== false)}
+                                        <span class="text-muted">Is Active:</span>
+                                        ${renderCheck(health.controller?.is_active)}
                                     </div>
                                 </div>
                                 <div class="col-md-3">
                                     <div class="d-flex justify-content-between">
-                                        <span class="text-muted">Images Loaded:</span>
-                                        ${renderCheck(health.controller?.has_images !== false)}
+                                        <span class="text-muted">Has Quorum:</span>
+                                        ${renderCheck(health.controller?.has_quorum)}
                                     </div>
                                 </div>
                             </div>
@@ -588,110 +670,52 @@ export class WorkerDetailsModal extends BaseComponent {
                     </div>
                 </div>
 
-                <!-- Resource Utilization -->
-                <div class="col-12">
+                <!-- Compute Nodes -->
+                <div class="col-md-12">
                     <div class="card">
                         <div class="card-header bg-light">
-                            <h6 class="mb-0"><i class="bi bi-speedometer2"></i> Resource Utilization</h6>
-                        </div>
-                        <div class="card-body">
-                            <div class="row g-4">
-                                ${renderProgressWithDetails(w.cpu_utilization, 'CPU', [
-                                    { label: 'Total Cores', value: sysInfo.cpu_cores || '-' },
-                                    { label: 'Allocated vCPUs', value: sysStats.allocated_vcpus || '-' },
-                                ])}
-                                ${renderProgressWithDetails(w.memory_utilization, 'Memory', [
-                                    { label: 'Total', value: sysInfo.memory_total || '-' },
-                                    { label: 'Used', value: sysStats.memory_used || '-' },
-                                    { label: 'Free', value: sysStats.memory_free || '-' },
-                                    { label: 'VM Allocated', value: sysStats.vm_allocated_memory || '-' },
-                                ])}
-                                ${renderProgressWithDetails(w.disk_utilization || w.storage_utilization, 'Disk', [
-                                    { label: 'Total', value: sysInfo.disk_total || '-' },
-                                    { label: 'Used', value: sysStats.disk_used || '-' },
-                                    { label: 'Free', value: sysStats.disk_free || '-' },
-                                ])}
-                            </div>
-
-                            <!-- Virtual Nodes Summary -->
-                            <div class="mt-4 pt-3 border-top">
-                                <h6 class="small text-muted mb-3"><i class="bi bi-diagram-2"></i> Virtual Nodes Summary</h6>
-                                <div class="row text-center">
-                                    <div class="col-3">
-                                        <h3 class="text-success mb-0">${sysStats.running_nodes || 0}</h3>
-                                        <small class="text-muted">Running</small>
-                                    </div>
-                                    <div class="col-3">
-                                        <h3 class="text-primary mb-0">${sysStats.total_nodes || 0}</h3>
-                                        <small class="text-muted">Total</small>
-                                    </div>
-                                    <div class="col-3">
-                                        <h3 class="text-info mb-0">${sysStats.total_vcpus || 0}</h3>
-                                        <small class="text-muted">vCPUs</small>
-                                    </div>
-                                    <div class="col-3">
-                                        <h3 class="text-info mb-0">${sysStats.total_ram || 0} GB</h3>
-                                        <small class="text-muted">RAM</small>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Compute Node Health -->
-                <div class="col-12">
-                    <div class="card">
-                        <div class="card-header bg-light">
-                            <h6 class="mb-0"><i class="bi bi-server"></i> Compute Node Health</h6>
+                            <h6 class="mb-0"><i class="bi bi-server"></i> Compute Nodes</h6>
                         </div>
                         <div class="card-body">
                             ${
-                                compute.length
-                                    ? compute
-                                          .map(
-                                              node => `
-                                <div class="row align-items-center mb-3 pb-3 border-bottom last-no-border">
-                                    <div class="col-md-4">
-                                        <div class="d-flex align-items-center mb-2">
-                                            <span class="fw-bold me-2">Hostname</span>
-                                            <span>${escapeHtml(node.name)}</span>
-                                            <span class="badge bg-primary ms-2">CONTROLLER</span>
-                                        </div>
-                                        <div class="d-flex align-items-center mb-2">
-                                            <span class="text-muted me-2">Admission State</span>
-                                            <span class="badge bg-${node.status === 'ready' ? 'success' : 'secondary'}">${(node.status || 'UNKNOWN').toUpperCase()}</span>
-                                        </div>
-                                        <div class="d-flex align-items-center">
-                                            <span class="text-muted me-2">Overall Valid</span>
-                                            ${renderCheck(node.valid !== false)}
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="d-flex justify-content-between mb-2">
-                                            <span class="text-muted">KVM/VMX</span>
-                                            ${renderCheck(node.has_kvm !== false)}
-                                        </div>
-                                        <div class="d-flex justify-content-between mb-2">
-                                            <span class="text-muted">Libvirt</span>
-                                            ${renderCheck(node.has_libvirt !== false)}
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="d-flex justify-content-between mb-2">
-                                            <span class="text-muted">LLD Connected</span>
-                                            <span>${renderCheck(node.is_connected !== false)} <small class="text-muted">(Synced)</small></span>
-                                        </div>
-                                        <div class="d-flex justify-content-between mb-2">
-                                            <span class="text-muted">Refplat Images</span>
-                                            ${renderCheck(node.has_refplat !== false)}
-                                        </div>
-                                    </div>
+                                compute.length > 0
+                                    ? `
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover align-middle mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Node</th>
+                                                <th>Status</th>
+                                                <th>Registered</th>
+                                                <th>Connected</th>
+                                                <th>Ready</th>
+                                                <th>CPU</th>
+                                                <th>Memory</th>
+                                                <th>Disk</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${compute
+                                                .map(
+                                                    c => `
+                                                <tr>
+                                                    <td><strong>${escapeHtml(c.name)}</strong></td>
+                                                    <td>${renderBadge(c.valid !== false, 'VALID', 'INVALID')}</td>
+                                                    <td>${renderCheck(c.is_registered)}</td>
+                                                    <td>${renderCheck(c.is_connected)}</td>
+                                                    <td>${renderCheck(c.is_ready)}</td>
+                                                    <td>${c.cpu_usage || 0}%</td>
+                                                    <td>${c.memory_usage || 0}%</td>
+                                                    <td>${c.disk_usage || 0}%</td>
+                                                </tr>
+                                            `
+                                                )
+                                                .join('')}
+                                        </tbody>
+                                    </table>
                                 </div>
                             `
-                                          )
-                                          .join('')
-                                    : '<div class="text-center text-muted py-3">No compute nodes found</div>'
+                                    : '<div class="alert alert-info mb-0">No compute nodes found.</div>'
                             }
                         </div>
                     </div>
@@ -699,12 +723,85 @@ export class WorkerDetailsModal extends BaseComponent {
             </div>
             `;
 
-            // Bind license buttons
-            this.$('#btn-license-details')?.addEventListener('click', () => showToast('License details modal not implemented', 'info'));
-            this.$('#btn-manage-license')?.addEventListener('click', () => showToast('Manage license modal not implemented', 'info'));
+            // Attach event listeners
+            this.$('#btn-license-details')?.addEventListener('click', () => this.openLicenseDetailsModal());
+
+            this.$('#btn-register-license')?.addEventListener('click', () => {
+                showLicenseModal(this.currentWorkerId, this.currentRegion, this.currentWorker.name, hasLicense);
+            });
+
+            this.$('#btn-deregister-license')?.addEventListener('click', () => {
+                showLicenseModal(this.currentWorkerId, this.currentRegion, this.currentWorker.name, hasLicense);
+            });
         } catch (error) {
             console.error('[WorkerDetailsModal] Failed to render CML tab:', error);
             container.innerHTML = `<div class="alert alert-danger">Failed to load CML details: ${escapeHtml(error.message)}</div>`;
+        }
+    }
+
+    async loadLicenseTab() {
+        const container = this.$('#worker-details-license');
+        if (!container || !this.currentWorker) return;
+
+        const w = this.currentWorker;
+        // Handle both API field names (cml_*) and potential legacy/mapped names
+        const license = w.cml_license_info || w.license_info || {};
+        const hasLicense = w.license_status === 'registered' || license.registration_status === 'COMPLETED';
+
+        try {
+            container.innerHTML = `
+                <div class="row g-3">
+                    <div class="col-12 d-flex justify-content-end mb-2">
+                        <button class="btn btn-primary me-2" id="btn-register-license" ${hasLicense ? 'style="display:none"' : ''}>
+                            <i class="bi bi-key"></i> Register License
+                        </button>
+                        <button class="btn btn-outline-danger" id="btn-deregister-license" ${!hasLicense ? 'style="display:none"' : ''}>
+                            <i class="bi bi-x-circle"></i> Deregister License
+                        </button>
+                    </div>
+
+                    <!-- Registration -->
+                    <div class="col-md-6">
+                        <h6 class="border-bottom pb-2 mb-3">Registration</h6>
+                        ${renderLicenseRegistration(license.registration || {})}
+                    </div>
+
+                    <!-- Authorization -->
+                    <div class="col-md-6">
+                        <h6 class="border-bottom pb-2 mb-3">Authorization</h6>
+                        ${renderLicenseAuthorization(license.authorization || {})}
+                    </div>
+
+                    <!-- Features -->
+                    <div class="col-12">
+                        <h6 class="border-bottom pb-2 mb-3">Features</h6>
+                        ${renderLicenseFeatures(license.features || [])}
+                    </div>
+
+                    <!-- Transport -->
+                    <div class="col-12">
+                        <h6 class="border-bottom pb-2 mb-3">Transport & UDI</h6>
+                        ${renderLicenseTransport(license.transport || {}, license.udi || {})}
+                    </div>
+                </div>
+            `;
+
+            // Attach event listeners
+            this.$('#btn-register-license')?.addEventListener('click', () => {
+                showLicenseModal(this.currentWorkerId, this.currentRegion, this.currentWorker.name, hasLicense);
+            });
+
+            this.$('#btn-deregister-license')?.addEventListener('click', () => {
+                // We can reuse showLicenseModal which handles deregister button visibility,
+                // or directly trigger the deregister confirmation if we want to be specific.
+                // The legacy showLicenseModal opens the register modal which has a deregister button.
+                // But here we have a direct deregister button.
+                // Let's use the showLicenseModal for consistency as it sets up the form.
+                showLicenseModal(this.currentWorkerId, this.currentRegion, this.currentWorker.name, hasLicense);
+            });
+        } catch (error) {
+            console.error('[WorkerDetailsModal] Failed to render License tab:', error);
+            container.innerHTML = `<div class="alert alert-danger">Failed to load License details: ${escapeHtml(error.message)}</div>`;
         }
     }
 
@@ -773,7 +870,7 @@ export class WorkerDetailsModal extends BaseComponent {
                                                 <div class="bg-light p-2 rounded small">${escapeHtml(lab.description || 'No description')}</div>
                                             </div>
                                             <div class="col-12">
-                                                <h6 class="border-bottom pb-2">Notes</h6>
+                                                <h6 class="border-bottom pb-2 mb-3">Notes</h6>
                                                 <div class="bg-light p-2 rounded small">${escapeHtml(lab.notes || 'No notes')}</div>
                                             </div>
                                         </div>
@@ -961,6 +1058,152 @@ export class WorkerDetailsModal extends BaseComponent {
                 showToast(`Failed to deregister license: ${error.message}`, 'error');
             }
         }
+    }
+
+    openLicenseDetailsModal() {
+        if (!this.currentWorker) return;
+
+        const licenseData = this.currentWorker.cml_license_info;
+        if (!licenseData) {
+            showToast('No license information available', 'warning');
+            return;
+        }
+
+        const licenseModalElement = document.getElementById('licenseDetailsModal');
+        if (!licenseModalElement) {
+            showToast('License modal missing', 'error');
+            return;
+        }
+
+        const registrationContent = document.getElementById('license-registration-content');
+        const authorizationContent = document.getElementById('license-authorization-content');
+        const featuresContent = document.getElementById('license-features-content');
+        const transportContent = document.getElementById('license-transport-content');
+
+        if (!registrationContent || !authorizationContent || !featuresContent || !transportContent) {
+            showToast('License modal content missing', 'error');
+            return;
+        }
+
+        registrationContent.innerHTML = renderLicenseRegistration(licenseData.registration || {});
+        authorizationContent.innerHTML = renderLicenseAuthorization(licenseData.authorization || {});
+        featuresContent.innerHTML = renderLicenseFeatures(licenseData.features || []);
+        transportContent.innerHTML = renderLicenseTransport(licenseData.transport || {}, licenseData.udi || {});
+
+        // Ensure z-index is higher than worker details modal
+        licenseModalElement.style.zIndex = '1060'; // Bootstrap default is 1055 for modal
+
+        const modal = new bootstrap.Modal(licenseModalElement);
+        modal.show();
+    }
+
+    getActiveTab() {
+        const activeBtn = this.querySelector('.nav-link.active');
+        return activeBtn ? activeBtn.dataset.tab : 'aws';
+    }
+
+    updateRefreshTimer(updatedAt) {
+        if (!updatedAt) return;
+
+        try {
+            this.lastRefreshedAt = new Date(updatedAt);
+            if (isNaN(this.lastRefreshedAt.getTime())) {
+                console.warn('[WorkerDetailsModal] Invalid date received:', updatedAt);
+                return;
+            }
+
+            this.updateTimerDisplay();
+            this.startTimer();
+        } catch (e) {
+            console.error('[WorkerDetailsModal] Error updating timer:', e);
+        }
+    }
+
+    startTimer() {
+        this.stopTimer();
+        this.timerInterval = setInterval(() => this.updateTimerDisplay(), 1000);
+    }
+
+    stopTimer() {
+        if (this.timerInterval) {
+            clearInterval(this.timerInterval);
+            this.timerInterval = null;
+        }
+    }
+
+    updateTimerDisplay() {
+        if (!this.lastRefreshedAt) return;
+
+        const now = new Date();
+        const diffMs = now - this.lastRefreshedAt;
+        const diffSec = Math.floor(diffMs / 1000);
+
+        // Update last refreshed text
+        const timeEl = this.querySelector('.last-refreshed-time');
+        if (timeEl) {
+            let timeText = 'just now';
+            if (diffSec >= 3600) {
+                const hours = Math.floor(diffSec / 3600);
+                timeText = `${hours}h ago`;
+            } else if (diffSec >= 60) {
+                const mins = Math.floor(diffSec / 60);
+                timeText = `${mins}m ago`;
+            } else if (diffSec > 5) {
+                timeText = `${diffSec}s ago`;
+            }
+            timeEl.textContent = timeText;
+            timeEl.title = this.lastRefreshedAt.toLocaleString();
+        }
+
+        // Update countdown
+        // Assuming 5 minute refresh interval (300 seconds)
+        const refreshIntervalMs = 300000;
+        const nextRefresh = new Date(this.lastRefreshedAt.getTime() + refreshIntervalMs);
+        const remainingMs = nextRefresh - now;
+
+        const countdownEl = this.querySelector('#metrics-countdown');
+        if (countdownEl) {
+            if (remainingMs <= 0) {
+                countdownEl.textContent = 'Due now';
+            } else {
+                const remainingSec = Math.ceil(remainingMs / 1000);
+                const mins = Math.floor(remainingSec / 60);
+                const secs = remainingSec % 60;
+                countdownEl.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+            }
+        }
+    }
+
+    formatMemory(kb) {
+        if (!kb && kb !== 0) return '-';
+        if (typeof kb === 'string') return kb;
+        // Assume KB input
+        if (kb > 1024 * 1024) {
+            return (kb / 1024 / 1024).toFixed(1) + ' GB';
+        } else if (kb > 1024) {
+            return (kb / 1024).toFixed(1) + ' MB';
+        }
+        return kb + ' KB';
+    }
+
+    formatDisk(bytes) {
+        if (!bytes && bytes !== 0) return '-';
+        if (typeof bytes === 'string') return bytes;
+        // Assume Bytes input (CML API usually returns bytes for disk)
+        // Wait, CMLMetrics says size_kb. Let's assume KB to be safe or check API.
+        // CMLSystemStats says all_disk_total.
+        // Let's assume KB for consistency with memory if unsure, or Bytes.
+        // Standard CML API often uses Bytes for disk.
+
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        this.stopTimer();
     }
 }
 
