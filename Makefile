@@ -17,6 +17,11 @@ endif
 COMPOSE_FILE := docker-compose.yml
 COMPOSE := docker-compose -f $(COMPOSE_FILE)
 
+# Production Docker settings
+PROD_COMPOSE_FILE := deployment/docker-compose/docker-compose.prod.yml
+PROD_ENV_FILE := deployment/docker-compose/.env.prod
+PROD_COMPOSE := docker-compose -f $(PROD_COMPOSE_FILE) --env-file $(PROD_ENV_FILE)
+
 # Port settings with defaults (can be overridden in .env)
 APP_PORT ?= 8020
 KEYCLOAK_PORT ?= 8021
@@ -363,3 +368,44 @@ info: ## Show project information
 	@echo "  README.md           - Setup and usage guide"
 	@echo "  SETUP_COMPLETE.md   - Quick reference"
 	@echo "  DOCKER_SERVICES.md  - Docker services overview"
+
+# ==============================================================================
+# PRODUCTION COMMANDS
+# ==============================================================================
+
+##@ Production
+
+prod-up: ## Start production services in the background
+	@echo "$(BLUE)Starting production services...$(NC)"
+	$(PROD_COMPOSE) up -d
+	@echo "$(GREEN)Production services started!$(NC)"
+
+prod-down: ## Stop and remove production services
+	@echo "$(BLUE)Stopping production services...$(NC)"
+	$(PROD_COMPOSE) down
+	@echo "$(GREEN)Production services stopped!$(NC)"
+
+prod-logs: ## Show logs from production services
+	$(PROD_COMPOSE) logs -f
+
+prod-ps: ## Show running production containers
+	$(PROD_COMPOSE) ps
+
+prod-restart: ## Restart all production services
+	@echo "$(BLUE)Restarting production services...$(NC)"
+	$(PROD_COMPOSE) restart
+	@echo "$(GREEN)Production services restarted!$(NC)"
+
+prod-restart-service: ## Restart a single production service (usage: make prod-restart-service SERVICE=service_name)
+	@if [ -z "$(SERVICE)" ]; then \
+		echo "$(RED)Please specify SERVICE=<service_name>$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(BLUE)Restarting production service '$(SERVICE)'...$(NC)"
+	$(PROD_COMPOSE) up -d --force-recreate $(SERVICE)
+	@echo "$(GREEN)Production service '$(SERVICE)' restarted!$(NC)"
+
+prod-pull: ## Pull latest images for production services
+	@echo "$(BLUE)Pulling latest images...$(NC)"
+	$(PROD_COMPOSE) pull
+	@echo "$(GREEN)Images pulled!$(NC)"
