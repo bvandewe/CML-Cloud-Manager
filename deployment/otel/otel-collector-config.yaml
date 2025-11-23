@@ -46,6 +46,16 @@ receivers:
                 enabled: false
             mongodb.index.size:
                 enabled: false
+            mongodb.collection.count:
+                enabled: false
+            mongodb.data.size:
+                enabled: false
+            mongodb.extent.count:
+                enabled: false
+            mongodb.object.count:
+                enabled: false
+            mongodb.storage.size:
+                enabled: false
 
 extensions:
     health_check:
