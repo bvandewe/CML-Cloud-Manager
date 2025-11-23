@@ -6,10 +6,20 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ## [Unreleased]
 
+## [0.1.3] - 2025-11-19
+
+### Changed
+
+- **Docker Build**: Converted Dockerfile to multi-stage build to include UI compilation, ensuring consistent builds across environments
+- **CI/CD**: Removed separate UI build steps from GitHub Actions workflow in favor of the multi-stage Docker build
+
 ### Added
 
+- **Docker Context**: Added `.dockerignore` to exclude unnecessary files from the build
 - **Admin Services Menu**: Added "Services" dropdown to the main navigation bar (Admin only) for quick access to Grafana, Event Player, and Identity Management
 - **Production Management**: Added `make prod-restart-service` command for restarting individual production services
+
+## [0.1.2] - 2025-11-22
 
 ### Security
 
