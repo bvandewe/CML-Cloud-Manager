@@ -14,6 +14,7 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 ### Changed
 
 - **Domain**: Centralized worker endpoint resolution logic in `CMLWorker.get_effective_endpoint` to eliminate code duplication
+- **Refactor**: Updated all CML commands and queries to use `worker.get_effective_endpoint` for consistent private IP support
 - **UI**: Updated "Monitoring" and "Events" tabs in worker details to "Coming soon"
 - **Domain**: Temporarily disabled `CMLWorkerTelemetryUpdatedDomainEvent` cloud event
 
