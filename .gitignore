@@ -134,3 +134,4 @@ deployment/docker-compose/*.local.env
 
 # Ignore symlink in prod
 docker-compose.prod.yml
+.env.prod
