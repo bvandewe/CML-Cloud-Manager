@@ -274,8 +274,3 @@ class SyncWorkerCMLDataCommandHandler(
                 exc_info=True,
             )
             return self.internal_server_error(f"Failed to sync worker CML data: {str(ex)}")
-            return self.internal_server_error(f"Failed to sync worker CML data: {str(ex)}")
-            return self.internal_server_error(f"Failed to sync worker CML data: {str(ex)}")
-            return self.internal_server_error(f"Failed to sync worker CML data: {str(ex)}")
-            return self.internal_server_error(f"Failed to sync worker CML data: {str(ex)}")
-            return self.internal_server_error(f"Failed to sync worker CML data: {str(ex)}")
