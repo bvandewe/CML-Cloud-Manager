@@ -78,14 +78,20 @@ class LicenseRegistrationJob(ScheduledBackgroundJob):
                 log.error(f"Worker {self.worker_id} not found for license registration")
                 return
 
-            # Check worker has CML host
-            if not worker.state.public_ip:
-                log.error(f"Worker {self.worker_id} does not have public IP (not reachable)")
+            # Determine IP to use
+            target_ip = worker.state.public_ip
+            if app_settings.use_private_ip_for_monitoring and worker.state.private_ip:
+                target_ip = worker.state.private_ip
+                log.info(f"Using private IP {target_ip} for license registration")
+
+            # Check worker has reachable IP
+            if not target_ip:
+                log.error(f"Worker {self.worker_id} does not have reachable IP")
                 return
 
             # Create CML API client
             cml_client = CMLApiClient(
-                base_url=f"https://{worker.state.public_ip}",
+                base_url=f"https://{target_ip}",
                 username=app_settings.cml_worker_api_username,
                 password=app_settings.cml_worker_api_password,
                 verify_ssl=app_settings.cml_worker_api_verify_ssl,
@@ -205,6 +211,7 @@ class LicenseRegistrationJob(ScheduledBackgroundJob):
             await repository.update_async(worker)
 
         except Exception as e:
+            log.error(f"License registration job failed for worker {self.worker_id}: {e}")
             log.error(f"License registration job failed for worker {self.worker_id}: {e}")
             log.error(f"License registration job failed for worker {self.worker_id}: {e}")
             log.error(f"License registration job failed for worker {self.worker_id}: {e}")

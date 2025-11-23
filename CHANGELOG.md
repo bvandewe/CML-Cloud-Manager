@@ -6,6 +6,19 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ## [Unreleased]
 
+## [0.1.4] - 2025-11-23
+
+### Added
+
+- **AWS Private Networking**: Added `USE_PRIVATE_IP_FOR_MONITORING` setting to allow workers to be monitored via their private IP addresses within AWS VPCs
+
+### Fixed
+
+- **Production Stability**: Added `restart: unless-stopped` to all production services to ensure recovery from failures
+- **Observability**: Fixed OpenTelemetry Collector health checks and DNS resolution issues in production
+- **Deployment**: Fixed missing UI assets in production by removing volume overrides in `docker-compose.prod.yml`
+- **Nginx Routing**: Fixed 502 errors for Grafana and Keycloak by correcting upstream port configurations
+
 ## [0.1.3] - 2025-11-19
 
 ### Changed

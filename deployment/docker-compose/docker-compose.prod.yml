@@ -23,7 +23,7 @@ services:
             # - ../nginx/ssl:/etc/nginx/ssl:ro
             - nginx_logs:/var/log/nginx
         networks:
-            - ${DOCKER_NETWORK_NAME:-cml-cloud-manager-net}
+            - cml-cloud-manager-net
         depends_on:
             - api
             - worker
@@ -123,11 +123,12 @@ services:
             LABS_REFRESH_ENABLED: false
 
         networks:
-            - ${DOCKER_NETWORK_NAME:-cml-cloud-manager-net}
+            - cml-cloud-manager-net
         depends_on:
             - mongodb
             - keycloak
             - redis
+            - otel-collector
         healthcheck:
             test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
             interval: 30s
@@ -225,11 +226,12 @@ services:
             WORKER_METRICS_POLL_INTERVAL: ${WORKER_METRICS_POLL_INTERVAL:-300}
 
         networks:
-            - ${DOCKER_NETWORK_NAME:-cml-cloud-manager-net}
+            - cml-cloud-manager-net
         depends_on:
             - mongodb
             - keycloak
             - redis
+            - otel-collector
         healthcheck:
             test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
             interval: 30s
@@ -275,7 +277,7 @@ services:
             ME_CONFIG_MONGODB_AUTH_DATABASE: admin
             ME_CONFIG_BASICAUTH: 'false'
         networks:
-            - ${DOCKER_NETWORK_NAME:-cml-cloud-manager-net}
+            - cml-cloud-manager-net
         depends_on:
             - mongodb
 
@@ -291,7 +293,7 @@ services:
         volumes:
             - redis_data:/data
         networks:
-            - ${DOCKER_NETWORK_NAME:-cml-cloud-manager-net}
+            - cml-cloud-manager-net
         healthcheck:
             test: ['CMD', 'redis-cli', 'ping']
             interval: 10s
@@ -323,7 +325,7 @@ services:
         expose:
             - '8080'
         networks:
-            - ${DOCKER_NETWORK_NAME:-cml-cloud-manager-net}
+            - cml-cloud-manager-net
         volumes:
             - keycloak_data:/opt/keycloak/data
             - ../keycloak/${KEYCLOAK_REALM_IMPORT_FILE:-cml-cloud-manager-realm-export.json}:/opt/keycloak/data/import/cml-cloud-manager-realm-export.json:ro
@@ -339,6 +341,7 @@ services:
     # Shared event visualization and replay service for all samples
     event-player:
         image: ${EVENT_PLAYER_IMAGE}
+        restart: unless-stopped
         runtime: runc
         expose:
             - '8080'
@@ -378,7 +381,7 @@ services:
             storage_max_recent_events: 5000
             storage_max_metadata_events: 100000
         networks:
-            - ${DOCKER_NETWORK_NAME:-cml-cloud-manager-net}
+            - cml-cloud-manager-net
         depends_on:
             - keycloak
 
@@ -387,6 +390,7 @@ services:
     # Ports: ${OTEL_COLLECTOR_GRPC_PORT} (OTLP gRPC), ${OTEL_COLLECTOR_HTTP_PORT} (OTLP HTTP)
     otel-collector:
         image: ${OTEL_COLLECTOR_IMAGE}
+        restart: unless-stopped
         runtime: runc
         command: ['--config=/etc/otel-collector-config.yaml']
         # Run as root (0:0) to access host metrics
@@ -409,11 +413,17 @@ services:
             # Docker stats access
             - /var/run/docker.sock:/var/run/docker.sock:ro
         networks:
-            - ${DOCKER_NETWORK_NAME:-cml-cloud-manager-net}
+            - cml-cloud-manager-net
         depends_on:
             - tempo
             - loki
             - prometheus
+        healthcheck:
+            test: ['CMD', 'wget', '--spider', 'http://localhost:13133/']
+            interval: 10s
+            timeout: 5s
+            retries: 3
+            start_period: 10s
 
     # Grafana (Observability Dashboard)
     # Access via nginx at http://localhost/grafana/ or grafana.localhost
@@ -423,6 +433,7 @@ services:
     # - Tempo: http://tempo:3200
     grafana:
         image: ${GRAFANA_IMAGE}
+        restart: unless-stopped
         runtime: runc
         expose:
             - '3000'
@@ -467,7 +478,7 @@ services:
             - ../grafana/datasources:/etc/grafana/provisioning/datasources:ro
             - ../grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
         networks:
-            - ${DOCKER_NETWORK_NAME:-cml-cloud-manager-net}
+            - cml-cloud-manager-net
         depends_on:
             - tempo
             - loki
@@ -478,6 +489,7 @@ services:
     # http://localhost:${TEMPO_PORT}
     tempo:
         image: ${TEMPO_IMAGE}
+        restart: unless-stopped
         runtime: runc
         command: ['-config.file=/etc/tempo.yaml']
         user: root
@@ -490,13 +502,14 @@ services:
             - ../otel/tempo.yaml:/etc/tempo.yaml:ro
             - tempo_data:/tmp/tempo
         networks:
-            - ${DOCKER_NETWORK_NAME:-cml-cloud-manager-net}
+            - cml-cloud-manager-net
 
     # Prometheus (Metrics Storage & Query)
     # Time-series database for metrics
     # Access via nginx at prometheus.localhost or keep direct access
     prometheus:
         image: ${PROMETHEUS_IMAGE}
+        restart: unless-stopped
         runtime: runc
         command:
             - '--config.file=/etc/prometheus/prometheus.yml'
@@ -512,13 +525,14 @@ services:
             - ../otel/prometheus.yml:/etc/prometheus/prometheus.yml:ro
             - prometheus_data:/prometheus
         networks:
-            - ${DOCKER_NETWORK_NAME:-cml-cloud-manager-net}
+            - cml-cloud-manager-net
 
     # Grafana Loki (Log Aggregation)
     # Stores and queries logs with trace correlation
     # http://localhost:${LOKI_PORT}
     loki:
         image: ${LOKI_IMAGE}
+        restart: unless-stopped
         runtime: runc
         command: ['-config.file=/etc/loki/local-config.yaml']
         expose:
@@ -527,7 +541,7 @@ services:
             - ../otel/loki-config.yaml:/etc/loki/local-config.yaml:ro
             - loki_data:/loki
         networks:
-            - ${DOCKER_NETWORK_NAME:-cml-cloud-manager-net}
+            - cml-cloud-manager-net
 
 volumes:
     # Database volumes

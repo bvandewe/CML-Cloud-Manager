@@ -35,6 +35,7 @@ class TestSyncWorkerCMLDataCommand(BaseTestCase):
         """Mock Settings."""
         settings = MagicMock(spec=Settings)
         settings.metrics_change_threshold_percent = 5.0
+        settings.use_private_ip_for_monitoring = False
         return settings
 
     @pytest.fixture

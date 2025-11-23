@@ -7,6 +7,7 @@ It runs every 30 minutes and updates the lab_records collection with current sta
 import asyncio
 import logging
 from datetime import datetime
+from urllib.parse import urlparse
 
 from opentelemetry import trace
 from pymongo.errors import DuplicateKeyError
@@ -204,6 +205,20 @@ class LabsRefreshJob(RecurrentBackgroundJob):
         worker_id = worker.id()
         https_endpoint = worker.state.https_endpoint
 
+        # Determine endpoint to use (public or private based on settings)
+        if app_settings.use_private_ip_for_monitoring and worker.state.private_ip:
+            try:
+                parsed = urlparse(https_endpoint)
+                # Construct new netloc with private IP, preserving port if present
+                new_netloc = worker.state.private_ip
+                if parsed.port:
+                    new_netloc = f"{new_netloc}:{parsed.port}"
+
+                https_endpoint = parsed._replace(netloc=new_netloc).geturl()
+                log.debug(f"Using private IP endpoint for labs refresh: {https_endpoint}")
+            except Exception as e:
+                log.warning(f"Failed to construct private IP endpoint: {e}. Falling back to {https_endpoint}")
+
         log.debug(f"Refreshing labs for worker {worker_id} at {https_endpoint}")
 
         # Create CML API client using factory from service provider
@@ -386,4 +401,5 @@ class LabsRefreshJob(RecurrentBackgroundJob):
 
         log.info(f"Worker {worker_id}: synced={synced}, created={created}, updated={updated}")
 
+        return (synced, created, updated)
         return (synced, created, updated)

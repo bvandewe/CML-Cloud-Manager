@@ -8,6 +8,7 @@ in addition to the scheduled 30-minute global refresh job.
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 from neuroglia.core import OperationResult
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_bus import CloudEventBus
@@ -178,6 +179,20 @@ class RefreshWorkerLabsCommandHandler(
         """
         worker_id = worker.id()
         https_endpoint = worker.state.https_endpoint
+
+        # Determine endpoint to use (public or private based on settings)
+        if self._settings.use_private_ip_for_monitoring and worker.state.private_ip:
+            try:
+                parsed = urlparse(https_endpoint)
+                # Construct new netloc with private IP, preserving port if present
+                new_netloc = worker.state.private_ip
+                if parsed.port:
+                    new_netloc = f"{new_netloc}:{parsed.port}"
+
+                https_endpoint = parsed._replace(netloc=new_netloc).geturl()
+                log.debug(f"Using private IP endpoint for labs refresh: {https_endpoint}")
+            except Exception as e:
+                log.warning(f"Failed to construct private IP endpoint: {e}. Falling back to {https_endpoint}")
 
         log.debug(f"Refreshing labs for worker {worker_id} at {https_endpoint}")
 
@@ -363,5 +378,6 @@ class RefreshWorkerLabsCommandHandler(
 
         log.info(f"Worker {worker_id}: synced={synced}, created={created}, updated={updated}")
 
+        return (synced, created, updated)
         return (synced, created, updated)
         return (synced, created, updated)

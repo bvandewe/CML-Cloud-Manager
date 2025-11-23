@@ -6,6 +6,7 @@ version, health status, system stats, licensing, and labs.
 
 import logging
 from dataclasses import asdict, dataclass
+from urllib.parse import urlparse
 
 from neuroglia.core import OperationResult
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_bus import CloudEventBus
@@ -134,11 +135,26 @@ class SyncWorkerCMLDataCommandHandler(
             # Resilient approach: Try to collect as much data as possible without failing fast
             # Service status is determined based on what APIs respond successfully
             with tracer.start_as_current_span("query_cml_api") as span:
-                log.info(f"Querying CML API for worker {command.worker_id} " f"at {worker.state.https_endpoint}")
+                # Determine endpoint to use (public or private based on settings)
+                endpoint = worker.state.https_endpoint
+                if self.settings.use_private_ip_for_monitoring and worker.state.private_ip:
+                    try:
+                        parsed = urlparse(endpoint)
+                        # Construct new netloc with private IP, preserving port if present
+                        new_netloc = worker.state.private_ip
+                        if parsed.port:
+                            new_netloc = f"{new_netloc}:{parsed.port}"
+
+                        endpoint = parsed._replace(netloc=new_netloc).geturl()
+                        log.debug(f"Using private IP endpoint for monitoring: {endpoint}")
+                    except Exception as e:
+                        log.warning(f"Failed to construct private IP endpoint: {e}. Falling back to {endpoint}")
+
+                log.info(f"Querying CML API for worker {command.worker_id} at {endpoint}")
 
                 # Use CMLHealthService to check health and collect metrics
                 health_result = await self.cml_health_service.check_health(
-                    endpoint=worker.state.https_endpoint,
+                    endpoint=endpoint,
                     timeout=15.0,
                 )
 
@@ -268,6 +284,7 @@ class SyncWorkerCMLDataCommandHandler(
                 f"Failed to sync CML data for worker {command.worker_id}: {ex}",
                 exc_info=True,
             )
+            return self.internal_server_error(f"Failed to sync worker CML data: {str(ex)}")
             return self.internal_server_error(f"Failed to sync worker CML data: {str(ex)}")
             return self.internal_server_error(f"Failed to sync worker CML data: {str(ex)}")
             return self.internal_server_error(f"Failed to sync worker CML data: {str(ex)}")

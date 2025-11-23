@@ -196,6 +196,9 @@ class Settings(ApplicationSettings):
     auto_import_workers_region: str = "us-east-1"  # AWS region to scan for workers
     auto_import_workers_ami_name: str = ""  # AMI name pattern to search for (e.g., "CML-2.7.0-*")
 
+    # AWS Configuration
+    use_private_ip_for_monitoring: bool = False  # Set to True when running in AWS to use private IPs for monitoring
+
     class Config:
         env_file = ".env"
         case_sensitive = False

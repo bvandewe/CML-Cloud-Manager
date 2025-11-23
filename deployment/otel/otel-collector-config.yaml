@@ -47,6 +47,10 @@ receivers:
             mongodb.index.size:
                 enabled: false
 
+extensions:
+    health_check:
+        endpoint: 0.0.0.0:13133
+
 processors:
     batch:
         timeout: 10s
@@ -77,6 +81,7 @@ exporters:
         endpoint: http://loki:3100/loki/api/v1/push
 
 service:
+    extensions: [health_check]
     pipelines:
         traces:
             receivers: [otlp]
