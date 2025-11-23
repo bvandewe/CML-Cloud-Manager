@@ -13,6 +13,7 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ### Changed
 
+- **Domain**: Centralized worker endpoint resolution logic in `CMLWorker.get_effective_endpoint` to eliminate code duplication
 - **UI**: Updated "Monitoring" and "Events" tabs in worker details to "Coming soon"
 - **Domain**: Temporarily disabled `CMLWorkerTelemetryUpdatedDomainEvent` cloud event
 
@@ -1164,7 +1165,3 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 ### Removed
 
 - Deprecated reliance on `JWT_SECRET_KEY` for RS256 tokens (retained only as legacy fallback context).
-
----
-
-[0.1.0]: https://github.com/your-org/your-repo/releases/tag/v0.1.0
