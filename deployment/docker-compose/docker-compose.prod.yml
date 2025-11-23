@@ -16,6 +16,7 @@ services:
             # For HTTPS/TLS (uncomment when certificates are configured)
             # - "${NGINX_SSL_PORT:-443}:443"
         volumes:
+            - ../nginx/conf.d/${NGINX_CONF_FILE:-cml-cloud-manager.conf}:/etc/nginx/conf.d/cml-cloud-manager.conf:ro
             - ../nginx/nginx.conf:/etc/nginx/nginx.conf:ro
             - ../nginx/conf.d:/etc/nginx/conf.d:ro
             # For SSL certificates (create these directories when needed)
@@ -62,11 +63,11 @@ services:
             PYTHONPATH: /app/src
 
             # URLs and ports
-            APP_URL: http://localhost:${NGINX_PORT:-80}
+            APP_URL: ${PUBLIC_STACK_URL:-http://localhost:${NGINX_PORT:-80}}
             APP_PORT: 8000
 
             # Keycloak Configuration
-            KEYCLOAK_URL: http://localhost/auth
+            KEYCLOAK_URL: ${PUBLIC_STACK_URL:-http://localhost}/auth
             KEYCLOAK_URL_INTERNAL: http://keycloak:8080
             KEYCLOAK_REALM: ${KEYCLOAK_REALM:-cml-cloud-manager}
             KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-cml-cloud-manager-public}
@@ -329,7 +330,7 @@ services:
             - ${DOCKER_NETWORK_NAME:-cml-cloud-manager-net}
         volumes:
             - keycloak_data:/opt/keycloak/data
-            - ../keycloak/cml-cloud-manager-realm-export.json:/opt/keycloak/data/import/cml-cloud-manager-realm-export.json:ro
+            - ../keycloak/${KEYCLOAK_REALM_IMPORT_FILE:-cml-cloud-manager-realm-export.json}:/opt/keycloak/data/import/cml-cloud-manager-realm-export.json:ro
         healthcheck:
             test: ['CMD-SHELL', "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200 OK'"]
             interval: 10s
@@ -362,7 +363,7 @@ services:
             # OAuth/OIDC Configuration
             # oauth_server_url: URL accessible from browser (external)
             # oauth_server_url_backend: URL accessible from backend container (internal Docker network)
-            oauth_server_url: http://localhost/auth
+            oauth_server_url: ${PUBLIC_STACK_URL:-http://localhost}/auth
             oauth_server_url_backend: http://keycloak:8080
             oauth_legacy_keycloak: 'false'
             oauth_realm: ${KEYCLOAK_REALM:-cml-cloud-manager}
@@ -373,7 +374,7 @@ services:
             http_client_timeout: 30.0
 
             # Default Generator Settings
-            default_generator_gateways: '{"urls": ["http://localhost:8080/events/pub", "http://event-player:8080/events/pub"]}'
+            default_generator_gateways: '{"urls": ["${PUBLIC_STACK_URL:-http://localhost}/events/pub", "http://event-player:8080/events/pub"]}'
             default_generator_event: '{"event_source": "https://dummy.source.com/sys-admin", "event_type": "com.source.dummy.test.requested.v1", "event_subject": "some.interesting.concept.key_abcde12345", "event_data": {"foo": "bar"}}'
 
             # Frontend Storage Configuration

@@ -20,7 +20,19 @@ COMPOSE := docker-compose -f $(COMPOSE_FILE)
 # Production Docker settings
 PROD_COMPOSE_FILE := deployment/docker-compose/docker-compose.prod.yml
 PROD_ENV_FILE := deployment/docker-compose/.env.prod
-PROD_COMPOSE := docker-compose -f $(PROD_COMPOSE_FILE) --env-file $(PROD_ENV_FILE)
+
+# Base command
+PROD_COMPOSE_CMD := docker-compose -f $(PROD_COMPOSE_FILE) --env-file $(PROD_ENV_FILE)
+
+# Add local overrides if they exist
+ifneq (,$(wildcard deployment/docker-compose/docker-compose.prod.local.yml))
+    PROD_COMPOSE_CMD += -f deployment/docker-compose/docker-compose.prod.local.yml
+endif
+ifneq (,$(wildcard deployment/docker-compose/.env.prod.local))
+    PROD_COMPOSE_CMD += --env-file deployment/docker-compose/.env.prod.local
+endif
+
+PROD_COMPOSE := $(PROD_COMPOSE_CMD)
 
 # Port settings with defaults (can be overridden in .env)
 APP_PORT ?= 8020

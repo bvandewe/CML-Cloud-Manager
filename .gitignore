@@ -123,3 +123,11 @@ site/
 # private environment files
 deployment/docker-compose/.env.prod
 assets/
+
+# Local configuration overrides
+*.local
+*.local.yml
+*.local.env
+deployment/docker-compose/*.local
+deployment/docker-compose/*.local.yml
+deployment/docker-compose/*.local.env
