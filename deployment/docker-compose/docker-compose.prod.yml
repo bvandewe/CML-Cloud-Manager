@@ -60,6 +60,7 @@ services:
 
       # Service identification
       SERVICE_NAME: api
+      APP_VERSION: ${IMAGE_TAG}
 
       # Application settings
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
@@ -174,6 +175,7 @@ services:
       # URLs and ports
       APP_URL: http://localhost:${WORKER_EXTERNAL_PORT:-8021}
       APP_PORT: 8000
+      APP_VERSION: ${IMAGE_TAG}
 
       # Keycloak Configuration
       KEYCLOAK_URL: http://localhost/auth

@@ -21,6 +21,12 @@ let activeView = 'tasks';
  * Initialize the application
  */
 async function initializeApp() {
+    // Set app version in footer
+    const versionElement = document.getElementById('app-version');
+    if (versionElement && window.APP_CONFIG && window.APP_CONFIG.version) {
+        versionElement.textContent = window.APP_CONFIG.version;
+    }
+
     // Check if user is authenticated
     const user = await checkAuth();
 

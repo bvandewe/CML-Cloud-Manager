@@ -1,182 +1,174 @@
 name: cml-cloud-manager-dev
 
 services:
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command:
-      [
-        "sh",
-        "-c",
-        "cd /app/src && pip install debugpy -t /tmp && PYTHONPATH=/tmp:/app/src python -m debugpy --listen 0.0.0.0:5678 -m uvicorn api_server:app --host 0.0.0.0 --port 8080 --reload --reload-dir /app/src",
-      ]
-    ports:
-      - "${APP_PORT:-8020}:8080"
-      - "5678:5678"
-    environment:
-      LOCAL_DEV: true
-      LOG_LEVEL: DEBUG
-      DEBUG: true
-      LOG_FILE: /tmp/debug-app.log
-      PYTHONPATH: "/app/src"
-      WORKER_MONITORING_ENABLED: "false"
+    api:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        command: ['sh', '-c', 'cd /app/src && pip install debugpy -t /tmp && PYTHONPATH=/tmp:/app/src python -m debugpy --listen 0.0.0.0:5678 -m uvicorn api_server:app --host 0.0.0.0 --port 8080 --reload --reload-dir /app/src']
+        ports:
+            - '${APP_PORT:-8020}:8080'
+            - '5678:5678'
+        environment:
+            LOCAL_DEV: true
+            LOG_LEVEL: DEBUG
+            DEBUG: true
+            LOG_FILE: /tmp/debug-app.log
+            PYTHONPATH: '/app/src'
 
-      APP_URL: http://localhost:${APP_PORT:-8030}
-      APP_PORT: ${APP_PORT:-8030}
+            WORKER_MONITORING_ENABLED: 'false'
 
-      KEYCLOAK_URL: http://localhost:${KEYCLOAK_PORT:-8021}
-      KEYCLOAK_URL_INTERNAL: http://keycloak:8080
-      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-cml-cloud-manager}
-      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-cml-cloud-manager-public}
+            APP_URL: http://localhost:${APP_PORT:-8030}
+            APP_PORT: ${APP_PORT:-8030}
+            APP_VERSION: ${IMAGE_TAG}
 
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production}
-      JWT_ALGORITHM: HS256
-      JWT_EXPIRATION_HOURS: 24
+            KEYCLOAK_URL: http://localhost:${KEYCLOAK_PORT:-8021}
+            KEYCLOAK_URL_INTERNAL: http://keycloak:8080
+            KEYCLOAK_REALM: ${KEYCLOAK_REALM:-cml-cloud-manager}
+            KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-cml-cloud-manager-public}
 
-      VERIFY_ISSUER: true
-      EXPECTED_ISSUER: "http://localhost:8031/realms/cml-cloud-manager"
-      VERIFY_AUDIENCE: true
-      EXPECTED_AUDIENCE: '["cml-cloud-manager"]'
-      REFRESH_AUTO_LEEWAY_SECONDS: 60
+            JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production}
+            JWT_ALGORITHM: HS256
+            JWT_EXPIRATION_HOURS: 24
 
-      SESSION_MAX_DURATION_MINUTES: ${SESSION_MAX_DURATION_MINUTES}
+            VERIFY_ISSUER: true
+            EXPECTED_ISSUER: 'http://localhost:8031/realms/cml-cloud-manager'
+            VERIFY_AUDIENCE: true
+            EXPECTED_AUDIENCE: '["cml-cloud-manager"]'
+            REFRESH_AUTO_LEEWAY_SECONDS: 60
 
-      ENABLE_CORS: "true"
+            SESSION_MAX_DURATION_MINUTES: ${SESSION_MAX_DURATION_MINUTES}
 
-      CONNECTION_STRINGS: '{"mongo": "mongodb://root:${MONGODB_PASSWORD:-password123}@mongodb:27017/?authSource=admin"}'
+            ENABLE_CORS: 'true'
 
-      REDIS_URL: redis://redis:6379/0
-      REDIS_ENABLED: "true"
-      REDIS_KEY_PREFIX: "session:"
+            CONNECTION_STRINGS: '{"mongo": "mongodb://root:${MONGODB_PASSWORD:-password123}@mongodb:27017/?authSource=admin"}'
 
-      CLOUD_EVENT_SINK: http://event-player:8080/events/pub
-      CLOUD_EVENT_SOURCE: https://cml-cloud-manager.io
-      CLOUD_EVENT_TYPE_PREFIX: io.cml-cloud-manager
+            REDIS_URL: redis://redis:6379/0
+            REDIS_ENABLED: 'true'
+            REDIS_KEY_PREFIX: 'session:'
 
-      OTEL_SERVICE_NAME: cml-cloud-manager
-      OTEL_SERVICE_VERSION: 1.0.0
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
-      OTEL_TRACES_EXPORTER: otlp
-      OTEL_METRICS_EXPORTER: otlp
-      OTEL_LOGS_EXPORTER: none
-      OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED: "false"
+            CLOUD_EVENT_SINK: http://event-player:8080/events/pub
+            CLOUD_EVENT_SOURCE: https://cml-cloud-manager.io
+            CLOUD_EVENT_TYPE_PREFIX: io.cml-cloud-manager
 
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      CML_WORKER_AMI_NAME_DEFAULT: ${CML_WORKER_AMI_NAME_DEFAULT}
-      CML_WORKER_INSTANCE_TYPE_DEFAULT: ${CML_WORKER_INSTANCE_TYPE_DEFAULT}
-      CML_WORKER_SECURITY_GROUP_IDS: ${CML_WORKER_SECURITY_GROUP_IDS}
-      CML_WORKER_SUBNET_ID: ${CML_WORKER_SUBNET_ID}
-      CML_WORKER_KEY_NAME: ${CML_WORKER_KEY_NAME}
-      CML_WORKER_USERNAME: ${CML_WORKER_USERNAME}
-      CML_WORKER_API_USERNAME: ${CML_WORKER_API_USERNAME}
-      CML_WORKER_API_PASSWORD: ${CML_WORKER_API_PASSWORD}
+            OTEL_SERVICE_NAME: cml-cloud-manager
+            OTEL_SERVICE_VERSION: 1.0.0
+            OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+            OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+            OTEL_TRACES_EXPORTER: otlp
+            OTEL_METRICS_EXPORTER: otlp
+            OTEL_LOGS_EXPORTER: none
+            OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED: 'false'
 
-      AUTO_IMPORT_WORKERS_FORCE_REQUEUE: true
-      AUTO_IMPORT_WORKERS_ENABLED: ${AUTO_IMPORT_WORKERS_ENABLED}
-      AUTO_IMPORT_WORKERS_INTERVAL: ${AUTO_IMPORT_WORKERS_INTERVAL}
-      AUTO_IMPORT_WORKERS_REGION: ${AUTO_IMPORT_WORKERS_REGION}
-      AUTO_IMPORT_WORKERS_AMI_NAME: ${AUTO_IMPORT_WORKERS_AMI_NAME}
+            AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+            AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+            CML_WORKER_AMI_NAME_DEFAULT: ${CML_WORKER_AMI_NAME_DEFAULT}
+            CML_WORKER_INSTANCE_TYPE_DEFAULT: ${CML_WORKER_INSTANCE_TYPE_DEFAULT}
+            CML_WORKER_SECURITY_GROUP_IDS: ${CML_WORKER_SECURITY_GROUP_IDS}
+            CML_WORKER_SUBNET_ID: ${CML_WORKER_SUBNET_ID}
+            CML_WORKER_KEY_NAME: ${CML_WORKER_KEY_NAME}
+            CML_WORKER_USERNAME: ${CML_WORKER_USERNAME}
+            CML_WORKER_API_USERNAME: ${CML_WORKER_API_USERNAME}
+            CML_WORKER_API_PASSWORD: ${CML_WORKER_API_PASSWORD}
 
-      LABS_REFRESH_INTERVAL: ${LABS_REFRESH_INTERVAL}
-      WORKER_METRICS_POLL_INTERVAL: ${WORKER_METRICS_POLL_INTERVAL}
+            AUTO_IMPORT_WORKERS_FORCE_REQUEUE: true
+            AUTO_IMPORT_WORKERS_ENABLED: ${AUTO_IMPORT_WORKERS_ENABLED}
+            AUTO_IMPORT_WORKERS_INTERVAL: ${AUTO_IMPORT_WORKERS_INTERVAL}
+            AUTO_IMPORT_WORKERS_REGION: ${AUTO_IMPORT_WORKERS_REGION}
+            AUTO_IMPORT_WORKERS_AMI_NAME: ${AUTO_IMPORT_WORKERS_AMI_NAME}
 
-    volumes:
-      - ./:/app
-    networks:
-      - cml-cloud-manager-net
+            LABS_REFRESH_INTERVAL: ${LABS_REFRESH_INTERVAL}
+            WORKER_METRICS_POLL_INTERVAL: ${WORKER_METRICS_POLL_INTERVAL}
 
-  worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command:
-      [
-        "sh",
-        "-c",
-        'pip install debugpy watchfiles && cd src && python -m watchfiles --ignore-paths /app/src/logs "sh -c ''sleep 1 && exec python background_worker.py''" .',
-      ]
-    ports:
-      - "5679:5679"
-    environment:
-      LOCAL_DEV: true
-      LOG_LEVEL: DEBUG
-      LOG_FILE: /tmp/debug-worker.log
-      DEBUG: true
-      DEBUG_WORKER: "true"
-      PYTHONPATH: "/app/src"
-      WORKER_MONITORING_ENABLED: "true"
-      PYTHONUNBUFFERED: "1"
+        volumes:
+            - ./:/app
+        networks:
+            - cml-cloud-manager-net
 
-      APP_URL: http://localhost:${APP_PORT:-8030}
-      APP_PORT: ${APP_PORT:-8030}
+    worker:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        command: ['sh', '-c', 'pip install debugpy watchfiles && cd src && python -m watchfiles --ignore-paths /app/src/logs "sh -c ''sleep 1 && exec python background_worker.py''" .']
+        ports:
+            - '5679:5679'
+        environment:
+            LOCAL_DEV: true
+            LOG_LEVEL: DEBUG
+            LOG_FILE: /tmp/debug-worker.log
+            DEBUG: true
+            DEBUG_WORKER: 'true'
+            PYTHONPATH: '/app/src'
+            WORKER_MONITORING_ENABLED: 'true'
+            PYTHONUNBUFFERED: '1'
 
-      KEYCLOAK_URL: http://localhost:${KEYCLOAK_PORT:-8021}
-      KEYCLOAK_URL_INTERNAL: http://keycloak:8080
-      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-cml-cloud-manager}
-      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-cml-cloud-manager-public}
+            APP_URL: http://localhost:${APP_PORT:-8030}
+            APP_PORT: ${APP_PORT:-8030}
 
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production}
-      JWT_ALGORITHM: HS256
-      JWT_EXPIRATION_HOURS: 24
+            KEYCLOAK_URL: http://localhost:${KEYCLOAK_PORT:-8021}
+            KEYCLOAK_URL_INTERNAL: http://keycloak:8080
+            KEYCLOAK_REALM: ${KEYCLOAK_REALM:-cml-cloud-manager}
+            KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-cml-cloud-manager-public}
 
-      VERIFY_ISSUER: true
-      EXPECTED_ISSUER: "http://localhost:8031/realms/cml-cloud-manager"
-      VERIFY_AUDIENCE: true
-      EXPECTED_AUDIENCE: '["cml-cloud-manager"]'
-      REFRESH_AUTO_LEEWAY_SECONDS: 60
+            JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production}
+            JWT_ALGORITHM: HS256
+            JWT_EXPIRATION_HOURS: 24
 
-      SESSION_MAX_DURATION_MINUTES: ${SESSION_MAX_DURATION_MINUTES}
+            VERIFY_ISSUER: true
+            EXPECTED_ISSUER: 'http://localhost:8031/realms/cml-cloud-manager'
+            VERIFY_AUDIENCE: true
+            EXPECTED_AUDIENCE: '["cml-cloud-manager"]'
+            REFRESH_AUTO_LEEWAY_SECONDS: 60
 
-      ENABLE_CORS: "true"
+            SESSION_MAX_DURATION_MINUTES: ${SESSION_MAX_DURATION_MINUTES}
 
-      CONNECTION_STRINGS: '{"mongo": "mongodb://root:${MONGODB_PASSWORD:-password123}@mongodb:27017/?authSource=admin"}'
+            ENABLE_CORS: 'true'
 
-      REDIS_URL: redis://redis:6379/0
-      REDIS_ENABLED: "true"
-      REDIS_KEY_PREFIX: "session:"
+            CONNECTION_STRINGS: '{"mongo": "mongodb://root:${MONGODB_PASSWORD:-password123}@mongodb:27017/?authSource=admin"}'
 
-      CLOUD_EVENT_SINK: http://event-player:8080/events/pub
-      CLOUD_EVENT_SOURCE: https://cml-cloud-manager.io
-      CLOUD_EVENT_TYPE_PREFIX: io.cml-cloud-manager
+            REDIS_URL: redis://redis:6379/0
+            REDIS_ENABLED: 'true'
+            REDIS_KEY_PREFIX: 'session:'
 
-      OTEL_SERVICE_NAME: cml-cloud-manager-worker
-      OTEL_SERVICE_VERSION: 1.0.0
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
-      OTEL_TRACES_EXPORTER: otlp
-      OTEL_METRICS_EXPORTER: otlp
-      OTEL_LOGS_EXPORTER: none
-      OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED: "false"
+            CLOUD_EVENT_SINK: http://event-player:8080/events/pub
+            CLOUD_EVENT_SOURCE: https://cml-cloud-manager.io
+            CLOUD_EVENT_TYPE_PREFIX: io.cml-cloud-manager
 
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      CML_WORKER_AMI_NAME_DEFAULT: ${CML_WORKER_AMI_NAME_DEFAULT}
-      CML_WORKER_INSTANCE_TYPE_DEFAULT: ${CML_WORKER_INSTANCE_TYPE_DEFAULT}
-      CML_WORKER_SECURITY_GROUP_IDS: ${CML_WORKER_SECURITY_GROUP_IDS}
-      CML_WORKER_SUBNET_ID: ${CML_WORKER_SUBNET_ID}
-      CML_WORKER_KEY_NAME: ${CML_WORKER_KEY_NAME}
-      CML_WORKER_USERNAME: ${CML_WORKER_USERNAME}
-      CML_WORKER_API_USERNAME: ${CML_WORKER_API_USERNAME}
-      CML_WORKER_API_PASSWORD: ${CML_WORKER_API_PASSWORD}
+            OTEL_SERVICE_NAME: cml-cloud-manager-worker
+            OTEL_SERVICE_VERSION: 1.0.0
+            OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+            OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+            OTEL_TRACES_EXPORTER: otlp
+            OTEL_METRICS_EXPORTER: otlp
+            OTEL_LOGS_EXPORTER: none
+            OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED: 'false'
 
-      AUTO_IMPORT_WORKERS_FORCE_REQUEUE: true
-      AUTO_IMPORT_WORKERS_ENABLED: ${AUTO_IMPORT_WORKERS_ENABLED}
-      AUTO_IMPORT_WORKERS_INTERVAL: ${AUTO_IMPORT_WORKERS_INTERVAL}
-      AUTO_IMPORT_WORKERS_REGION: ${AUTO_IMPORT_WORKERS_REGION}
-      AUTO_IMPORT_WORKERS_AMI_NAME: ${AUTO_IMPORT_WORKERS_AMI_NAME}
+            AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+            AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+            CML_WORKER_AMI_NAME_DEFAULT: ${CML_WORKER_AMI_NAME_DEFAULT}
+            CML_WORKER_INSTANCE_TYPE_DEFAULT: ${CML_WORKER_INSTANCE_TYPE_DEFAULT}
+            CML_WORKER_SECURITY_GROUP_IDS: ${CML_WORKER_SECURITY_GROUP_IDS}
+            CML_WORKER_SUBNET_ID: ${CML_WORKER_SUBNET_ID}
+            CML_WORKER_KEY_NAME: ${CML_WORKER_KEY_NAME}
+            CML_WORKER_USERNAME: ${CML_WORKER_USERNAME}
+            CML_WORKER_API_USERNAME: ${CML_WORKER_API_USERNAME}
+            CML_WORKER_API_PASSWORD: ${CML_WORKER_API_PASSWORD}
 
-      LABS_REFRESH_INTERVAL: ${LABS_REFRESH_INTERVAL}
-      WORKER_METRICS_POLL_INTERVAL: ${WORKER_METRICS_POLL_INTERVAL}
+            AUTO_IMPORT_WORKERS_FORCE_REQUEUE: true
+            AUTO_IMPORT_WORKERS_ENABLED: ${AUTO_IMPORT_WORKERS_ENABLED}
+            AUTO_IMPORT_WORKERS_INTERVAL: ${AUTO_IMPORT_WORKERS_INTERVAL}
+            AUTO_IMPORT_WORKERS_REGION: ${AUTO_IMPORT_WORKERS_REGION}
+            AUTO_IMPORT_WORKERS_AMI_NAME: ${AUTO_IMPORT_WORKERS_AMI_NAME}
 
-    volumes:
-      - ./:/app
-    networks:
-      - cml-cloud-manager-net
+            LABS_REFRESH_INTERVAL: ${LABS_REFRESH_INTERVAL}
+            WORKER_METRICS_POLL_INTERVAL: ${WORKER_METRICS_POLL_INTERVAL}
+
+        volumes:
+            - ./:/app
+        networks:
+            - cml-cloud-manager-net
 
 networks:
-  cml-cloud-manager-net:
-    external: true
-    name: cml-cloud-manager_cml-cloud-manager-net
+    cml-cloud-manager-net:
+        external: true
+        name: cml-cloud-manager_cml-cloud-manager-net
