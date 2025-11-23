@@ -23,7 +23,7 @@ receivers:
         endpoint: unix:///var/run/docker.sock
         collection_interval: 10s
         timeout: 20s
-        api_version: '1.25'
+        api_version: '1.44'
 
     # Redis receiver
     redis:

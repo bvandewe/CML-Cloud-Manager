@@ -131,3 +131,6 @@ assets/
 deployment/docker-compose/*.local
 deployment/docker-compose/*.local.yml
 deployment/docker-compose/*.local.env
+
+# Ignore symlink in prod
+docker-compose.prod.yml
