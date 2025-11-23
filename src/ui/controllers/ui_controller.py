@@ -43,7 +43,7 @@ class UIController(ControllerBase):
         )
 
     @get("/", response_class=HTMLResponse)
-    async def index(self, request: Request):
+    async def index(self, request: Request) -> HTMLResponse:
         """Serve the main application page (built by Parcel)."""
         index_path = self.static_dir / "index.html"
 

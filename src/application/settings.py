@@ -15,6 +15,7 @@ class Settings(ApplicationSettings):
     # Debugging Configuration
     debug: bool = False
     environment: str = "development"  # development, production
+
     log_level: str = "INFO"
 
     # Application Configuration
