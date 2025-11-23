@@ -1,5 +1,18 @@
 # Dockerfile for Cml Cloud Manager Application
 
+# Stage 1: Build UI
+FROM node:20 AS ui-build
+WORKDIR /app/src/ui
+# Copy package files first for caching
+COPY src/ui/package*.json ./
+RUN npm ci
+# Copy the rest of the UI source code
+COPY src/ui .
+# Build the UI
+# This outputs to /app/static (relative to /app/src/ui is ../../static)
+RUN npm run build
+
+# Stage 2: Python App
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -19,6 +32,9 @@ RUN pip install poetry && \
 
 # Copy application code
 COPY . .
+
+# Copy built UI assets from ui-build stage
+COPY --from=ui-build /app/static /app/static
 
 # Set Python path to include src directory
 ENV PYTHONPATH=/app/src:$PYTHONPATH
