@@ -10,7 +10,7 @@ from neuroglia.mediation import Query, QueryHandler
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 
-from application.settings import app_settings
+from application.settings import Settings
 from application.utils.telemetry_filter import (
     filter_relevant_events,
     get_latest_activity_timestamp,
@@ -49,15 +49,18 @@ class GetWorkerTelemetryEventsQueryHandler(
         self,
         worker_repository: CMLWorkerRepository,
         cml_api_client_factory: CMLApiClientFactory,
+        settings: Settings,
     ):
         """Initialize the handler.
 
         Args:
             worker_repository: Repository for CML worker aggregates
             cml_api_client_factory: Factory for creating CML API clients
+            settings: Application settings
         """
         self._repository = worker_repository
         self._cml_client_factory = cml_api_client_factory
+        self._settings = settings
 
     async def handle_async(self, query: GetWorkerTelemetryEventsQuery) -> OperationResult[dict[str, Any]]:
         """Execute the query.
@@ -88,8 +91,13 @@ class GetWorkerTelemetryEventsQueryHandler(
                     log.warning(f"Worker {query.worker_id} has no HTTPS endpoint configured")
                     return self.bad_request("Worker has no HTTPS endpoint")
 
+                # Determine endpoint to use (public or private based on settings)
+                endpoint = worker.get_effective_endpoint(self._settings.use_private_ip_for_monitoring)
+                if endpoint != worker.state.https_endpoint:
+                    log.debug(f"Using private IP endpoint for telemetry: {endpoint}")
+
                 # Create CML API client for this worker using factory
-                cml_client = self._cml_client_factory.create(base_url=worker.state.https_endpoint)
+                cml_client = self._cml_client_factory.create(base_url=endpoint)
 
                 # Fetch raw telemetry events from CML
                 log.info(f"Fetching telemetry events from worker {query.worker_id}")
@@ -99,14 +107,16 @@ class GetWorkerTelemetryEventsQueryHandler(
                 # Filter for relevant activity events
                 filtered_events = filter_relevant_events(
                     events=raw_events,
-                    relevant_categories=app_settings.worker_activity_relevant_categories,
-                    exclude_user_pattern=app_settings.worker_activity_excluded_user_pattern,
+                    relevant_categories=self._settings.worker_activity_relevant_categories,
+                    exclude_user_pattern=self._settings.worker_activity_excluded_user_pattern,
                     since=query.since or worker.state.last_activity_check_at,
                 )
                 span.set_attribute("filtered_events_count", len(filtered_events))
 
-                # Get most recent events (limited by max_stored setting)
-                recent_events = get_most_recent_events(filtered_events, app_settings.worker_activity_events_max_stored)
+                # Get most recent events for display
+                recent_events = get_most_recent_events(
+                    filtered_events, self._settings.worker_activity_events_max_stored
+                )
 
                 # Extract latest activity timestamp
                 latest_activity = get_latest_activity_timestamp(filtered_events)

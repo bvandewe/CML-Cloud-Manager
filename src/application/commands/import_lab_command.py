@@ -81,8 +81,13 @@ class ImportLabCommandHandler(CommandHandler[ImportLabCommand, OperationResult[d
             return self.bad_request("YAML content is required")
 
         try:
+            # Determine endpoint to use (public or private based on settings)
+            endpoint = worker.get_effective_endpoint(self._settings.use_private_ip_for_monitoring)
+            if endpoint != worker.state.https_endpoint:
+                log.debug(f"Using private IP endpoint for lab import: {endpoint}")
+
             # Create CML API client using factory
-            cml_client = self._cml_client_factory.create(base_url=worker.state.https_endpoint)
+            cml_client = self._cml_client_factory.create(base_url=endpoint)
 
             # Import lab YAML
             result = await cml_client.import_lab(request.yaml_content, request.title)

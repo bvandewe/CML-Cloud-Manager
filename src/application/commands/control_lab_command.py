@@ -108,8 +108,13 @@ class ControlLabCommandHandler(
                     log.error(error_msg)
                     return self.bad_request(error_msg)
 
+                # Determine endpoint to use (public or private based on settings)
+                endpoint = worker.get_effective_endpoint(self.settings.use_private_ip_for_monitoring)
+                if endpoint != worker.state.https_endpoint:
+                    log.debug(f"Using private IP endpoint for lab control: {endpoint}")
+
                 # Create CML API client using factory
-                cml_client = self.cml_client_factory.create(base_url=worker.state.https_endpoint)
+                cml_client = self.cml_client_factory.create(base_url=endpoint)
 
                 # Perform the requested action
                 success = False

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from neuroglia.core.operation_result import OperationResult
 from neuroglia.mediation import Command, CommandHandler
 
+from application.settings import Settings
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
 from integration.services.cml_api_client import CMLApiClientFactory
 
@@ -27,15 +28,18 @@ class DownloadLabCommandHandler(CommandHandler[DownloadLabCommand, OperationResu
         self,
         worker_repository: CMLWorkerRepository,
         cml_api_client_factory: CMLApiClientFactory,
+        settings: Settings,
     ):
         """Initialize handler with repository dependencies.
 
         Args:
             worker_repository: Repository for accessing CML worker data
             cml_api_client_factory: Factory for creating CML API clients
+            settings: Application settings
         """
         self._worker_repository = worker_repository
         self._cml_client_factory = cml_api_client_factory
+        self._settings = settings
 
     async def handle_async(self, request: DownloadLabCommand, cancellation_token=None) -> OperationResult[str]:
         """Download lab topology as YAML.
@@ -59,8 +63,13 @@ class DownloadLabCommandHandler(CommandHandler[DownloadLabCommand, OperationResu
             return self.bad_request("Worker does not have HTTPS endpoint configured")
 
         try:
+            # Determine endpoint to use (public or private based on settings)
+            endpoint = worker.get_effective_endpoint(self._settings.use_private_ip_for_monitoring)
+            if endpoint != worker.state.https_endpoint:
+                log.debug(f"Using private IP endpoint for lab download: {endpoint}")
+
             # Create CML API client using factory
-            cml_client = self._cml_client_factory.create(base_url=worker.state.https_endpoint)
+            cml_client = self._cml_client_factory.create(base_url=endpoint)
 
             # Download lab YAML
             yaml_content = await cml_client.download_lab(request.lab_id)

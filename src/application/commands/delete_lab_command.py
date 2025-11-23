@@ -80,8 +80,13 @@ class DeleteLabCommandHandler(CommandHandler[DeleteLabCommand, OperationResult[d
             return self.bad_request("Worker does not have HTTPS endpoint configured")
 
         try:
+            # Determine endpoint to use (public or private based on settings)
+            endpoint = worker.get_effective_endpoint(self._settings.use_private_ip_for_monitoring)
+            if endpoint != worker.state.https_endpoint:
+                log.debug(f"Using private IP endpoint for lab deletion: {endpoint}")
+
             # Create CML API client using factory
-            cml_client = self._cml_client_factory.create(base_url=worker.state.https_endpoint)
+            cml_client = self._cml_client_factory.create(base_url=endpoint)
 
             # Delete lab from CML API
             await cml_client.delete_lab(request.lab_id)
