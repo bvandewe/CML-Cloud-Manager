@@ -64,6 +64,13 @@ processors:
             - key: service.name
               value: 'cml-cloud-manager-host'
               action: insert
+    # Filter out system metrics from application to avoid conflicts with hostmetrics
+    filter/drop_system_metrics:
+        metrics:
+            exclude:
+                match_type: regexp
+                metric_names:
+                    - ^system\..*
 
 exporters:
     logging:
@@ -87,8 +94,12 @@ service:
             receivers: [otlp]
             processors: [memory_limiter, batch]
             exporters: [logging, otlp/tempo]
-        metrics:
-            receivers: [otlp, hostmetrics, docker_stats, redis, mongodb]
+        metrics/app:
+            receivers: [otlp]
+            processors: [filter/drop_system_metrics, memory_limiter, batch, resource]
+            exporters: [logging, prometheus]
+        metrics/infra:
+            receivers: [hostmetrics, docker_stats, redis, mongodb]
             processors: [memory_limiter, batch, resource]
             exporters: [logging, prometheus]
         logs:
