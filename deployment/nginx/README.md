@@ -17,11 +17,11 @@ The main configuration file is located at `deployment/nginx/conf.d/cml-cloud-man
 ### Security
 
 - **Rate Limiting**:
-    - `api_limit`: 10 requests/second (burst 20) for general API endpoints.
-    - `auth_limit`: 5 requests/second (burst 5) for authentication endpoints.
+  - `api_limit`: 10 requests/second (burst 20) for general API endpoints.
+  - `auth_limit`: 5 requests/second (burst 5) for authentication endpoints.
 - **Headers**:
-    - `Strict-Transport-Security`: Enforces HTTPS.
-    - `Content-Security-Policy`: Restricts sources for scripts, styles, and images.
+  - `Strict-Transport-Security`: Enforces HTTPS.
+  - `Content-Security-Policy`: Restricts sources for scripts, styles, and images.
 
 ### Caching
 

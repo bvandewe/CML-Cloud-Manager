@@ -103,32 +103,38 @@ cml-cloud-manager/
 ### Local Development
 
 1. **Install Dependencies**:
+
    ```bash
    make install
    make install-ui
    ```
 
 2. **Build UI**:
+
    ```bash
    make build-ui
    ```
 
 3. **Run Application**:
+
    ```bash
    make run
    ```
+
    Access at `http://localhost:8000`
 
 ### Production Deployment
 
 1. **Configure Environment**:
    Copy the example environment file and update secrets:
+
    ```bash
    cp deployment/docker-compose/.env.prod.example deployment/docker-compose/.env.prod
    nano deployment/docker-compose/.env.prod
    ```
 
 2. **Start Stack**:
+
    ```bash
    make prod-up
    ```
@@ -139,6 +145,7 @@ cml-cloud-manager/
    - **Grafana**: `http://localhost/grafana/`
 
 See [Deployment Documentation](deployment/README.md) for details.
+
 - Docker & Docker Compose (optional)
 
 ### Quick Setup (Recommended)

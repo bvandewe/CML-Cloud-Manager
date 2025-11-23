@@ -6,9 +6,9 @@ Keycloak provides Identity and Access Management (IAM) for the CML Cloud Manager
 
 - **Realm**: `cml-cloud-manager`
 - **Clients**:
-    - `cml-cloud-manager-public`: Public client for the main UI (SPA).
-    - `grafana`: Confidential client for Grafana SSO.
-    - `cml-cloud-manager-api`: Bearer-only client for API protection.
+  - `cml-cloud-manager-public`: Public client for the main UI (SPA).
+  - `grafana`: Confidential client for Grafana SSO.
+  - `cml-cloud-manager-api`: Bearer-only client for API protection.
 
 ## Realm Export
 

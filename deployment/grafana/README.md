@@ -21,6 +21,7 @@ Pre-configured dashboards are located in `deployment/grafana/dashboards/`:
 ## Authentication
 
 Grafana is integrated with Keycloak for Single Sign-On (SSO).
+
 - **Admin Role**: Users with the `admin` role in Keycloak have full admin access in Grafana.
 - **Viewer Role**: Other authenticated users have viewer access.
 

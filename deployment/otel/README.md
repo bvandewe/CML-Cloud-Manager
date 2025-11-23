@@ -14,6 +14,7 @@ This directory contains the configuration for the OpenTelemetry (OTEL) observabi
 ### OTEL Collector (`otel-collector-config.yaml`)
 
 Configured with the following receivers:
+
 - **OTLP**: Receives telemetry from the application.
 - **Host Metrics**: Collects CPU, memory, disk, and network stats from the host.
 - **Docker Stats**: Collects container resource usage.
