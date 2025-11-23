@@ -46,6 +46,18 @@ receivers:
                 enabled: false
             mongodb.index.size:
                 enabled: false
+            mongodb.collection.count:
+                enabled: false
+            mongodb.collection.size:
+                enabled: false
+            mongodb.extent.count:
+                enabled: false
+            mongodb.object.count:
+                enabled: false
+            mongodb.object.size:
+                enabled: false
+            mongodb.storage.size:
+                enabled: false
 
 extensions:
     health_check:
@@ -70,7 +82,8 @@ processors:
             exclude:
                 match_type: regexp
                 metric_names:
-                    - ^system\..*
+                    - ^system[._].*
+                    - ^process[._].*
 
 exporters:
     logging:
