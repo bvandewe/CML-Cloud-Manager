@@ -163,6 +163,7 @@ services:
       - "8000"
     environment:
       # Service identification
+      ENVIRONMENT: production
       SERVICE_NAME: worker
 
       # Application settings
