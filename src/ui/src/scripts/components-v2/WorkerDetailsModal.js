@@ -1019,7 +1019,7 @@ export class WorkerDetailsModal extends BaseComponent {
         container.innerHTML = `
             <div class="text-center py-5 text-muted">
                 <i class="bi bi-activity fs-1 d-block mb-3"></i>
-                <p>Monitoring tab - integration with legacy code pending</p>
+                <p>Monitoring tab - Coming soon</p>
             </div>
         `;
     }
@@ -1031,7 +1031,7 @@ export class WorkerDetailsModal extends BaseComponent {
         container.innerHTML = `
             <div class="text-center py-5 text-muted">
                 <i class="bi bi-bell fs-1 d-block mb-3"></i>
-                <p>Events tab - integration with legacy code pending</p>
+                <p>Events tab - Coming soon</p>
             </div>
         `;
     }
