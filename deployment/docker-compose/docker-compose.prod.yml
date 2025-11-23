@@ -380,9 +380,9 @@ services:
       auth_algorithm: RS256
 
       # Role Mapping Configuration
-      auth_role_admin: "manager" # Role name in JWT that grants admin privileges
-      auth_role_operator: "chef" # Role name in JWT that grants operator privileges
-      auth_role_user: "driver" # Role name in JWT that grants user privileges
+      auth_role_admin: "admin" # Role name in JWT that grants admin privileges
+      auth_role_operator: "manager" # Role name in JWT that grants operator privileges
+      auth_role_user: "user" # Role name in JWT that grants user privileges
 
       # OAuth/OIDC Configuration
       # oauth_server_url: URL accessible from browser (external)
@@ -403,8 +403,8 @@ services:
 
       # Frontend Storage Configuration
       browser_queue_size: 1000
-      storage_max_recent_events: 5000
-      storage_max_metadata_events: 100000
+      storage_max_recent_events: 2000
+      storage_max_metadata_events: 10000
     networks:
       - cml-cloud-manager-net
     depends_on:
@@ -495,7 +495,7 @@ services:
       GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH: "contains(roles[*], 'admin') && 'Admin' || contains(roles[*], 'manager') && 'Editor' || 'Viewer'"
 
       GF_SECURITY_ADMIN_USER: ${KEYCLOAK_ADMIN_USERNAME:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
       GF_FEATURE_TOGGLES_ENABLE: traceqlEditor
       GF_INSTALL_PLUGINS: "grafana-clock-panel,grafana-simple-json-datasource,redis-datasource"
     volumes:
