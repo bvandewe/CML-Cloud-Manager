@@ -73,6 +73,7 @@ class TestSyncWorkerCMLDataCommand(BaseTestCase):
         worker.state = MagicMock()
         worker.state.status = CMLWorkerStatus.RUNNING
         worker.state.https_endpoint = "https://1.2.3.4"
+        worker.get_effective_endpoint.return_value = "https://1.2.3.4"
         worker.state.service_status = CMLServiceStatus.UNAVAILABLE
         worker.state.metrics = MagicMock()
         worker.state.metrics.version = "2.6.0"

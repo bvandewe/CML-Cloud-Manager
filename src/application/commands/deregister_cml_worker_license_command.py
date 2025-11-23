@@ -48,17 +48,24 @@ class DeregisterCMLWorkerLicenseCommandHandler(
             return self.not_found("Worker", f"Worker {request.worker_id} not found")
 
         # Check worker is accessible
-        target_ip = worker.state.public_ip
-        if app_settings.use_private_ip_for_monitoring and worker.state.private_ip:
-            target_ip = worker.state.private_ip
-            log.info(f"Using private IP {target_ip} for license deregistration")
+        endpoint = worker.get_effective_endpoint(app_settings.use_private_ip_for_monitoring)
 
-        if not target_ip:
-            return self.bad_request("Worker does not have reachable IP")
+        # Fallback to constructing from IP if endpoint not set
+        if not endpoint:
+            target_ip = worker.state.public_ip
+            if app_settings.use_private_ip_for_monitoring and worker.state.private_ip:
+                target_ip = worker.state.private_ip
+
+            if target_ip:
+                endpoint = f"https://{target_ip}"
+                log.info(f"Constructed endpoint {endpoint} from IP for license deregistration")
+
+        if not endpoint:
+            return self.bad_request("Worker does not have reachable IP/endpoint")
 
         # Create CML API client
         cml_client = CMLApiClient(
-            base_url=f"https://{target_ip}",
+            base_url=endpoint,
             username=app_settings.cml_worker_api_username,
             password=app_settings.cml_worker_api_password,
             verify_ssl=app_settings.cml_worker_api_verify_ssl,

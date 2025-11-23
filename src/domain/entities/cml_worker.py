@@ -8,6 +8,7 @@ access to CML labs hosted on the instance.
 from dataclasses import replace
 from datetime import datetime, timezone
 from typing import cast
+from urllib.parse import urlparse
 from uuid import uuid4
 
 from multipledispatch import dispatch
@@ -670,6 +671,7 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
         created_at = datetime.now(timezone.utc)
 
         # Create a new worker instance without going through __init__
+        # to avoid generating a creation event
         worker = object.__new__(CMLWorker)
         AggregateRoot.__init__(worker)
 
@@ -693,6 +695,34 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
 
         worker.state.on(worker.register_event(event))  # type: ignore
         return worker
+
+    def get_effective_endpoint(self, use_private_ip: bool = False) -> str:
+        """Get the effective HTTPS endpoint for the worker.
+
+        Args:
+            use_private_ip: Whether to prefer the private IP address.
+
+        Returns:
+            The HTTPS endpoint URL.
+        """
+        https_endpoint = self.state.https_endpoint
+        if not https_endpoint:
+            return ""
+
+        if use_private_ip and self.state.private_ip:
+            try:
+                parsed = urlparse(https_endpoint)
+                # Construct new netloc with private IP, preserving port if present
+                new_netloc = self.state.private_ip
+                if parsed.port:
+                    new_netloc = f"{new_netloc}:{parsed.port}"
+
+                return parsed._replace(netloc=new_netloc).geturl()
+            except Exception:  # nosec
+                # Fallback to original endpoint if parsing fails
+                pass
+
+        return https_endpoint
 
     def id(self) -> str:
         """Return the aggregate identifier with a precise type."""

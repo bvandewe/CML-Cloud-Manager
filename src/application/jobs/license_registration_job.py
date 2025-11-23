@@ -78,20 +78,27 @@ class LicenseRegistrationJob(ScheduledBackgroundJob):
                 log.error(f"Worker {self.worker_id} not found for license registration")
                 return
 
-            # Determine IP to use
-            target_ip = worker.state.public_ip
-            if app_settings.use_private_ip_for_monitoring and worker.state.private_ip:
-                target_ip = worker.state.private_ip
-                log.info(f"Using private IP {target_ip} for license registration")
+            # Determine endpoint to use
+            endpoint = worker.get_effective_endpoint(app_settings.use_private_ip_for_monitoring)
 
-            # Check worker has reachable IP
-            if not target_ip:
-                log.error(f"Worker {self.worker_id} does not have reachable IP")
+            # Fallback to constructing from IP if endpoint not set (e.g. during init)
+            if not endpoint:
+                target_ip = worker.state.public_ip
+                if app_settings.use_private_ip_for_monitoring and worker.state.private_ip:
+                    target_ip = worker.state.private_ip
+
+                if target_ip:
+                    endpoint = f"https://{target_ip}"
+                    log.info(f"Constructed endpoint {endpoint} from IP for license registration")
+
+            # Check worker has reachable endpoint
+            if not endpoint:
+                log.error(f"Worker {self.worker_id} does not have reachable IP/endpoint")
                 return
 
             # Create CML API client
             cml_client = CMLApiClient(
-                base_url=f"https://{target_ip}",
+                base_url=endpoint,
                 username=app_settings.cml_worker_api_username,
                 password=app_settings.cml_worker_api_password,
                 verify_ssl=app_settings.cml_worker_api_verify_ssl,
@@ -211,6 +218,7 @@ class LicenseRegistrationJob(ScheduledBackgroundJob):
             await repository.update_async(worker)
 
         except Exception as e:
+            log.error(f"License registration job failed for worker {self.worker_id}: {e}")
             log.error(f"License registration job failed for worker {self.worker_id}: {e}")
             log.error(f"License registration job failed for worker {self.worker_id}: {e}")
             log.error(f"License registration job failed for worker {self.worker_id}: {e}")
