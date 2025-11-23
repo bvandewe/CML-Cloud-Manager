@@ -6,6 +6,16 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ## [Unreleased]
 
+## [0.1.5] - 2025-11-23
+
+### Added
+
+- **Mongo Express**: Enabled secure access to Mongo Express via Nginx at `/mongo-express/`
+- **Security**: Implemented admin-only access control for Mongo Express using Nginx `auth_request` and new `/api/auth/check-admin` endpoint
+- **UI**: Added Mongo Express link to the Services navigation menu
+- **UI**: Added runtime environment configuration injection to frontend
+- **UX**: Hid demo user credentials on login screen when running in non-development environments
+
 ## [0.1.4] - 2025-11-23
 
 ### Added
@@ -340,7 +350,7 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
   - Uses dependency injection to instantiate jobs with required services
   - Logs clearly show which recurrent jobs are scheduled at startup
 
-- **Lab Operations Auto-Refresh**: Lab control commands (start/stop/wipe) now automatically schedule on-demand worker data refresh
+- **Lab Operations Auto-Refresh**: Lab control commands (start/stop/ wipe) now automatically schedule on-demand worker data refresh
   - Ensures worker metrics and lab states are updated after lab operations
   - Non-blocking: refresh scheduling failures don't affect lab operation success
   - Uses existing `OnDemandWorkerDataRefreshJob` infrastructure
