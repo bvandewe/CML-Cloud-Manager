@@ -310,6 +310,27 @@ class AuthController(ControllerBase):
         # Return user info (never expose tokens to browser)
         return session["user_info"]
 
+    @get("/check-admin")
+    async def check_admin(self, session_id: str | None = Cookie(None)):
+        """Check if current user has admin role.
+
+        Used by Nginx auth_request.
+        """
+        if not session_id:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
+        session = self.session_store.get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired")
+
+        user_info = session.get("user_info", {})
+        roles = user_info.get("roles", [])
+
+        if "admin" not in roles:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
+
+        return {"status": "ok"}
+
     @post("/extend-session")
     async def extend_session(self, session_id: str = Cookie(None)) -> dict:
         """Extend the current session."""

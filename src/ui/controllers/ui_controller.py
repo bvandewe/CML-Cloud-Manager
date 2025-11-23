@@ -5,12 +5,14 @@ from pathlib import Path
 from classy_fastapi.decorators import get
 from classy_fastapi.routable import Routable
 from fastapi import Request
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import HTMLResponse
 from neuroglia.dependency_injection import ServiceProviderBase
 from neuroglia.mapping import Mapper
 from neuroglia.mediation import Mediator
 from neuroglia.mvc import ControllerBase
 from neuroglia.mvc.controller_base import generate_unique_id_function
+
+from application.settings import app_settings
 
 
 class UIController(ControllerBase):
@@ -41,7 +43,27 @@ class UIController(ControllerBase):
         )
 
     @get("/", response_class=HTMLResponse)
-    async def index(self, request: Request) -> FileResponse:
+    async def index(self, request: Request):
         """Serve the main application page (built by Parcel)."""
         index_path = self.static_dir / "index.html"
-        return FileResponse(index_path, media_type="text/html")
+
+        if not index_path.exists():
+            return HTMLResponse("<h1>UI not built. Run 'make build-ui' first.</h1>", status_code=500)
+
+        # Read the file content
+        content = index_path.read_text(encoding="utf-8")
+
+        # Inject runtime configuration
+        config_script = f"""
+        <script>
+            window.APP_CONFIG = {{
+                environment: "{app_settings.environment}",
+                version: "{app_settings.app_version}"
+            }};
+        </script>
+        """
+
+        # Insert before closing head tag
+        content = content.replace("</head>", f"{config_script}</head>")
+
+        return HTMLResponse(content=content, media_type="text/html")

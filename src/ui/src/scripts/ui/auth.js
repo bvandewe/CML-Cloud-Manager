@@ -54,6 +54,17 @@ export function showLoginForm() {
     document.getElementById('logout-btn').style.display = 'none';
     document.getElementById('user-info').textContent = '';
 
+    // Hide demo users info if not in dev environment
+    const demoUsersInfo = document.getElementById('demo-users-info');
+    if (demoUsersInfo) {
+        const env = (window.APP_CONFIG && window.APP_CONFIG.environment) || 'development';
+        if (!env.startsWith('dev')) {
+            demoUsersInfo.style.display = 'none';
+        } else {
+            demoUsersInfo.style.display = 'block';
+        }
+    }
+
     // Hide all other sections
     const workersSection = document.getElementById('workers-section');
     const systemView = document.getElementById('system-view');
