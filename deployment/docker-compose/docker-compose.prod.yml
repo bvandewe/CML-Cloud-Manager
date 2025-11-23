@@ -47,12 +47,6 @@ services:
         # Ports exposed only to Docker network, accessed via nginx
         expose:
             - '8000'
-        volumes:
-            # Mount static files from host because they are missing in the image
-            # (CI pipeline does not build UI assets before building image)
-            - ../../static:/app/static:ro
-            # Mount source code for debugging/hot-fixing
-            - ../../src:/app/src:ro
         environment:
             # Service identification
             SERVICE_NAME: api
@@ -260,7 +254,9 @@ services:
         volumes:
             - mongodb_data:/data/db
         networks:
-            - ${DOCKER_NETWORK_NAME:-cml-cloud-manager-net}
+            cml-cloud-manager-net:
+                aliases:
+                    - mongo
 
     # MongoDB Express (Database Admin UI)
     # http://localhost:${MONGODB_EXPRESS_PORT}
