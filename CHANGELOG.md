@@ -6,6 +6,20 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ## [Unreleased]
 
+### Added
+
+- **UI**: Added application footer displaying version number
+- **Deployment**: Injected `APP_VERSION` environment variable into API and UI services
+
+### Changed
+
+- **UI**: Updated "Monitoring" and "Events" tabs in worker details to "Coming soon"
+- **Domain**: Temporarily disabled `CMLWorkerTelemetryUpdatedDomainEvent` cloud event
+
+### Fixed
+
+- **Code Quality**: Added missing type hints and formatting improvements
+
 ## [0.1.5] - 2025-11-23
 
 ### Added
