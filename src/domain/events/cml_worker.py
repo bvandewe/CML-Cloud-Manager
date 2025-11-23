@@ -165,7 +165,7 @@ class CMLWorkerLicenseUpdatedDomainEvent(DomainEvent):
         self.updated_at = updated_at
 
 
-@cloudevent("cml_worker.telemetry.updated.v1")
+# @cloudevent("cml_worker.telemetry.updated.v1")
 @dataclass
 class CMLWorkerTelemetryUpdatedDomainEvent(DomainEvent):
     """Event raised when worker telemetry data is collected."""
