@@ -2,6 +2,7 @@
 
 import logging
 from collections.abc import Iterable
+from pathlib import Path
 from typing import Any, cast
 
 from fastapi import FastAPI
@@ -48,7 +49,22 @@ def _resolve_mount_prefix(app: FastAPI) -> str:
 
 # Custom setup function for API sub-app OpenAPI configuration
 def configure_api_openapi(app: FastAPI, settings: Settings) -> None:
-    """Configure OpenAPI security schemes for the API sub-app."""
+    """Configure OpenAPI security schemes and description for the API sub-app.
+
+    Loads API description from api/description.md and configures security schemes.
+
+    Args:
+        app: FastAPI application instance
+        settings: Application settings
+    """
+    # Load API description from markdown file
+    description_path = Path(__file__).parent.parent / "description.md"
+    if description_path.exists():
+        app.description = description_path.read_text(encoding="utf-8")
+        log.debug(f"Loaded API description from {description_path}")
+    else:
+        log.warning(f"API description file not found: {description_path}")
+
     OpenAPIConfigService.configure_security_schemes(app, settings)
     OpenAPIConfigService.configure_swagger_ui(app, settings)
 
