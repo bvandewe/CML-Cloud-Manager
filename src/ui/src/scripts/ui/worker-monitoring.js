@@ -6,6 +6,7 @@ import { formatDate, getRelativeTime } from '../utils/dates.js';
 import { isAdmin } from '../utils/roles.js';
 import { enableIdleDetection, disableIdleDetection } from '../api/workers.js';
 import { showToast } from './notifications.js';
+import { showConfirm } from '../components/modals.js';
 
 /**
  * Helper to format date with full timestamp and relative time tooltip
@@ -335,30 +336,56 @@ function attachIdleDetectionToggleHandler(worker) {
         const workerId = worker.id;
         const region = worker.aws_region;
 
-        // Disable toggle during request
-        toggle.disabled = true;
+        // Prevent the toggle from changing until confirmed
+        e.preventDefault();
+        toggle.checked = !isEnabled;
 
-        try {
-            let result;
-            if (isEnabled) {
-                console.log(`[worker-monitoring] Enabling idle detection for worker ${workerId}`);
-                result = await enableIdleDetection(region, workerId);
-            } else {
-                console.log(`[worker-monitoring] Disabling idle detection for worker ${workerId}`);
-                result = await disableIdleDetection(region, workerId);
+        // Show confirmation modal
+        const action = isEnabled ? 'enable' : 'disable';
+        const title = `${action === 'enable' ? 'Enable' : 'Disable'} Idle Detection`;
+        const message = `Are you sure you want to ${action} idle detection for worker <strong>${escapeHtml(worker.name || workerId)}</strong>?`;
+        const detailsHtml = isEnabled ? '<small>When enabled, the worker will be automatically paused after a period of inactivity.</small>' : '<small>When disabled, the worker will not be automatically paused when idle.</small>';
+
+        showConfirm(
+            title,
+            message,
+            async () => {
+                // Disable toggle during request
+                toggle.disabled = true;
+
+                try {
+                    let result;
+                    if (isEnabled) {
+                        console.log(`[worker-monitoring] Enabling idle detection for worker ${workerId}`);
+                        result = await enableIdleDetection(region, workerId);
+                    } else {
+                        console.log(`[worker-monitoring] Disabling idle detection for worker ${workerId}`);
+                        result = await disableIdleDetection(region, workerId);
+                    }
+
+                    console.log('[worker-monitoring] Idle detection toggle result:', result);
+
+                    // Update toggle to reflect successful change
+                    toggle.checked = isEnabled;
+
+                    showToast(result.message || `Idle detection ${isEnabled ? 'enabled' : 'disabled'} successfully`, 'success');
+
+                    // Monitoring tab will be reloaded automatically via SSE WORKER_SNAPSHOT event
+                } catch (error) {
+                    console.error('[worker-monitoring] Failed to toggle idle detection:', error);
+                    showToast(`Failed to ${action} idle detection: ${error.message}`, 'error');
+                    // Keep toggle in original state (already reverted)
+                } finally {
+                    toggle.disabled = false;
+                }
+            },
+            {
+                actionLabel: action === 'enable' ? 'Enable' : 'Disable',
+                actionClass: isEnabled ? 'btn-success' : 'btn-warning',
+                iconClass: 'bi bi-moon-stars-fill text-info me-2',
+                detailsHtml: detailsHtml,
+                dismissOnAction: true,
             }
-
-            console.log('[worker-monitoring] Idle detection toggle result:', result);
-
-            showToast(result.message || `Idle detection ${isEnabled ? 'enabled' : 'disabled'} successfully`, 'success');
-
-            // Monitoring tab will be reloaded automatically via SSE WORKER_SNAPSHOT event
-        } catch (error) {
-            console.error('[worker-monitoring] Failed to toggle idle detection:', error);
-            showToast(`Failed to ${isEnabled ? 'enable' : 'disable'} idle detection: ${error.message}`, 'error'); // Revert toggle state
-            toggle.checked = !isEnabled;
-        } finally {
-            toggle.disabled = false;
-        }
+        );
     });
 }
