@@ -8,6 +8,8 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ### Added
 
+- **UI**: Added confirmation modal when toggling idle detection in Worker Modal's Monitoring tab
+- **UI**: Added dynamic page title control via JavaScript using runtime configuration
 - **UI**: Added idle detection status indicators to Worker List (table/cards) and Worker Details modal
 - **UI**: Implemented real-time updates for idle detection status via SSE
 - **UI**: Added application footer displaying version number
@@ -24,6 +26,7 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 - **Backend**: Fixed `TypeError` in worker DTO serialization by using Neuroglia `JsonSerializer`
 - **UI**: Fixed inconsistent idle detection status display across different views
+- **UI**: Fixed footer version display showing app name instead of version number
 - **Code Quality**: Added missing type hints and formatting improvements
 
 ## [0.1.5] - 2025-11-23
