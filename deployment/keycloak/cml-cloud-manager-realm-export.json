@@ -49,6 +49,38 @@
             }
         ]
     },
+    "groups": [
+        {
+            "name": "Admins",
+            "path": "/Admins",
+            "realmRoles": ["admin", "manager"]
+        },
+        {
+            "name": "Managers",
+            "path": "/Managers",
+            "realmRoles": ["manager"]
+        },
+        {
+            "name": "Architects",
+            "path": "/Architects",
+            "realmRoles": ["architect"]
+        },
+        {
+            "name": "Vendors",
+            "path": "/Vendors",
+            "realmRoles": ["vendor"]
+        },
+        {
+            "name": "Developers",
+            "path": "/Developers",
+            "realmRoles": ["developer"]
+        },
+        {
+            "name": "Users",
+            "path": "/Users",
+            "realmRoles": ["user"]
+        }
+    ],
     "users": [
         {
             "username": "admin",
