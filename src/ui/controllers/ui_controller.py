@@ -58,7 +58,8 @@ class UIController(ControllerBase):
         <script>
             window.APP_CONFIG = {{
                 environment: "{app_settings.environment}",
-                version: "{app_settings.app_version}"
+                version: "{app_settings.app_version}",
+                title: "{app_settings.app_name}",
             }};
         </script>
         """
