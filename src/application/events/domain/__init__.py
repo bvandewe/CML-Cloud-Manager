@@ -25,6 +25,12 @@ from .lab_record_events import (
 from .provision_cml_worker_event_handler import ProvisionCMLWorkerEventHandler
 from .tasks_events import TaskCreatedDomainEventHandler
 from .user_auth_events_handler import UserLoggedInDomainEventHandler
+from .worker_activity_events_handler import (
+    IdleDetectionToggledDomainEventHandler,
+    WorkerActivityUpdatedDomainEventHandler,
+    WorkerPausedDomainEventHandler,
+    WorkerResumedDomainEventHandler,
+)
 
 __all__ = [
     # User auth events
@@ -45,6 +51,11 @@ __all__ = [
     "WorkerDataRefreshRequestedEventHandler",
     "WorkerDataRefreshSkippedEventHandler",
     "WorkerDataRefreshCompletedEventHandler",
+    # Worker activity events
+    "IdleDetectionToggledDomainEventHandler",
+    "WorkerActivityUpdatedDomainEventHandler",
+    "WorkerPausedDomainEventHandler",
+    "WorkerResumedDomainEventHandler",
     # Lab record events
     "LabRecordCreatedDomainEventHandler",
     "LabRecordUpdatedDomainEventHandler",

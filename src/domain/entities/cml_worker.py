@@ -36,6 +36,7 @@ from domain.events.cml_worker import (
     WorkerDataRefreshSkippedDomainEvent,
 )
 from domain.events.worker_activity_events import (
+    IdleDetectionToggledDomainEvent,
     WorkerActivityUpdatedDomainEvent,
     WorkerPausedDomainEvent,
     WorkerResumedDomainEvent,
@@ -568,6 +569,12 @@ class CMLWorkerState(AggregateState[str]):
             self.pause_reason = None
             self.paused_by = None
         self.updated_at = event.resumed_at
+
+    @dispatch(IdleDetectionToggledDomainEvent)
+    def on(self, event: IdleDetectionToggledDomainEvent) -> None:  # type: ignore[override]
+        """Apply idle detection toggle event to the state."""
+        self.is_idle_detection_enabled = event.is_enabled
+        self.updated_at = event.toggled_at
 
 
 class CMLWorker(AggregateRoot[CMLWorkerState, str]):
@@ -1521,4 +1528,41 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
         now = datetime.now(timezone.utc)
         idle_duration = now - self.state.last_activity_at
         return idle_duration.total_seconds() / 60
-        return idle_duration.total_seconds() / 60
+
+    def enable_idle_detection(self, enabled_by: str | None = None) -> None:
+        """Enable idle detection for this worker.
+
+        Args:
+            enabled_by: User ID who enabled idle detection
+        """
+        # Only emit event if currently disabled
+        if not self.state.is_idle_detection_enabled:
+            self.state.on(
+                self.register_event(  # type: ignore
+                    IdleDetectionToggledDomainEvent(
+                        aggregate_id=self.id(),
+                        is_enabled=True,
+                        toggled_by=enabled_by,
+                        toggled_at=datetime.now(timezone.utc),
+                    )
+                )
+            )
+
+    def disable_idle_detection(self, disabled_by: str | None = None) -> None:
+        """Disable idle detection for this worker.
+
+        Args:
+            disabled_by: User ID who disabled idle detection
+        """
+        # Only emit event if currently enabled
+        if self.state.is_idle_detection_enabled:
+            self.state.on(
+                self.register_event(  # type: ignore
+                    IdleDetectionToggledDomainEvent(
+                        aggregate_id=self.id(),
+                        is_enabled=False,
+                        toggled_by=disabled_by,
+                        toggled_at=datetime.now(timezone.utc),
+                    )
+                )
+            )

@@ -7,17 +7,13 @@ from enum import Enum
 
 from neuroglia.core import OperationResult
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_bus import CloudEventBus
-from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import (
-    CloudEventPublishingOptions,
-)
+from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import CloudEventPublishingOptions
 from neuroglia.mapping import Mapper
 from neuroglia.mediation import Command, CommandHandler, Mediator
 from opentelemetry import trace
 
 from application.commands.command_handler_base import CommandHandlerBase
-from application.jobs.on_demand_worker_data_refresh_job import (
-    OnDemandWorkerDataRefreshJob,
-)
+from application.jobs.on_demand_worker_data_refresh_job import OnDemandWorkerDataRefreshJob
 from application.services.background_scheduler import BackgroundTaskScheduler
 from application.settings import Settings
 from domain.repositories.cml_worker_repository import CMLWorkerRepository

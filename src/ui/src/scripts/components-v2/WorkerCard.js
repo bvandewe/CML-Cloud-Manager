@@ -90,9 +90,39 @@ export class WorkerCard extends BaseComponent {
             }
         });
 
+        this.subscribe(EventTypes.WORKER_METRICS_UPDATED, data => {
+            if (data.worker_id === workerId) {
+                this.setState(prevState => ({
+                    worker: {
+                        ...prevState.worker,
+                        cpu_utilization: data.cpu_utilization,
+                        memory_utilization: data.memory_utilization,
+                        disk_utilization: data.disk_utilization,
+                        // Also update CloudWatch fields if present
+                        cloudwatch_cpu_utilization: data.cloudwatch_cpu_utilization,
+                        cloudwatch_memory_utilization: data.cloudwatch_memory_utilization,
+                        cloudwatch_storage_utilization: data.cloudwatch_storage_utilization,
+                        cloudwatch_last_collected_at: data.cloudwatch_last_collected_at,
+                        updated_at: data.updated_at || new Date().toISOString(),
+                    },
+                }));
+            }
+        });
+
         this.subscribe(EventTypes.WORKER_DELETED, data => {
             if (data.worker_id === workerId) {
                 this.remove(); // Self-destruct when worker deleted
+            }
+        });
+
+        this.subscribe(EventTypes.WORKER_IDLE_DETECTION_TOGGLED, data => {
+            if (data.worker_id === workerId) {
+                this.setState(prevState => ({
+                    worker: {
+                        ...prevState.worker,
+                        is_idle_detection_enabled: data.is_enabled,
+                    },
+                }));
             }
         });
 
@@ -223,6 +253,11 @@ export class WorkerCard extends BaseComponent {
                                 isLicensed
                                     ? '<span class="badge bg-success" data-bs-toggle="tooltip" title="Licensed"><i class="bi bi-key-fill"></i></span>'
                                     : '<span class="badge bg-warning" data-bs-toggle="tooltip" title="Unlicensed"><i class="bi bi-key"></i></span>'
+                            }
+                            ${
+                                worker.is_idle_detection_enabled
+                                    ? '<span class="badge bg-success" data-bs-toggle="tooltip" title="Idle Detection Enabled"><i class="bi bi-moon-stars-fill"></i></span>'
+                                    : '<span class="badge bg-secondary" data-bs-toggle="tooltip" title="Idle Detection Disabled"><i class="bi bi-moon-stars"></i></span>'
                             }
                             <span class="badge ${statusClass}" data-bs-toggle="tooltip" title="${escapeHtml(worker.status)}">
                                 <i class="bi ${statusIcon}"></i>

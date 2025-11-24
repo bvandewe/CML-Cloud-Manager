@@ -398,19 +398,9 @@ const workersApp = new WorkersApp();
 export function initializeWorkersView(user) {
     console.log('[WorkersApp] initializeWorkersView called');
 
-    // Check feature flag
-    const useWebComponents = localStorage.getItem('use-web-components') !== 'false';
-
-    if (useWebComponents) {
-        console.log('[WorkersApp] Using Web Components implementation');
-        workersApp.initialize(user);
-    } else {
-        console.log('[WorkersApp] Using legacy implementation');
-        // Fall back to legacy workers.js
-        import('../ui/workers.js').then(module => {
-            module.initializeWorkersView(user);
-        });
-    }
+    // Always use Web Components implementation
+    console.log('[WorkersApp] Using Web Components implementation');
+    workersApp.initialize(user);
 }
 
 export default workersApp;

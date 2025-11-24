@@ -144,6 +144,20 @@ export const EventTypes = {
     WORKER_STATUS_CHANGED: 'worker.status.changed',
     WORKER_METRICS_UPDATED: 'worker.metrics.updated',
     WORKER_SNAPSHOT: 'worker.snapshot',
+    WORKER_TERMINATED: 'worker.terminated',
+    WORKER_ACTIVITY_UPDATED: 'worker.activity.updated',
+    WORKER_IDLE_DETECTION_TOGGLED: 'worker.idle_detection.toggled',
+    WORKER_PAUSED: 'worker.paused',
+    WORKER_RESUMED: 'worker.resumed',
+    WORKER_REFRESH_THROTTLED: 'worker.refresh.throttled',
+    WORKER_DATA_REFRESHED: 'worker.data.refreshed',
+    WORKER_LICENSE_REGISTRATION_STARTED: 'worker.license.registration.started',
+    WORKER_LICENSE_REGISTRATION_COMPLETED: 'worker.license.registration.completed',
+    WORKER_LICENSE_REGISTRATION_FAILED: 'worker.license.registration.failed',
+    WORKER_LICENSE_DEREGISTERED: 'worker.license.deregistered',
+
+    // System events
+    SYSTEM_SSE_SHUTDOWN: 'system.sse.shutdown',
 
     // Lab events
     LAB_CREATED: 'lab.created',

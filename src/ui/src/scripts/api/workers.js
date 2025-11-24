@@ -331,3 +331,29 @@ export async function refreshWorkerLabs(region, workerId) {
     });
     return await response.json();
 }
+
+/**
+ * Enable idle detection for a worker
+ * @param {string} region - AWS region
+ * @param {string} workerId - Worker UUID
+ * @returns {Promise<Object>}
+ */
+export async function enableIdleDetection(region, workerId) {
+    const response = await apiRequest(`/api/workers/region/${region}/workers/${workerId}/idle-detection/enable`, {
+        method: 'POST',
+    });
+    return await response.json();
+}
+
+/**
+ * Disable idle detection for a worker
+ * @param {string} region - AWS region
+ * @param {string} workerId - Worker UUID
+ * @returns {Promise<Object>}
+ */
+export async function disableIdleDetection(region, workerId) {
+    const response = await apiRequest(`/api/workers/region/${region}/workers/${workerId}/idle-detection/disable`, {
+        method: 'POST',
+    });
+    return await response.json();
+}

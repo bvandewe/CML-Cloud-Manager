@@ -72,6 +72,15 @@ export class WorkerList extends BaseComponent {
             console.log('[WorkerList] Status changed:', data);
             this.updateWorkerStatus(data);
         });
+
+        this.subscribe(EventTypes.WORKER_IDLE_DETECTION_TOGGLED, data => {
+            console.log('[WorkerList] Idle detection toggled:', data);
+            const worker = this.workers.get(data.worker_id);
+            if (worker) {
+                worker.is_idle_detection_enabled = data.is_enabled;
+                this.updateWorker(worker);
+            }
+        });
     }
 
     async loadWorkers() {
@@ -128,9 +137,16 @@ export class WorkerList extends BaseComponent {
             cml_ready: worker.cml_ready,
             cml_labs_count: worker.cml_labs_count,
             cml_system_info: worker.cml_system_info,
-            cpu_utilization: worker.cpu_utilization,
-            memory_utilization: worker.memory_utilization,
-            disk_utilization: worker.disk_utilization || worker.storage_utilization,
+            is_idle_detection_enabled: worker.is_idle_detection_enabled,
+            // Prefer calculated/CML metrics (cpu_utilization), fallback to CloudWatch
+            cpu_utilization: worker.cpu_utilization ?? worker.cloudwatch_cpu_utilization,
+            memory_utilization: worker.memory_utilization ?? worker.cloudwatch_memory_utilization,
+            disk_utilization: worker.disk_utilization ?? worker.storage_utilization ?? worker.cloudwatch_storage_utilization,
+            // Preserve CloudWatch fields
+            cloudwatch_cpu_utilization: worker.cloudwatch_cpu_utilization,
+            cloudwatch_memory_utilization: worker.cloudwatch_memory_utilization,
+            cloudwatch_storage_utilization: worker.cloudwatch_storage_utilization,
+            cloudwatch_last_collected_at: worker.cloudwatch_last_collected_at,
             created_at: worker.created_at,
             updated_at: worker.updated_at,
         };
@@ -284,6 +300,7 @@ export class WorkerList extends BaseComponent {
                             <th>Region</th>
                             <th>Status</th>
                             <th>License</th>
+                            <th>Idle</th>
                             <th>Instance Type</th>
                             <th>CPU</th>
                             <th>Memory</th>
@@ -372,6 +389,13 @@ export class WorkerList extends BaseComponent {
                         isLicensed
                             ? '<span class="badge bg-success" data-bs-toggle="tooltip" title="Licensed"><i class="bi bi-key-fill"></i></span>'
                             : '<span class="badge bg-warning" data-bs-toggle="tooltip" title="Unlicensed"><i class="bi bi-key"></i></span>'
+                    }
+                </td>
+                <td>
+                    ${
+                        worker.is_idle_detection_enabled
+                            ? '<span class="badge bg-success" data-bs-toggle="tooltip" title="Idle Detection Enabled"><i class="bi bi-moon-stars-fill"></i></span>'
+                            : '<span class="badge bg-secondary" data-bs-toggle="tooltip" title="Idle Detection Disabled"><i class="bi bi-moon-stars"></i></span>'
                     }
                 </td>
                 <td>${this.escapeHtml(worker.instance_type || 'N/A')}</td>

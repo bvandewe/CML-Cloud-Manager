@@ -135,7 +135,7 @@ export function renderWorkerOverview(worker) {
         <table class="table table-sm table-borderless" aria-label="Activity and usage statistics">
           <tr><td class="text-muted" width="40%">Pause Count:</td><td>${worker.pause_count || 0}</td></tr>
           <tr><td class="text-muted">Resume Count:</td><td>${worker.resume_count || 0}</td></tr>
-          <tr><td class="text-muted">Idle Detection:</td><td>${worker.idle_detection_enabled ? '<span class="badge bg-success">Enabled</span>' : '<span class="badge bg-secondary">Disabled</span>'}</td></tr>
+          <tr><td class="text-muted">Idle Detection:</td><td>${worker.is_idle_detection_enabled ? '<span class="badge bg-success">Enabled</span>' : '<span class="badge bg-secondary">Disabled</span>'}</td></tr>
           <tr><td class="text-muted">Last Activity:</td><td>${worker.last_activity_at ? formatDateWithRelative(worker.last_activity_at) : '<span class="text-muted">N/A</span>'}</td></tr>
         </table>
       </div>

@@ -7,6 +7,7 @@ from typing import Any
 from neuroglia.core import OperationResult
 from neuroglia.mediation import Query, QueryHandler
 
+from application.mappers import map_worker_to_dto, worker_dto_to_dict
 from domain.repositories import CMLWorkerRepository
 
 logger = logging.getLogger(__name__)
@@ -43,126 +44,9 @@ class GetCMLWorkerByIdQueryHandler(QueryHandler[GetCMLWorkerByIdQuery, Operation
             if not worker:
                 return self.not_found("CML Worker", identifier)
 
-            # Get utilization from CML metrics
-            cpu_util, memory_util, storage_util = worker.state.metrics.get_utilization()
-
-            # Fallback to CloudWatch CPU if CML not available
-            if cpu_util is None and worker.state.cloudwatch_cpu_utilization is not None:
-                cpu_util = worker.state.cloudwatch_cpu_utilization
-
-            # Fallback to CloudWatch memory if CML not available
-            if memory_util is None and worker.state.cloudwatch_memory_utilization is not None:
-                memory_util = worker.state.cloudwatch_memory_utilization
-
-            # Clamp values to [0,100]
-            def _clamp(v):
-                if v is None:
-                    return None
-                try:
-                    fv = float(v)
-                except (ValueError, TypeError):
-                    return None
-                return max(0.0, min(100.0, fv))
-
-            # Convert to dict representation
-            result = {
-                "id": worker.state.id,
-                "name": worker.state.name,
-                "aws_region": worker.state.aws_region,
-                "aws_instance_id": worker.state.aws_instance_id,
-                "instance_type": worker.state.instance_type,
-                "ami_id": worker.state.ami_id,
-                "ami_name": worker.state.ami_name,
-                "ami_description": worker.state.ami_description,
-                "ami_creation_date": worker.state.ami_creation_date,
-                "status": worker.state.status.value,
-                "service_status": worker.state.service_status.value,
-                "cml_version": worker.state.metrics.version,
-                "license_status": worker.state.license.status.value,
-                "license_token": worker.state.license.token,
-                "https_endpoint": worker.state.https_endpoint,
-                "public_ip": worker.state.public_ip,
-                "private_ip": worker.state.private_ip,
-                # AWS Tags
-                "aws_tags": worker.state.aws_tags,
-                # EC2 Metrics
-                "ec2_instance_state_detail": worker.state.ec2_instance_state_detail,
-                "ec2_system_status_check": worker.state.ec2_system_status_check,
-                "ec2_last_checked_at": (
-                    worker.state.ec2_last_checked_at.isoformat() if worker.state.ec2_last_checked_at else None
-                ),
-                # CloudWatch Metrics
-                "cloudwatch_cpu_utilization": worker.state.cloudwatch_cpu_utilization,
-                "cloudwatch_memory_utilization": worker.state.cloudwatch_memory_utilization,
-                "cloudwatch_last_collected_at": (
-                    worker.state.cloudwatch_last_collected_at.isoformat()
-                    if worker.state.cloudwatch_last_collected_at
-                    else None
-                ),
-                "cloudwatch_detailed_monitoring_enabled": worker.state.cloudwatch_detailed_monitoring_enabled,
-                # CML Metrics
-                "cml_system_info": (
-                    worker.state.metrics.system_info.to_dict() if worker.state.metrics.system_info else None
-                ),
-                "cml_system_health": (
-                    {
-                        "valid": worker.state.metrics.system_health.valid,
-                        "is_licensed": worker.state.metrics.system_health.is_licensed,
-                        "is_enterprise": worker.state.metrics.system_health.is_enterprise,
-                        "computes": worker.state.metrics.system_health.computes,
-                        "controller": worker.state.metrics.system_health.controller,
-                    }
-                    if worker.state.metrics.system_health
-                    else None
-                ),
-                "cml_license_info": worker.state.license.raw_info,
-                "cml_ready": worker.state.metrics.ready,
-                "cml_uptime_seconds": worker.state.metrics.uptime_seconds,
-                "cml_labs_count": worker.state.metrics.labs_count,
-                "cml_last_synced_at": (
-                    worker.state.metrics.last_synced_at.isoformat() if worker.state.metrics.last_synced_at else None
-                ),
-                # Metrics Timing
-                "poll_interval": worker.state.poll_interval,
-                "next_refresh_at": (worker.state.next_refresh_at.isoformat() if worker.state.next_refresh_at else None),
-                # Backward compatibility (deprecated - use cloudwatch_last_collected_at)
-                "active_labs_count": worker.state.metrics.labs_count,
-                "cpu_utilization": _clamp(cpu_util),
-                "memory_utilization": _clamp(memory_util),
-                "storage_utilization": _clamp(storage_util),
-                "disk_utilization": _clamp(storage_util),  # Alias for UI compatibility
-                "created_at": worker.state.created_at.isoformat(),
-                "updated_at": worker.state.updated_at.isoformat(),
-                "start_initiated_at": (
-                    worker.state.start_initiated_at.isoformat() if worker.state.start_initiated_at else None
-                ),
-                "stop_initiated_at": (
-                    worker.state.stop_initiated_at.isoformat() if worker.state.stop_initiated_at else None
-                ),
-                "terminated_at": (worker.state.terminated_at.isoformat() if worker.state.terminated_at else None),
-                "created_by": worker.state.created_by,
-                # Activity tracking and idle detection
-                "last_activity_at": (
-                    worker.state.last_activity_at.isoformat() if worker.state.last_activity_at else None
-                ),
-                "last_activity_check_at": (
-                    worker.state.last_activity_check_at.isoformat() if worker.state.last_activity_check_at else None
-                ),
-                "next_idle_check_at": (
-                    worker.state.next_idle_check_at.isoformat() if worker.state.next_idle_check_at else None
-                ),
-                "target_pause_at": (worker.state.target_pause_at.isoformat() if worker.state.target_pause_at else None),
-                "is_idle_detection_enabled": worker.state.is_idle_detection_enabled,
-                # Pause/resume tracking
-                "auto_pause_count": worker.state.auto_pause_count,
-                "manual_pause_count": worker.state.manual_pause_count,
-                "auto_resume_count": worker.state.auto_resume_count,
-                "manual_resume_count": worker.state.manual_resume_count,
-                "last_paused_at": (worker.state.last_paused_at.isoformat() if worker.state.last_paused_at else None),
-                "last_resumed_at": (worker.state.last_resumed_at.isoformat() if worker.state.last_resumed_at else None),
-                "paused_by": worker.state.paused_by,
-                "pause_reason": worker.state.pause_reason,
-            }
+            # Use DTO mapper for consistent transformation
+            dto = map_worker_to_dto(worker)
+            result = worker_dto_to_dict(dto)
 
             logger.info(f"Retrieved CML worker {worker.state.id}")
             return self.ok(result)

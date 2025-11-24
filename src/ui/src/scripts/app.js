@@ -99,20 +99,11 @@ function showView(view) {
         if (navWorkers) navWorkers.classList.add('active');
         console.log('[APP showView] Calling initializeWorkersView with user:', currentUser);
 
-        // Feature flag: Use Web Components or legacy implementation
-        const useWebComponents = localStorage.getItem('use-web-components') !== 'false';
-
-        if (useWebComponents) {
-            console.log('[APP] Using Web Components implementation');
-            import('./components-v2/WorkersApp.js').then(module => {
-                module.initializeWorkersView(currentUser);
-            });
-        } else {
-            console.log('[APP] Using legacy implementation');
-            import('./ui/workers.js').then(module => {
-                module.initializeWorkersView(currentUser);
-            });
-        }
+        // Always use Web Components implementation
+        console.log('[APP] Using Web Components implementation');
+        import('./components-v2/WorkersApp.js').then(module => {
+            module.initializeWorkersView(currentUser);
+        });
 
         console.log('[APP showView] initializeWorkersView completed');
     } else if (view === 'system') {

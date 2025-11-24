@@ -7,6 +7,7 @@ from typing import Any
 from neuroglia.core import OperationResult
 from neuroglia.mediation import Query, QueryHandler
 
+from application.mappers import map_worker_to_dto, worker_dto_to_dict
 from domain.enums import CMLWorkerStatus
 from domain.repositories import CMLWorkerRepository
 from integration.enums import AwsRegion
@@ -41,76 +42,8 @@ class GetCMLWorkersQueryHandler(QueryHandler[GetCMLWorkersQuery, OperationResult
             # Filter by AWS region
             filtered_workers = [worker for worker in workers if worker.state.aws_region == request.aws_region.value]
 
-            # Convert to dict representations
-            # (Should use neuroglia mapper and serialization in future)
-            result = [
-                {
-                    "id": worker.state.id,
-                    "name": worker.state.name,
-                    "aws_region": worker.state.aws_region,
-                    "aws_instance_id": worker.state.aws_instance_id,
-                    "instance_type": worker.state.instance_type,
-                    "status": worker.state.status.value,
-                    "service_status": worker.state.service_status.value,
-                    "cml_version": worker.state.metrics.version,
-                    "https_endpoint": worker.state.https_endpoint,
-                    "public_ip": worker.state.public_ip,
-                    "private_ip": worker.state.private_ip,
-                    "aws_tags": worker.state.aws_tags,
-                    "license_status": worker.state.license.status.value,
-                    "cml_labs_count": worker.state.metrics.labs_count,
-                    "created_at": worker.state.created_at.isoformat(),
-                    "updated_at": worker.state.updated_at.isoformat(),
-                    "start_initiated_at": (
-                        worker.state.start_initiated_at.isoformat() if worker.state.start_initiated_at else None
-                    ),
-                    "stop_initiated_at": (
-                        worker.state.stop_initiated_at.isoformat() if worker.state.stop_initiated_at else None
-                    ),
-                    # Include raw system info so UI can derive additional metrics/fallbacks
-                    "cml_system_info": (
-                        worker.state.metrics.system_info.to_dict() if worker.state.metrics.system_info else None
-                    ),
-                }
-                for worker in filtered_workers
-            ]
-
-            # Extract CML metrics (CPU, memory, storage) from cml_system_info if available
-            # Fall back to CloudWatch metrics if CML metrics are not available
-            for idx, worker in enumerate(filtered_workers):
-                # Get utilization from CML metrics
-                cpu_util, memory_util, storage_util = worker.state.metrics.get_utilization()
-
-                # Fallback to CloudWatch CPU if CML not available
-                if cpu_util is None and worker.state.cloudwatch_cpu_utilization is not None:
-                    cpu_util = worker.state.cloudwatch_cpu_utilization
-
-                # Fallback to CloudWatch memory if CML not available
-                if memory_util is None and worker.state.cloudwatch_memory_utilization is not None:
-                    memory_util = worker.state.cloudwatch_memory_utilization
-
-                # Clamp values to [0,100]
-                def _clamp(v):
-                    if v is None:
-                        return None
-                    try:
-                        fv = float(v)
-                    except (ValueError, TypeError):
-                        return None
-                    return max(0.0, min(100.0, fv))
-
-                result[idx]["cpu_utilization"] = _clamp(cpu_util)
-                result[idx]["memory_utilization"] = _clamp(memory_util)
-                result[idx]["storage_utilization"] = _clamp(storage_util)
-
-                # Debug logging
-                logger.debug(
-                    f"Worker {worker.state.name}: cpu={result[idx]['cpu_utilization']}, "
-                    f"mem={result[idx]['memory_utilization']}, disk={result[idx]['storage_utilization']} "
-                    f"(cml_system_info={'present' if worker.state.metrics.system_info else 'missing'}, "
-                    f"cloudwatch_cpu={worker.state.cloudwatch_cpu_utilization}, "
-                    f"cloudwatch_mem={worker.state.cloudwatch_memory_utilization})"
-                )
+            # Use DTO mapper for consistent transformation
+            result = [worker_dto_to_dict(map_worker_to_dto(worker)) for worker in filtered_workers]
 
             logger.info(f"Retrieved {len(result)} CML workers in region {request.aws_region.value}")
             return self.ok(result)

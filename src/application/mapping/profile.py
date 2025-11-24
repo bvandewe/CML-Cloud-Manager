@@ -10,7 +10,7 @@ class Profile(MappingProfile):
     Where to look for any 'map_to' or 'map_from' entities that should be mapped to a Dto...
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         modules = [
             "application.commands",

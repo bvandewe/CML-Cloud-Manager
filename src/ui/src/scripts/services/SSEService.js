@@ -6,6 +6,7 @@
  */
 
 import { eventBus, EventTypes } from '../core/EventBus.js';
+import { showToast } from '../ui/notifications.js';
 
 export class SSEService {
     constructor() {
@@ -41,6 +42,7 @@ export class SSEService {
                 this.isConnected = true;
                 this.reconnectDelay = 1000;
                 this.reconnectAttempts = 0;
+                showToast('Realtime connected', 'success');
 
                 eventBus.emit(EventTypes.SSE_CONNECTED, data);
             });
@@ -55,7 +57,32 @@ export class SSEService {
             this.eventSource.addEventListener('worker.snapshot', event => {
                 const data = JSON.parse(event.data);
                 console.log('[SSE] Worker snapshot', data);
-                eventBus.emit(EventTypes.WORKER_SNAPSHOT, data.data);
+                // Extract worker from envelope structure: {worker_id, reason, worker: {...}}
+                const workerData = data.data?.worker || data.data;
+                // Ensure id field is set (use worker_id if id is missing)
+                if (workerData && !workerData.id && data.data?.worker_id) {
+                    workerData.id = data.data.worker_id;
+                }
+
+                // Normalize metrics from nested structures if top-level fields are missing
+                // This handles the case where backend sends raw state (nested metrics) instead of DTO
+                if (workerData) {
+                    const getMetric = field => {
+                        return workerData.cml_system_info?.[field] ?? workerData.metrics?.system_info?.[field];
+                    };
+
+                    if (workerData.cpu_utilization === undefined) {
+                        workerData.cpu_utilization = getMetric('cpu_utilization');
+                    }
+                    if (workerData.memory_utilization === undefined) {
+                        workerData.memory_utilization = getMetric('memory_utilization');
+                    }
+                    if (workerData.storage_utilization === undefined) {
+                        workerData.storage_utilization = getMetric('storage_utilization');
+                    }
+                }
+
+                eventBus.emit(EventTypes.WORKER_SNAPSHOT, workerData);
             });
 
             this.eventSource.addEventListener('worker.metrics.updated', event => {
@@ -73,12 +100,14 @@ export class SSEService {
             this.eventSource.addEventListener('worker.created', event => {
                 const data = JSON.parse(event.data);
                 console.log('[SSE] Worker created', data);
+                showToast(`Worker created: ${data.data.name}`, 'info');
                 eventBus.emit(EventTypes.WORKER_CREATED, data.data);
             });
 
             this.eventSource.addEventListener('worker.imported', event => {
                 const data = JSON.parse(event.data);
                 console.log('[SSE] Worker imported', data);
+                showToast(`Worker imported: ${data.data.name}`, 'success');
                 eventBus.emit(EventTypes.WORKER_IMPORTED, data.data);
             });
 
@@ -86,6 +115,109 @@ export class SSEService {
                 const data = JSON.parse(event.data);
                 console.log('[SSE] Worker labs updated', data);
                 eventBus.emit(EventTypes.LAB_UPDATED, data.data);
+            });
+
+            // Worker terminated event
+            this.eventSource.addEventListener('worker.terminated', event => {
+                const data = JSON.parse(event.data);
+                console.log('[SSE] Worker terminated', data);
+                showToast(`Worker terminated: ${data.data.name}`, 'warning');
+                eventBus.emit(EventTypes.WORKER_TERMINATED, data.data);
+            });
+
+            // Worker activity updated event
+            this.eventSource.addEventListener('worker.activity.updated', event => {
+                const data = JSON.parse(event.data);
+                console.log('[SSE] Worker activity updated', data);
+                eventBus.emit(EventTypes.WORKER_ACTIVITY_UPDATED, data.data);
+            });
+
+            // Worker idle detection toggled event
+            this.eventSource.addEventListener('worker.idle_detection.toggled', event => {
+                const data = JSON.parse(event.data);
+                console.log('[SSE] Worker idle detection toggled', data);
+                eventBus.emit(EventTypes.WORKER_IDLE_DETECTION_TOGGLED, data.data);
+            });
+
+            // Worker paused event
+            this.eventSource.addEventListener('worker.paused', event => {
+                const data = JSON.parse(event.data);
+                console.log('[SSE] Worker paused', data);
+                eventBus.emit(EventTypes.WORKER_PAUSED, data.data);
+            });
+
+            // Worker resumed event
+            this.eventSource.addEventListener('worker.resumed', event => {
+                const data = JSON.parse(event.data);
+                console.log('[SSE] Worker resumed', data);
+                eventBus.emit(EventTypes.WORKER_RESUMED, data.data);
+            });
+
+            // Worker refresh throttled event
+            this.eventSource.addEventListener('worker.refresh.throttled', event => {
+                const data = JSON.parse(event.data);
+                console.log('[SSE] Worker refresh throttled', data);
+                const retryMsg = data.data.retry_after_seconds ? ` Please wait ${data.data.retry_after_seconds}s.` : '';
+                showToast(`Refresh rate limited.${retryMsg}`, 'warning');
+                eventBus.emit(EventTypes.WORKER_REFRESH_THROTTLED, data.data);
+            });
+
+            // Worker data refreshed event (signals UI to reload from DB)
+            this.eventSource.addEventListener('worker.data.refreshed', event => {
+                const data = JSON.parse(event.data);
+                console.log('[SSE] Worker data refreshed', data);
+                eventBus.emit(EventTypes.WORKER_DATA_REFRESHED, data.data);
+            });
+
+            // System shutdown event - server is restarting or shutting down
+            this.eventSource.addEventListener('system.sse.shutdown', event => {
+                console.log('[SSE] System shutdown received', event.data);
+                showToast('Server restarting, reconnecting...', 'warning');
+                eventBus.emit(EventTypes.SYSTEM_SSE_SHUTDOWN, {});
+                // Close connection immediately to allow server to shutdown cleanly
+                this.disconnect();
+                // Attempt to reconnect after a short delay
+                setTimeout(() => {
+                    console.log('[SSE] Attempting to reconnect after shutdown...');
+                    this.connect();
+                }, 2000);
+            });
+
+            // License registration started event
+            this.eventSource.addEventListener('worker.license.registration.started', event => {
+                const data = JSON.parse(event.data);
+                console.log('[SSE] License registration started', data);
+                const workerName = data.data.worker_name || data.data.worker_id;
+                showToast(`License registration started for ${workerName}`, 'info');
+                eventBus.emit(EventTypes.WORKER_LICENSE_REGISTRATION_STARTED, data.data);
+            });
+
+            // License registration completed event
+            this.eventSource.addEventListener('worker.license.registration.completed', event => {
+                const data = JSON.parse(event.data);
+                console.log('[SSE] License registration completed', data);
+                const workerName = data.data.worker_name || data.data.worker_id;
+                showToast(`✅ License registered successfully for ${workerName}! Click to dismiss.`, 'success', 0);
+                eventBus.emit(EventTypes.WORKER_LICENSE_REGISTRATION_COMPLETED, data.data);
+            });
+
+            // License registration failed event
+            this.eventSource.addEventListener('worker.license.registration.failed', event => {
+                const data = JSON.parse(event.data);
+                console.log('[SSE] License registration failed', data);
+                const workerName = data.data.worker_name || data.data.worker_id;
+                const reason = data.data.reason || 'Unknown error';
+                showToast(`License registration failed for ${workerName}: ${reason}`, 'error', 8000);
+                eventBus.emit(EventTypes.WORKER_LICENSE_REGISTRATION_FAILED, data.data);
+            });
+
+            // License deregistered event
+            this.eventSource.addEventListener('worker.license.deregistered', event => {
+                const data = JSON.parse(event.data);
+                console.log('[SSE] License deregistered', data);
+                const workerName = data.data.worker_name || data.data.worker_id;
+                showToast(`License deregistered from ${workerName}`, 'info');
+                eventBus.emit(EventTypes.WORKER_LICENSE_DEREGISTERED, data.data);
             });
 
             this.eventSource.addEventListener('auth.session.expired', event => {

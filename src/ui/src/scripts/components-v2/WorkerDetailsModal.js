@@ -22,6 +22,7 @@ import { showToast } from '../ui/notifications.js';
 import { showConfirm } from '../components/modals.js';
 import { showDeleteModal, showLicenseModal } from '../ui/worker-modals.js';
 import { renderLicenseRegistration, renderLicenseAuthorization, renderLicenseFeatures, renderLicenseTransport } from '../components/workerLicensePanel.js';
+import { renderMonitoringTab } from '../ui/worker-monitoring.js';
 
 export class WorkerDetailsModal extends BaseComponent {
     constructor() {
@@ -50,9 +51,20 @@ export class WorkerDetailsModal extends BaseComponent {
         // Subscribe to worker updates
         this.subscribe(EventTypes.WORKER_SNAPSHOT, data => {
             const id = data.id || data.worker_id;
+            console.log('[WorkerDetailsModal] WORKER_SNAPSHOT event received:', {
+                event_id: id,
+                current_id: this.currentWorkerId,
+                has_data: !!data,
+                data_keys: data ? Object.keys(data) : [],
+            });
             if (id === this.currentWorkerId) {
                 console.log('[WorkerDetailsModal] Received snapshot update for current worker');
                 this.currentWorker = data;
+                console.log('[WorkerDetailsModal] Updated currentWorker:', {
+                    has_currentWorker: !!this.currentWorker,
+                    id: this.currentWorker?.id,
+                    name: this.currentWorker?.name,
+                });
                 this.refreshCurrentTab();
             }
         });
@@ -73,6 +85,38 @@ export class WorkerDetailsModal extends BaseComponent {
                     ...this.currentWorker,
                     status: data.new_status,
                     updated_at: data.updated_at,
+                };
+                this.refreshCurrentTab();
+            }
+        });
+
+        this.subscribe(EventTypes.WORKER_METRICS_UPDATED, data => {
+            const id = data.id || data.worker_id;
+            if (id === this.currentWorkerId) {
+                console.log('[WorkerDetailsModal] Received metrics update for current worker');
+                this.currentWorker = {
+                    ...this.currentWorker,
+                    cpu_utilization: data.cpu_utilization,
+                    memory_utilization: data.memory_utilization,
+                    disk_utilization: data.disk_utilization,
+                    cloudwatch_cpu_utilization: data.cloudwatch_cpu_utilization,
+                    cloudwatch_memory_utilization: data.cloudwatch_memory_utilization,
+                    cloudwatch_storage_utilization: data.cloudwatch_storage_utilization,
+                    cloudwatch_last_collected_at: data.cloudwatch_last_collected_at,
+                    updated_at: data.updated_at || new Date().toISOString(),
+                };
+                this.refreshCurrentTab();
+            }
+        });
+
+        this.subscribe(EventTypes.WORKER_IDLE_DETECTION_TOGGLED, data => {
+            const id = data.id || data.worker_id;
+            if (id === this.currentWorkerId) {
+                console.log('[WorkerDetailsModal] Received idle detection toggle for current worker');
+                this.currentWorker = {
+                    ...this.currentWorker,
+                    is_idle_detection_enabled: data.is_enabled,
+                    updated_at: data.toggled_at || new Date().toISOString(),
                 };
                 this.refreshCurrentTab();
             }
@@ -1016,12 +1060,38 @@ export class WorkerDetailsModal extends BaseComponent {
         const container = this.$('#worker-details-monitoring');
         if (!container) return;
 
-        container.innerHTML = `
-            <div class="text-center py-5 text-muted">
-                <i class="bi bi-activity fs-1 d-block mb-3"></i>
-                <p>Monitoring tab - Coming soon</p>
-            </div>
-        `;
+        console.log('[WorkerDetailsModal] loadMonitoringTab called:', {
+            has_currentWorker: !!this.currentWorker,
+            currentWorkerId: this.currentWorkerId,
+            worker_data: this.currentWorker
+                ? {
+                      id: this.currentWorker.id,
+                      name: this.currentWorker.name,
+                      is_idle_detection_enabled: this.currentWorker.is_idle_detection_enabled,
+                  }
+                : null,
+        });
+
+        if (!this.currentWorker) {
+            container.innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i> Worker data not available
+                </div>
+            `;
+            return;
+        }
+
+        // Call the monitoring tab renderer directly (imported at top of file)
+        try {
+            renderMonitoringTab(this.currentWorker);
+        } catch (error) {
+            console.error('[WorkerDetailsModal] Failed to load monitoring tab:', error);
+            container.innerHTML = `
+                <div class="alert alert-danger">
+                    Failed to load monitoring tab: ${escapeHtml(error.message)}
+                </div>
+            `;
+        }
     }
 
     async loadEventsTab() {
@@ -1063,8 +1133,9 @@ export class WorkerDetailsModal extends BaseComponent {
                     console.error('[WorkerDetailsModal] Failed to start worker:', error);
                     showToast(`Failed to start worker: ${error.message}`, 'error');
                     // Revert optimistic update if needed (refresh)
-                    const { refreshWorkers } = await import('../ui/worker-actions.js');
-                    refreshWorkers();
+                    if (window.workersApp && typeof window.workersApp.refreshWorkers === 'function') {
+                        window.workersApp.refreshWorkers();
+                    }
                 }
             },
             {
@@ -1102,8 +1173,9 @@ export class WorkerDetailsModal extends BaseComponent {
                     console.error('[WorkerDetailsModal] Failed to stop worker:', error);
                     showToast(`Failed to stop worker: ${error.message}`, 'error');
                     // Revert optimistic update if needed (refresh)
-                    const { refreshWorkers } = await import('../ui/worker-actions.js');
-                    refreshWorkers();
+                    if (window.workersApp && typeof window.workersApp.refreshWorkers === 'function') {
+                        window.workersApp.refreshWorkers();
+                    }
                 }
             },
             {

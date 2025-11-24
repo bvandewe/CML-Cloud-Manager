@@ -6,13 +6,13 @@ frontend components for real-time UI updates.
 
 from __future__ import annotations
 
-import json
 import logging
 from datetime import datetime
 
 from neuroglia.mediation import DomainEventHandler
 from neuroglia.serialization.json import JsonSerializer
 
+from application.mappers import map_worker_to_dto, worker_dto_to_dict
 from application.services.sse_event_relay import SSEEventRelay
 from domain.events.cml_worker import (
     CMLWorkerCreatedDomainEvent,
@@ -330,79 +330,24 @@ async def _broadcast_worker_snapshot(
     worker_id: str,
     reason: str | None = None,
 ) -> None:
+    """Broadcast worker snapshot using DTO mapper for consistent format.
+
+    This function uses the centralized CMLWorkerDto mapper to ensure consistent
+    data structure across API responses and SSE events.
+    """
     try:
         worker = await repository.get_by_id_async(worker_id)
         if not worker:
             return
-        s = worker.state
-        # Derive utilization from CML stats if available
-        cpu_util, mem_util, storage_util = s.metrics.get_utilization()
 
-        # Fallback to CloudWatch if CML metrics are missing
-        if cpu_util is None and s.cloudwatch_cpu_utilization is not None:
-            cpu_util = s.cloudwatch_cpu_utilization
-        if mem_util is None and s.cloudwatch_memory_utilization is not None:
-            mem_util = s.cloudwatch_memory_utilization
+        # Use DTO mapper for consistent transformation
+        dto = map_worker_to_dto(worker)
+        snapshot = worker_dto_to_dict(dto)
 
-        # Safely serialize nested objects
-        cml_system_info = None
-        if s.metrics.system_info:
-            try:
-                # Serialize to JSON string/bytes then parse back to dict to ensure JSON compatibility
-                # This avoids "Any cannot be instantiated" errors while keeping the structure
-                serialized = serializer.serialize(value=s.metrics.system_info)
-                if isinstance(serialized, (bytes, bytearray)):
-                    serialized = serialized.decode("utf-8")
-                cml_system_info = json.loads(serialized)
-            except Exception as e:
-                log.warning("Failed to serialize system_info for %s: %s", worker_id, e)
-
-        cml_system_health = None
-        if s.metrics.system_health:
-            try:
-                serialized = serializer.serialize(value=s.metrics.system_health)
-                if isinstance(serialized, (bytes, bytearray)):
-                    serialized = serialized.decode("utf-8")
-                cml_system_health = json.loads(serialized)
-            except Exception as e:
-                log.warning("Failed to serialize system_health for %s: %s", worker_id, e)
-
-        snapshot = {
-            "worker_id": s.id,
-            "name": s.name,
-            "region": s.aws_region,
-            "status": s.status.value,
-            "service_status": s.service_status.value,
-            "instance_type": s.instance_type,
-            "aws_instance_id": s.aws_instance_id,
-            "public_ip": s.public_ip,
-            "private_ip": s.private_ip,
-            "aws_tags": s.aws_tags,
-            "ami_id": s.ami_id,
-            "ami_name": s.ami_name,
-            "ami_description": s.ami_description,
-            "ami_creation_date": s.ami_creation_date,
-            "https_endpoint": s.https_endpoint,
-            "license_status": s.license.status.value if s.license.status else None,
-            "cml_version": s.metrics.version,
-            "cml_ready": s.metrics.ready,
-            "cml_uptime_seconds": s.metrics.uptime_seconds,
-            "cml_labs_count": s.metrics.labs_count,
-            "cml_license_info": s.license.raw_info,
-            "cml_system_info": cml_system_info,
-            "cml_system_health": cml_system_health,
-            "cpu_utilization": cpu_util,
-            "memory_utilization": mem_util,
-            "storage_utilization": storage_util,
-            "poll_interval": s.poll_interval,
-            "next_refresh_at": (s.next_refresh_at.isoformat() if s.next_refresh_at else None),
-            "updated_at": s.updated_at.isoformat() + "Z" if s.updated_at else None,
-            "terminated_at": (s.terminated_at.isoformat() + "Z" if s.terminated_at else None),
-            "start_initiated_at": (s.start_initiated_at.isoformat() + "Z" if s.start_initiated_at else None),
-            "stop_initiated_at": (s.stop_initiated_at.isoformat() + "Z" if s.stop_initiated_at else None),
-        }
+        # Add optional reason field
         if reason:
             snapshot["_reason"] = reason
+
         await relay.broadcast_event(
             event_type="worker.snapshot",
             data=snapshot,

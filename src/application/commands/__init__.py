@@ -26,7 +26,9 @@ from .deregister_cml_worker_license_command import (
     DeregisterCMLWorkerLicenseCommand,
     DeregisterCMLWorkerLicenseCommandHandler,
 )
+from .disable_idle_detection_command import DisableIdleDetectionCommand, DisableIdleDetectionCommandHandler
 from .download_lab_command import DownloadLabCommand, DownloadLabCommandHandler
+from .enable_idle_detection_command import EnableIdleDetectionCommand, EnableIdleDetectionCommandHandler
 from .enable_worker_detailed_monitoring_command import (
     EnableWorkerDetailedMonitoringCommand,
     EnableWorkerDetailedMonitoringCommandHandler,
@@ -72,8 +74,12 @@ __all__ = [
     "DeleteTaskCommandHandler",
     "DeregisterCMLWorkerLicenseCommand",
     "DeregisterCMLWorkerLicenseCommandHandler",
+    "DisableIdleDetectionCommand",
+    "DisableIdleDetectionCommandHandler",
     "DownloadLabCommand",
     "DownloadLabCommandHandler",
+    "EnableIdleDetectionCommand",
+    "EnableIdleDetectionCommandHandler",
     "EnableWorkerDetailedMonitoringCommand",
     "EnableWorkerDetailedMonitoringCommandHandler",
     "ImportCMLWorkerCommand",

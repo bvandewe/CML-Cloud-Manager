@@ -74,4 +74,3 @@ class DiagnosticsController(ControllerBase):
                 }
             )
         return {"jobs": detailed}
-        return {"jobs": detailed}

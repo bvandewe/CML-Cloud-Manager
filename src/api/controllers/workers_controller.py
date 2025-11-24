@@ -20,6 +20,8 @@ from application.commands import (
     BulkImportCMLWorkersCommand,
     CreateCMLWorkerCommand,
     DeleteCMLWorkerCommand,
+    DisableIdleDetectionCommand,
+    EnableIdleDetectionCommand,
     EnableWorkerDetailedMonitoringCommand,
     ImportCMLWorkerCommand,
     StartCMLWorkerCommand,
@@ -31,6 +33,8 @@ from application.commands.deregister_cml_worker_license_command import Deregiste
 from application.commands.register_cml_worker_license_command import RegisterCMLWorkerLicenseCommand
 from application.commands.request_worker_data_refresh_command import RequestWorkerDataRefreshCommand
 from application.queries import GetCMLWorkerByIdQuery, GetCMLWorkerResourcesQuery, GetCMLWorkersQuery
+from application.queries.get_worker_activity_query import GetWorkerActivityQuery
+from application.queries.get_worker_idle_status_query import GetWorkerIdleStatusQuery
 from domain.enums import CMLWorkerStatus
 from integration.enums import AwsRegion, Ec2InstanceResourcesUtilizationRelativeStartTime
 from integration.services.aws_ec2_api_client import Ec2InstanceResourcesUtilization
@@ -460,7 +464,7 @@ class WorkersController(ControllerBase):
         return self.process(await self.mediator.execute_async(command))
 
     @get(
-        "/{aws_region}/{worker_id}/activity",
+        "/region/{aws_region}/workers/{worker_id}/activity",
         response_model=dict[str, Any],
         summary="Get Worker Activity Tracking Data",
         description="Retrieve activity tracking information including recent telemetry events and lifecycle timestamps.",
@@ -470,7 +474,7 @@ class WorkersController(ControllerBase):
         aws_region: aws_region_annotation,
         worker_id: worker_id_annotation,
         current_user: Annotated[dict, Depends(get_current_user)],
-    ) -> dict[str, Any]:
+    ) -> Any:
         """Get activity tracking data for a CML worker.
 
         Returns recent telemetry events, last activity timestamp, pause/resume history,
@@ -478,19 +482,11 @@ class WorkersController(ControllerBase):
 
         (**Requires authentication!**)"""
         logger.info(f"Fetching activity data for worker {worker_id} in region {aws_region}")
-
-        from application.queries.get_worker_activity_query import GetWorkerActivityQuery
-
-        result = await self.mediator.execute_async(GetWorkerActivityQuery(worker_id=worker_id))
-
-        if not result.is_successful:
-            logger.warning(f"Failed to retrieve activity for worker {worker_id}: {result.errors}")
-            raise HTTPException(status_code=404, detail=str(result.errors))
-
-        return result.content
+        query = GetWorkerActivityQuery(worker_id=worker_id)
+        return self.process(await self.mediator.execute_async(query))
 
     @get(
-        "/{aws_region}/{worker_id}/idle-status",
+        "/region/{aws_region}/workers/{worker_id}/idle-status",
         response_model=dict[str, Any],
         summary="Check Worker Idle Status",
         description="Check if worker is idle and eligible for auto-pause based on activity thresholds.",
@@ -500,7 +496,7 @@ class WorkersController(ControllerBase):
         aws_region: aws_region_annotation,
         worker_id: worker_id_annotation,
         current_user: Annotated[dict, Depends(get_current_user)],
-    ) -> dict[str, Any]:
+    ) -> Any:
         """Check idle status for a CML worker.
 
         Returns idle state, eligibility for auto-pause, snooze period status,
@@ -508,13 +504,61 @@ class WorkersController(ControllerBase):
 
         (**Requires authentication!**)"""
         logger.info(f"Checking idle status for worker {worker_id} in region {aws_region}")
+        query = GetWorkerIdleStatusQuery(worker_id=worker_id)
+        return self.process(await self.mediator.execute_async(query))
 
-        from application.queries.get_worker_idle_status_query import GetWorkerIdleStatusQuery
+    @post(
+        "/region/{aws_region}/workers/{worker_id}/idle-detection/enable",
+        response_model=dict[str, Any],
+        summary="Enable Idle Detection",
+        description="Enable automatic idle detection and auto-pause for a CML worker. **Admin only**.",
+        status_code=200,
+        responses=ControllerBase.error_responses,
+    )
+    async def enable_idle_detection(
+        self,
+        aws_region: aws_region_annotation,
+        worker_id: worker_id_annotation,
+        current_user: Annotated[dict, Depends(require_roles("admin"))],
+    ) -> Any:
+        """Enable idle detection for a CML worker.
 
-        result = await self.mediator.execute_async(GetWorkerIdleStatusQuery(worker_id=worker_id))
+        When enabled, the worker will be automatically stopped after
+        a configured idle timeout period to save costs.
 
-        if not result.is_successful:
-            logger.warning(f"Failed to check idle status for worker {worker_id}: {result.errors}")
-            raise HTTPException(status_code=404, detail=str(result.errors))
+        (**Requires admin role!**)"""
+        logger.info(f"Enabling idle detection for worker {worker_id} in region {aws_region}")
 
-        return result.content
+        # Extract user ID from current_user if available
+        user_id = current_user.get("sub") if isinstance(current_user, dict) else None
+
+        command = EnableIdleDetectionCommand(worker_id=worker_id, enabled_by=user_id)
+        return self.process(await self.mediator.execute_async(command))
+
+    @post(
+        "/region/{aws_region}/workers/{worker_id}/idle-detection/disable",
+        response_model=dict[str, Any],
+        summary="Disable Idle Detection",
+        description="Disable automatic idle detection and auto-pause for a CML worker. **Admin only**.",
+        status_code=200,
+        responses=ControllerBase.error_responses,
+    )
+    async def disable_idle_detection(
+        self,
+        aws_region: aws_region_annotation,
+        worker_id: worker_id_annotation,
+        current_user: Annotated[dict, Depends(require_roles("admin"))],
+    ) -> Any:
+        """Disable idle detection for a CML worker.
+
+        When disabled, the worker will not be automatically stopped
+        due to inactivity, even if the idle timeout threshold is reached.
+
+        (**Requires admin role!**)"""
+        logger.info(f"Disabling idle detection for worker {worker_id} in region {aws_region}")
+
+        # Extract user ID from current_user if available
+        user_id = current_user.get("sub") if isinstance(current_user, dict) else None
+
+        command = DisableIdleDetectionCommand(worker_id=worker_id, disabled_by=user_id)
+        return self.process(await self.mediator.execute_async(command))

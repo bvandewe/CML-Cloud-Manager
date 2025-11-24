@@ -3,8 +3,9 @@
 
 import { escapeHtml } from '../components/escape.js';
 import { formatDate, getRelativeTime } from '../utils/dates.js';
-import { getActiveWorker } from '../store/workerStore.js';
-import { sseClient } from '../services/sse-client.js';
+import { isAdmin } from '../utils/roles.js';
+import { enableIdleDetection, disableIdleDetection } from '../api/workers.js';
+import { showToast } from './notifications.js';
 
 /**
  * Helper to format date with full timestamp and relative time tooltip
@@ -35,8 +36,19 @@ function formatDateWithRelative(dateString) {
  * @param {Object} worker - Worker object with monitoring fields
  */
 export function renderMonitoringTab(worker) {
+    console.log('[worker-monitoring] renderMonitoringTab called with:', {
+        worker_type: typeof worker,
+        worker_truthy: !!worker,
+        has_id: worker?.id,
+        has_name: worker?.name,
+        worker_keys: worker ? Object.keys(worker).length : 0,
+    });
+
     const monitoringContent = document.getElementById('worker-details-monitoring');
-    if (!monitoringContent) return;
+    if (!monitoringContent) {
+        console.warn('[worker-monitoring] #worker-details-monitoring element not found');
+        return;
+    }
 
     if (!worker) {
         monitoringContent.innerHTML = `
@@ -74,8 +86,27 @@ export function renderMonitoringTab(worker) {
                             <span class="badge ${worker.is_idle_detection_enabled ? 'bg-success' : 'bg-secondary'}">
                                 ${worker.is_idle_detection_enabled ? 'Enabled' : 'Disabled'}
                             </span>
-                        </dd>
+                        </dd>`;
 
+    // Admin-only toggle control
+    if (isAdmin()) {
+        html += `
+                        <dt class="col-sm-6">Control:</dt>
+                        <dd class="col-sm-6">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch"
+                                       id="idle-detection-toggle"
+                                       ${worker.is_idle_detection_enabled ? 'checked' : ''}
+                                       data-worker-id="${worker.id}"
+                                       data-region="${worker.aws_region}">
+                                <label class="form-check-label" for="idle-detection-toggle">
+                                    <small class="text-muted">Toggle idle detection</small>
+                                </label>
+                            </div>
+                        </dd>`;
+    }
+
+    html += `
                         <dt class="col-sm-6">Last Activity:</dt>
                         <dd class="col-sm-6">
                             ${lastActivity}
@@ -192,7 +223,60 @@ export function renderMonitoringTab(worker) {
             </div>
         </div>`;
 
+    // Resource Utilization Chart (admin-only)
+    if (isAdmin()) {
+        const cmlCpu = worker.cml_system_info?.cpu_utilization ?? worker.metrics?.system_info?.cpu_utilization;
+
+        html += `
+        <div class="card mt-4">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-graph-up"></i> Recent Resource Utilization</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="text-center mb-3">
+                            <h6 class="text-muted small">CPU Utilization</h6>
+                            <div class="display-6 ${getCpuUtilizationColor(worker)}">
+                                ${formatUtilization(worker.cloudwatch_cpu_utilization)}
+                            </div>
+                            <small class="text-muted">CloudWatch</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center mb-3">
+                            <h6 class="text-muted small">Memory Utilization</h6>
+                            <div class="display-6 ${getMemoryUtilizationColor(worker)}">
+                                ${formatUtilization(worker.cloudwatch_memory_utilization)}
+                            </div>
+                            <small class="text-muted">CloudWatch</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center mb-3">
+                            <h6 class="text-muted small">CML CPU</h6>
+                            <div class="display-6 ${getCpuUtilizationColor({ cloudwatch_cpu_utilization: cmlCpu })}">
+                                ${formatUtilization(cmlCpu)}
+                            </div>
+                            <small class="text-muted">CML Native</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="alert alert-info mt-3">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>Note:</strong> Resource utilization data is collected from CloudWatch and CML native telemetry.
+                    ${!worker.cloudwatch_detailed_monitoring_enabled ? '<span class="text-warning">CloudWatch detailed monitoring is disabled - metrics may be delayed.</span>' : 'CloudWatch detailed monitoring is enabled for real-time metrics.'}
+                </div>
+            </div>
+        </div>`;
+    }
+
     monitoringContent.innerHTML = html;
+
+    // Attach event listeners
+    if (isAdmin()) {
+        attachIdleDetectionToggleHandler(worker);
+    }
 
     // Initialize tooltips for date info icons
     import('../utils/dates.js').then(({ initializeDateTooltips }) => {
@@ -201,52 +285,80 @@ export function renderMonitoringTab(worker) {
 }
 
 /**
- * Load monitoring tab from current worker store
+ * Format utilization percentage
+ * @param {number|null} value - Utilization value (0-100)
+ * @returns {string} Formatted percentage
  */
-export async function loadMonitoringTab() {
-    const worker = getActiveWorker();
-    renderMonitoringTab(worker);
+function formatUtilization(value) {
+    if (value === null || value === undefined) {
+        return '<span class="text-muted">N/A</span>';
+    }
+    return `${value.toFixed(1)}%`;
 }
 
 /**
- * Initialize SSE listener for monitoring updates
+ * Get color class for CPU utilization
+ * @param {Object} worker - Worker object
+ * @returns {string} Bootstrap color class
  */
-export function initializeMonitoringSSE() {
-    // Listen for worker metrics updates (includes activity/monitoring data)
-    sseClient.on('worker.metrics.updated', data => {
-        console.log('[worker-monitoring] Received metrics update:', data);
-        const activeWorker = getActiveWorker();
-        if (activeWorker && data.worker_id === activeWorker.id) {
-            // Re-render monitoring tab with updated data
-            loadMonitoringTab();
-        }
-    });
+function getCpuUtilizationColor(worker) {
+    const cpu = worker.cpu_utilization ?? worker.cloudwatch_cpu_utilization;
+    if (cpu === null || cpu === undefined) return 'text-muted';
+    if (cpu > 80) return 'text-danger';
+    if (cpu > 60) return 'text-warning';
+    return 'text-success';
+}
 
-    // Listen for worker activity updates
-    sseClient.on('worker.activity.updated', data => {
-        console.log('[worker-monitoring] Received activity update:', data);
-        const activeWorker = getActiveWorker();
-        if (activeWorker && data.worker_id === activeWorker.id) {
-            // Re-render monitoring tab with updated data
-            loadMonitoringTab();
-        }
-    });
+/**
+ * Get color class for memory utilization
+ * @param {Object} worker - Worker object
+ * @returns {string} Bootstrap color class
+ */
+function getMemoryUtilizationColor(worker) {
+    const mem = worker.memory_utilization ?? worker.cloudwatch_memory_utilization;
+    if (mem === null || mem === undefined) return 'text-muted';
+    if (mem > 90) return 'text-danger';
+    if (mem > 75) return 'text-warning';
+    return 'text-success';
+}
 
-    // Listen for worker paused events
-    sseClient.on('worker.paused', data => {
-        console.log('[worker-monitoring] Worker paused:', data);
-        const activeWorker = getActiveWorker();
-        if (activeWorker && data.worker_id === activeWorker.id) {
-            loadMonitoringTab();
-        }
-    });
+/**
+ * Attach event handler for idle detection toggle
+ * @param {Object} worker - Worker object
+ */
+function attachIdleDetectionToggleHandler(worker) {
+    const toggle = document.getElementById('idle-detection-toggle');
+    if (!toggle) return;
 
-    // Listen for worker resumed events
-    sseClient.on('worker.resumed', data => {
-        console.log('[worker-monitoring] Worker resumed:', data);
-        const activeWorker = getActiveWorker();
-        if (activeWorker && data.worker_id === activeWorker.id) {
-            loadMonitoringTab();
+    toggle.addEventListener('change', async e => {
+        const isEnabled = e.target.checked;
+        const workerId = worker.id;
+        const region = worker.aws_region;
+
+        // Disable toggle during request
+        toggle.disabled = true;
+
+        try {
+            let result;
+            if (isEnabled) {
+                console.log(`[worker-monitoring] Enabling idle detection for worker ${workerId}`);
+                result = await enableIdleDetection(region, workerId);
+            } else {
+                console.log(`[worker-monitoring] Disabling idle detection for worker ${workerId}`);
+                result = await disableIdleDetection(region, workerId);
+            }
+
+            console.log('[worker-monitoring] Idle detection toggle result:', result);
+
+            showToast(result.message || `Idle detection ${isEnabled ? 'enabled' : 'disabled'} successfully`, 'success');
+
+            // Monitoring tab will be reloaded automatically via SSE WORKER_SNAPSHOT event
+        } catch (error) {
+            console.error('[worker-monitoring] Failed to toggle idle detection:', error);
+            showToast(`Failed to ${isEnabled ? 'enable' : 'disable'} idle detection: ${error.message}`, 'error'); // Revert toggle state
+            toggle.checked = !isEnabled;
+        } finally {
+            toggle.disabled = false;
         }
     });
 }

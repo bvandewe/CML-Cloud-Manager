@@ -64,3 +64,19 @@ class WorkerResumedDomainEvent(DomainEvent):
     auto_resume_count: int  # Updated count
     manual_resume_count: int  # Updated count
     was_auto_paused: bool  # True if last pause was auto
+
+
+@cloudevent("cml_worker.idle_detection_toggled.v1")
+@dataclass
+class IdleDetectionToggledDomainEvent(DomainEvent):
+    """Event raised when idle detection is enabled or disabled for a worker.
+
+    This event is emitted when:
+    - Idle detection is enabled for a worker
+    - Idle detection is disabled for a worker
+    """
+
+    aggregate_id: str  # Worker ID
+    is_enabled: bool  # True if enabled, False if disabled
+    toggled_by: str | None  # User ID who toggled the setting
+    toggled_at: datetime  # When the toggle occurred
