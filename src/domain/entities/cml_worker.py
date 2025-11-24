@@ -447,7 +447,7 @@ class CMLWorkerState(AggregateState[str]):
                 self.license = replace(self.license, raw_info=event.license_info)
 
     @dispatch(CMLWorkerTelemetryUpdatedDomainEvent)
-    def on(self, event: CMLWorkerTelemetryUpdatedDomainEvent) -> None:
+    def on(self, event: CMLWorkerTelemetryUpdatedDomainEvent) -> None:  # type: ignore[override]
         """Handle telemetry updated event."""
         self.updated_at = event.updated_at
         if event.poll_interval is not None:
@@ -538,8 +538,16 @@ class CMLWorkerState(AggregateState[str]):
 
     @dispatch(WorkerActivityUpdatedDomainEvent)
     def on(self, event: WorkerActivityUpdatedDomainEvent) -> None:  # type: ignore[override]
-        """Apply activity tracking update to the state."""
-        self.last_activity_at = event.last_activity_at
+        """Apply activity tracking update to the state.
+
+        Note: Only updates last_activity_at if new activity detected (non-None).
+        This prevents overwriting existing activity timestamp when no events found.
+        """
+        # Only update last_activity_at if new activity detected
+        # This prevents resetting the timestamp when no relevant events found
+        if event.last_activity_at is not None:
+            self.last_activity_at = event.last_activity_at
+
         self.last_activity_check_at = event.last_activity_check_at
         self.recent_activity_events = event.recent_activity_events
         self.next_idle_check_at = event.next_idle_check_at
@@ -1189,8 +1197,6 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
             started_at: ISO timestamp when registration started
             initiated_by: User ID who initiated registration
         """
-        from domain.events.cml_worker import CMLWorkerLicenseRegistrationStartedDomainEvent
-
         self.state.on(
             self.register_event(  # type: ignore
                 CMLWorkerLicenseRegistrationStartedDomainEvent(
@@ -1217,8 +1223,6 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
             virtual_account: Virtual account name
             completed_at: ISO timestamp when registration completed
         """
-        from domain.events.cml_worker import CMLWorkerLicenseRegistrationCompletedDomainEvent
-
         self.state.on(
             self.register_event(  # type: ignore
                 CMLWorkerLicenseRegistrationCompletedDomainEvent(
@@ -1245,8 +1249,6 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
             failed_at: ISO timestamp when registration failed
             error_code: Optional error code from CML
         """
-        from domain.events.cml_worker import CMLWorkerLicenseRegistrationFailedDomainEvent
-
         self.state.on(
             self.register_event(  # type: ignore
                 CMLWorkerLicenseRegistrationFailedDomainEvent(
@@ -1270,8 +1272,6 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
             deregistered_at: ISO timestamp when deregistration completed
             initiated_by: User ID who initiated deregistration
         """
-        from domain.events.cml_worker import CMLWorkerLicenseDeregisteredDomainEvent
-
         self.state.on(
             self.register_event(  # type: ignore
                 CMLWorkerLicenseDeregisteredDomainEvent(
@@ -1294,8 +1294,6 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
             requested_at: ISO timestamp when refresh was requested
             requested_by: User ID who requested refresh
         """
-        from domain.events.cml_worker import WorkerDataRefreshRequestedDomainEvent
-
         self.state.on(
             self.register_event(  # type: ignore
                 WorkerDataRefreshRequestedDomainEvent(
@@ -1318,8 +1316,6 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
             reason: Reason why refresh was skipped
             skipped_at: ISO timestamp when refresh was skipped
         """
-        from domain.events.cml_worker import WorkerDataRefreshSkippedDomainEvent
-
         self.state.on(
             self.register_event(  # type: ignore
                 WorkerDataRefreshSkippedDomainEvent(
@@ -1342,8 +1338,6 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
             completed_at: ISO timestamp when refresh completed
             refresh_type: Type of refresh ('scheduled' or 'on_demand')
         """
-        from domain.events.cml_worker import WorkerDataRefreshCompletedDomainEvent
-
         self.state.on(
             self.register_event(  # type: ignore
                 WorkerDataRefreshCompletedDomainEvent(
@@ -1401,11 +1395,16 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
 
         Args:
             recent_events: List of recent relevant telemetry events
-            last_activity_at: Timestamp of last detected activity
+            last_activity_at: Timestamp of last detected activity (None = no new activity)
             last_check_at: Timestamp when telemetry was checked
             next_check_at: Next scheduled idle check time
             target_pause_at: Calculated auto-pause time if no activity
             max_events: Maximum number of events to store (default: 10)
+
+        Note:
+            If last_activity_at is None, the existing last_activity_at in state
+            is preserved. This prevents resetting the activity timestamp when
+            no relevant events are found during a check.
         """
         # Keep only the most recent N events
         events_to_store = recent_events[-max_events:] if recent_events else []

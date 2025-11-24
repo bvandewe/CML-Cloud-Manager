@@ -16,7 +16,7 @@ class IdleDetectionService:
         """Check if a worker is idle based on metrics and activity history.
 
         A worker is considered idle if:
-        1. It has no active labs running.
+        1. Its active labs didnt have any activity
         2. It has been inactive (no user activity) for longer than the threshold.
 
         Args:
@@ -27,8 +27,8 @@ class IdleDetectionService:
             True if the worker is idle, False otherwise.
         """
         # 1. Check active labs (primary indicator)
-        if worker.state.metrics.labs_count > 0:
-            return False
+        # if worker.state.metrics.labs_count > 0:
+        #     return False
 
         # 2. Determine last activity timestamp
         # Use explicit last_activity_at if available
