@@ -96,7 +96,7 @@
                     "temporary": false
                 }
             ],
-            "realmRoles": ["admin", "manager"]
+            "groups": ["/Admins"]
         },
         {
             "username": "manager",
@@ -112,7 +112,7 @@
                     "temporary": false
                 }
             ],
-            "realmRoles": ["manager"]
+            "groups": ["/Managers"]
         },
         {
             "username": "architect",
@@ -128,7 +128,7 @@
                     "temporary": false
                 }
             ],
-            "realmRoles": ["architect"]
+            "groups": ["/Architects"]
         },
         {
             "username": "vendor",
@@ -144,7 +144,7 @@
                     "temporary": false
                 }
             ],
-            "realmRoles": ["vendor"]
+            "groups": ["/Vendors"]
         },
         {
             "username": "developer",
@@ -160,7 +160,7 @@
                     "temporary": false
                 }
             ],
-            "realmRoles": ["developer"]
+            "groups": ["/Developers"]
         },
         {
             "username": "user",
@@ -176,7 +176,22 @@
                     "temporary": false
                 }
             ],
-            "realmRoles": ["user"]
+            "groups": ["/Users"]
+        },
+        {
+            "username": "guest",
+            "email": "guest@system.io",
+            "firstName": "Guest",
+            "lastName": "User",
+            "enabled": true,
+            "emailVerified": true,
+            "credentials": [
+                {
+                    "type": "password",
+                    "value": "test",
+                    "temporary": false
+                }
+            ]
         }
     ],
     "clients": [
