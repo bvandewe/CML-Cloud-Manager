@@ -86,3 +86,42 @@ body {
         color: #fff;
     }
 }
+
+/* Insufficient Permissions Error Page */
+#insufficient-permissions-section {
+    .badge-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .card-header {
+        h4 {
+            margin: 0;
+        }
+    }
+
+    ul {
+        padding-left: 1.5rem;
+    }
+
+    .bi-exclamation-triangle-fill {
+        font-size: 1.2rem;
+    }
+}
+
+/* Dark theme for error page */
+[data-bs-theme='dark'] {
+    #insufficient-permissions-section {
+        .card {
+            background-color: #1a1a1a;
+            border-color: #ffc107;
+        }
+
+        .card-header {
+            background-color: #664d03;
+            border-color: #ffc107;
+            color: #fff;
+        }
+    }
+}

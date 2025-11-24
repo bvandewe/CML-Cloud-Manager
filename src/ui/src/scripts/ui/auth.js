@@ -80,17 +80,27 @@ export function showLoginForm() {
 /**
  * Show dashboard (hide login form)
  * @param {Object} user - User object from auth
+ * @returns {Promise<boolean>} True if user has valid role, false otherwise
  */
-export function showDashboard(user) {
-    document.getElementById('login-section').style.display = 'none';
-    document.getElementById('dashboard-section').style.display = 'block';
-    document.getElementById('logout-btn').style.display = 'block';
-    document.getElementById('user-info').textContent = `${user.preferred_username || user.email} (${user.email})`;
-
+export async function showDashboard(user) {
     // Store user roles in localStorage for UI role checks
     if (user.roles) {
         localStorage.setItem('user_roles', JSON.stringify(user.roles));
     }
+
+    // Import hasValidRole dynamically to avoid circular dependencies
+    const { hasValidRole } = await import('../utils/roles.js');
+
+    if (!hasValidRole()) {
+        showInsufficientPermissionsError(user);
+        return false;
+    }
+
+    // User has valid role - show dashboard
+    document.getElementById('login-section').style.display = 'none';
+    document.getElementById('dashboard-section').style.display = 'block';
+    document.getElementById('logout-btn').style.display = 'block';
+    document.getElementById('user-info').textContent = `${user.preferred_username || user.email} (${user.email})`;
 
     // Show/hide nav items based on role - System nav is admin-only
     const isAdmin = user.roles && user.roles.includes('admin');
@@ -102,4 +112,74 @@ export function showDashboard(user) {
             item.style.display = 'none';
         }
     });
+
+    return true;
+}
+
+/**
+ * Show insufficient permissions error page
+ * @param {Object} user - User object with roles
+ */
+export function showInsufficientPermissionsError(user) {
+    // Hide all sections completely
+    document.getElementById('login-section').style.display = 'none';
+    document.getElementById('dashboard-section').style.display = 'none';
+
+    const workersSection = document.getElementById('workers-section');
+    if (workersSection) workersSection.style.display = 'none';
+
+    const systemSection = document.getElementById('system-view');
+    if (systemSection) systemSection.style.display = 'none';
+
+    const mainNav = document.getElementById('main-nav');
+    if (mainNav) mainNav.style.display = 'none';
+
+    // Show only logout button
+    document.getElementById('logout-btn').style.display = 'block';
+
+    // Create or show error message
+    let errorSection = document.getElementById('insufficient-permissions-section');
+    if (!errorSection) {
+        errorSection = document.createElement('div');
+        errorSection.id = 'insufficient-permissions-section';
+        errorSection.className = 'container mt-5';
+        errorSection.innerHTML = `
+            <div class="row justify-content-center">
+                <div class="col-md-8 col-lg-6">
+                    <div class="card border-warning">
+                        <div class="card-header bg-warning text-dark">
+                            <h4 class="mb-0">
+                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                Insufficient Permissions
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <p class="lead">You do not have the required permissions to access this application.</p>
+                            <hr>
+                            <p class="text-muted mb-3">
+                                <strong>What to do:</strong>
+                            </p>
+                            <ul class="text-muted">
+                                <li>Contact your administrator to request appropriate access</li>
+                                <li>Ensure you are logged in with the correct account</li>
+                                <li>If you believe this is an error, please contact support</li>
+                            </ul>
+                            <div class="d-grid gap-2 mt-4">
+                                <button id="error-logout-btn" class="btn btn-primary btn-lg">
+                                    <i class="bi bi-box-arrow-right me-2"></i>
+                                    Logout
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(errorSection);
+
+        // Add logout handler
+        document.getElementById('error-logout-btn').addEventListener('click', logout);
+    }
+
+    errorSection.style.display = 'block';
 }

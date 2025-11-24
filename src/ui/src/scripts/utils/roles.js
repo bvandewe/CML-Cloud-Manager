@@ -4,6 +4,11 @@
  */
 
 /**
+ * Required roles for application access
+ */
+export const REQUIRED_ROLES = ['admin', 'manager', 'user', 'architect', 'developer', 'vendor'];
+
+/**
  * Get user roles from localStorage
  * @returns {Array<string>} Array of user roles
  */
@@ -15,6 +20,15 @@ export function getUserRoles() {
         console.error('Failed to get user roles:', error);
         return [];
     }
+}
+
+/**
+ * Check if user has at least one valid role for application access
+ * @returns {boolean} True if user has at least one required role
+ */
+export function hasValidRole() {
+    const userRoles = getUserRoles();
+    return REQUIRED_ROLES.some(role => userRoles.includes(role));
 }
 
 /**

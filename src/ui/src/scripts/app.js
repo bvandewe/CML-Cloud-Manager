@@ -38,7 +38,13 @@ async function initializeApp() {
     if (user) {
         // User is logged in - show dashboard
         currentUser = user;
-        showDashboard(user);
+        const hasValidRole = await showDashboard(user);
+
+        // Only proceed if user has valid role
+        if (!hasValidRole) {
+            console.warn('[APP] User lacks required roles, showing error page');
+            return;
+        }
 
         // Show navigation
         const mainNav = document.getElementById('main-nav');
