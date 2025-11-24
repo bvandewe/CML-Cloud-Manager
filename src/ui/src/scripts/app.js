@@ -21,6 +21,11 @@ let activeView = 'tasks';
  * Initialize the application
  */
 async function initializeApp() {
+    // Set page title from config
+    if (window.APP_CONFIG && window.APP_CONFIG.title) {
+        document.title = window.APP_CONFIG.title;
+    }
+
     // Set app version in footer
     const versionElement = document.getElementById('app-version');
     if (versionElement && window.APP_CONFIG && window.APP_CONFIG.version) {
