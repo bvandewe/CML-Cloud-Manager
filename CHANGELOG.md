@@ -8,6 +8,31 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ### Added
 
+- **Security**: Added role validation on frontend with clear "Insufficient Permissions" error page for users without required roles
+- **Security**: Added guest user in Keycloak realm export for testing insufficient permissions flow
+- **Authentication**: Added Identity Provider configuration template in Keycloak realm export for corporate SSO integration
+- **Authentication**: Added Identity Provider mappers for email-to-username, firstName, lastName, and groups synchronization
+- **Keycloak**: Added user groups (Admins, Managers, Architects, Vendors, Developers, Users) with automatic role mappings
+- **Nginx**: Added mongo-express upstream configuration to enable access via reverse proxy
+- **Documentation**: Added `configure_cisco_idp.md` guide for Cisco SSO integration with Keycloak
+
+### Changed
+
+- **Keycloak**: Updated test users to use group membership instead of direct role assignment for cleaner access management
+- **Keycloak**: Removed `ME_CONFIG_SITE_BASEURL` from mongo-express configuration for better reverse proxy compatibility
+- **Security**: Removed display of required roles from insufficient permissions error page to prevent information disclosure
+- **Environment**: Added `APP_NAME` environment variable to production docker-compose configuration
+
+### Fixed
+
+- **Nginx**: Fixed mongo-express 404 errors by correcting proxy_pass configuration and adding upstream definition
+- **UI**: Fixed unauthorized users seeing worker management interface by adding early return after role validation
+- **UI**: Fixed application sections not being hidden for users with insufficient permissions
+
+## [0.1.6] - 2025-11-24
+
+### Added
+
 - **API**: Added comprehensive API documentation with Markdown description loaded dynamically in Swagger UI
 - **Documentation**: Created detailed API description covering authentication, architecture, worker lifecycle, and getting started guide
 - **UI**: Added confirmation modal when toggling idle detection in Worker Modal's Monitoring tab
