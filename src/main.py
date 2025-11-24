@@ -207,7 +207,6 @@ def create_app() -> FastAPI:
             path="/api",
             name="api",
             title=f"{app_settings.app_name} API",
-            description="Task management REST API with OAuth2/JWT authentication",
             version=app_settings.app_version,
             controllers=["api.controllers"],
             custom_setup=lambda app, service_provider: configure_api_openapi(app, app_settings),
