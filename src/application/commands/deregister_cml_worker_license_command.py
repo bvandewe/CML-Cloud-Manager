@@ -9,7 +9,7 @@ from neuroglia.mediation.mediator import Command, CommandHandler
 
 from application.settings import app_settings
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
-from integration.services.cml_api_client import CMLApiClient
+from integration.services.cml_api_client import CMLApiClientFactory
 
 log = logging.getLogger(__name__)
 
@@ -31,8 +31,13 @@ class DeregisterCMLWorkerLicenseCommandHandler(
 ):
     """Handler for DeregisterCMLWorkerLicenseCommand."""
 
-    def __init__(self, worker_repository: CMLWorkerRepository):
+    def __init__(
+        self,
+        worker_repository: CMLWorkerRepository,
+        cml_api_client_factory: CMLApiClientFactory,
+    ):
         self._repository = worker_repository
+        self._cml_client_factory = cml_api_client_factory
 
     async def handle_async(
         self,
@@ -63,14 +68,8 @@ class DeregisterCMLWorkerLicenseCommandHandler(
         if not endpoint:
             return self.bad_request("Worker does not have reachable IP/endpoint")
 
-        # Create CML API client
-        cml_client = CMLApiClient(
-            base_url=endpoint,
-            username=app_settings.cml_worker_api_username,
-            password=app_settings.cml_worker_api_password,
-            verify_ssl=app_settings.cml_worker_api_verify_ssl,
-            timeout=60.0,
-        )
+        # Create CML API client using factory
+        cml_client = self._cml_client_factory.create(base_url=endpoint)
 
         try:
             # Call deregister API (can take 10-60s)
