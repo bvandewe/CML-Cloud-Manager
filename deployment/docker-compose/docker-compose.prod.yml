@@ -60,7 +60,8 @@ services:
 
       # Service identification
       SERVICE_NAME: api
-      APP_VERSION: ${IMAGE_TAG}
+      APP_VERSION: ${IMAGE_TAG:-v0.1.0}
+      APP_NAME: ${APP_NAME}
 
       # Application settings
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
