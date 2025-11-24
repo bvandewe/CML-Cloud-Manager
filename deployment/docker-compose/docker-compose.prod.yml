@@ -303,7 +303,6 @@ services:
       ME_CONFIG_MONGODB_ENABLE_ADMIN: "true"
       ME_CONFIG_MONGODB_AUTH_DATABASE: admin
       ME_CONFIG_BASICAUTH: "false"
-      ME_CONFIG_SITE_BASEURL: /mongo-express/
     networks:
       - cml-cloud-manager-net
     depends_on:
