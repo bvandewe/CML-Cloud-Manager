@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "cml-cloud-manager"
-version = "0.1.6"
-description = "Cml Cloud Manager - A modern task management system with Neuroglia framework"
+version = "0.1.7"
+description = "Cml Cloud Manager"
 authors = ["Bruno van de Werve <bvandewe@gmail.com>"]
 readme = "README.md"
 packages = [{include = "src"}]

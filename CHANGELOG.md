@@ -6,6 +6,8 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ## [Unreleased]
 
+## [0.1.7] - 2025-11-24
+
 ### Added
 
 - **Security**: Added role validation on frontend with clear "Insufficient Permissions" error page for users without required roles
