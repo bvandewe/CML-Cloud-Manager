@@ -19,6 +19,10 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ### Changed
 
+- **Version**: Bumped project version to 0.1.6 in pyproject.toml
+- **API**: Removed hardcoded API description from main.py, now loaded dynamically from description.md
+- **UI**: Updated default page title in templates for consistency
+- **Formatting**: Reformatted docker-compose.yml for improved readability
 - **Domain**: Centralized worker endpoint resolution logic in `CMLWorker.get_effective_endpoint` to eliminate code duplication
 - **Refactor**: Updated all CML commands and queries to use `worker.get_effective_endpoint` for consistent private IP support
 - **UI**: Updated "Monitoring" and "Events" tabs in worker details to "Coming soon"
@@ -26,6 +30,7 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ### Fixed
 
+- **UI**: Fixed missing title field in APP_CONFIG injection for dynamic page title
 - **Backend**: Fixed `TypeError` in worker DTO serialization by using Neuroglia `JsonSerializer`
 - **UI**: Fixed inconsistent idle detection status display across different views
 - **UI**: Fixed footer version display showing app name instead of version number
