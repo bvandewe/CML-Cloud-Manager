@@ -113,6 +113,7 @@ services:
             - '${APP_PORT:-8020}:8080'
             - '5678:5678'
         environment:
+            ENVIRONMENT: production # development or production
             LOCAL_DEV: true
             LOG_LEVEL: DEBUG
             DEBUG: true
@@ -121,6 +122,8 @@ services:
 
             APP_URL: http://localhost:${APP_PORT:-8030}
             APP_PORT: ${APP_PORT:-8030}
+            APP_VERSION: ${IMAGE_TAG:-v0.1.0}
+            APP_NAME: ${APP_NAME}
 
             KEYCLOAK_URL: http://localhost:${KEYCLOAK_PORT:-8021}
             KEYCLOAK_URL_INTERNAL: http://keycloak:8080
