@@ -8,6 +8,8 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ### Added
 
+- **API**: Added comprehensive API documentation with Markdown description loaded dynamically in Swagger UI
+- **Documentation**: Created detailed API description covering authentication, architecture, worker lifecycle, and getting started guide
 - **UI**: Added confirmation modal when toggling idle detection in Worker Modal's Monitoring tab
 - **UI**: Added dynamic page title control via JavaScript using runtime configuration
 - **UI**: Added idle detection status indicators to Worker List (table/cards) and Worker Details modal
