@@ -6,6 +6,26 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ## [Unreleased]
 
+## [0.1.8] - 2025-11-24
+
+### Added
+
+- **License Management**: Added asynchronous license deregistration with background job and SSE progress updates
+- **Domain Events**: Added three new deregistration events (Started, Completed, Failed) for async workflow tracking
+- **License Management**: Added `LicenseDeregistrationJob` for async license deregistration with polling and timeout handling
+
+### Changed
+
+- **License Management**: Converted license deregistration from synchronous to asynchronous background job pattern
+- **License Management**: Updated license registration job to use `CMLApiClientFactory` for proper auth token management
+- **API**: License deregistration command now returns HTTP 202 Accepted immediately and schedules background job
+
+### Fixed
+
+- **Idle Detection**: Fixed critical bug where `last_activity_at` was overwritten with None on every check, preventing idle detection from working
+- **Domain Events**: Restored `CMLWorkerLicenseDeregisteredDomainEvent` alongside new async events for backward compatibility
+- **Activity Tracking**: Activity timestamp now only updates when actual activity is detected, not on empty checks
+
 ## [0.1.7] - 2025-11-24
 
 ### Added
