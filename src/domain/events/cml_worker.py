@@ -410,10 +410,86 @@ class CMLWorkerLicenseRegistrationFailedDomainEvent(DomainEvent):
         self.failed_at = failed_at
 
 
+@cloudevent("cml_worker.license.deregistration.started.v1")
+@dataclass
+class CMLWorkerLicenseDeregistrationStartedDomainEvent(DomainEvent):
+    """Event raised when license deregistration starts."""
+
+    aggregate_id: str
+    worker_id: str
+    started_at: str
+    initiated_by: str
+
+    def __init__(
+        self,
+        aggregate_id: str,
+        worker_id: str,
+        started_at: str,
+        initiated_by: str,
+    ) -> None:
+        super().__init__(aggregate_id)
+        self.aggregate_id = aggregate_id
+        self.worker_id = worker_id
+        self.started_at = started_at
+        self.initiated_by = initiated_by
+
+
+@cloudevent("cml_worker.license.deregistration.completed.v1")
+@dataclass
+class CMLWorkerLicenseDeregistrationCompletedDomainEvent(DomainEvent):
+    """Event raised when license deregistration completes successfully."""
+
+    aggregate_id: str
+    worker_id: str
+    message: str
+    completed_at: str
+
+    def __init__(
+        self,
+        aggregate_id: str,
+        worker_id: str,
+        message: str,
+        completed_at: str,
+    ) -> None:
+        super().__init__(aggregate_id)
+        self.aggregate_id = aggregate_id
+        self.worker_id = worker_id
+        self.message = message
+        self.completed_at = completed_at
+
+
+@cloudevent("cml_worker.license.deregistration.failed.v1")
+@dataclass
+class CMLWorkerLicenseDeregistrationFailedDomainEvent(DomainEvent):
+    """Event raised when license deregistration fails."""
+
+    aggregate_id: str
+    worker_id: str
+    error_message: str
+    failed_at: str
+
+    def __init__(
+        self,
+        aggregate_id: str,
+        worker_id: str,
+        error_message: str,
+        failed_at: str,
+    ) -> None:
+        super().__init__(aggregate_id)
+        self.aggregate_id = aggregate_id
+        self.worker_id = worker_id
+        self.error_message = error_message
+        self.failed_at = failed_at
+
+
 @cloudevent("cml_worker.license.deregistered.v1")
 @dataclass
 class CMLWorkerLicenseDeregisteredDomainEvent(DomainEvent):
-    """Event raised when license is deregistered."""
+    """Event raised when license is deregistered (final state update).
+
+    This is the legacy event used by the deregister_license() method
+    to update the final license state after deregistration completes.
+    """
 
     aggregate_id: str
     worker_id: str

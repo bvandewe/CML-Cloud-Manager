@@ -23,6 +23,9 @@ from domain.events.cml_worker import (
     CMLWorkerImportedDomainEvent,
     CMLWorkerInstanceAssignedDomainEvent,
     CMLWorkerLicenseDeregisteredDomainEvent,
+    CMLWorkerLicenseDeregistrationCompletedDomainEvent,
+    CMLWorkerLicenseDeregistrationFailedDomainEvent,
+    CMLWorkerLicenseDeregistrationStartedDomainEvent,
     CMLWorkerLicenseRegistrationCompletedDomainEvent,
     CMLWorkerLicenseRegistrationFailedDomainEvent,
     CMLWorkerLicenseRegistrationStartedDomainEvent,
@@ -493,6 +496,24 @@ class CMLWorkerState(AggregateState[str]):
     @dispatch(CMLWorkerLicenseRegistrationFailedDomainEvent)
     def on(self, event: CMLWorkerLicenseRegistrationFailedDomainEvent) -> None:  # type: ignore[override]
         """Apply license registration failed event to the state."""
+        self.license = replace(self.license, operation_in_progress=False)
+        self.updated_at = datetime.fromisoformat(event.failed_at)
+
+    @dispatch(CMLWorkerLicenseDeregistrationStartedDomainEvent)
+    def on(self, event: CMLWorkerLicenseDeregistrationStartedDomainEvent) -> None:  # type: ignore[override]
+        """Apply license deregistration started event to the state."""
+        self.license = replace(self.license, operation_in_progress=True)
+        self.updated_at = datetime.fromisoformat(event.started_at)
+
+    @dispatch(CMLWorkerLicenseDeregistrationCompletedDomainEvent)
+    def on(self, event: CMLWorkerLicenseDeregistrationCompletedDomainEvent) -> None:  # type: ignore[override]
+        """Apply license deregistration completed event to the state."""
+        self.license = replace(self.license, status=LicenseStatus.UNREGISTERED, operation_in_progress=False)
+        self.updated_at = datetime.fromisoformat(event.completed_at)
+
+    @dispatch(CMLWorkerLicenseDeregistrationFailedDomainEvent)
+    def on(self, event: CMLWorkerLicenseDeregistrationFailedDomainEvent) -> None:  # type: ignore[override]
+        """Apply license deregistration failed event to the state."""
         self.license = replace(self.license, operation_in_progress=False)
         self.updated_at = datetime.fromisoformat(event.failed_at)
 
@@ -1256,6 +1277,72 @@ class CMLWorker(AggregateRoot[CMLWorkerState, str]):
                     worker_id=self.id(),
                     error_message=error_message,
                     error_code=error_code,
+                    failed_at=failed_at,
+                )
+            )
+        )
+
+    def start_license_deregistration(
+        self,
+        started_at: str,
+        initiated_by: str | None,
+    ) -> None:
+        """Start license deregistration process.
+
+        Args:
+            started_at: ISO timestamp when deregistration started
+            initiated_by: User ID who initiated deregistration
+        """
+        self.state.on(
+            self.register_event(  # type: ignore
+                CMLWorkerLicenseDeregistrationStartedDomainEvent(
+                    aggregate_id=self.id(),
+                    worker_id=self.id(),
+                    started_at=started_at,
+                    initiated_by=initiated_by or "system",
+                )
+            )
+        )
+
+    def complete_license_deregistration(
+        self,
+        message: str,
+        completed_at: str,
+    ) -> None:
+        """Complete license deregistration successfully.
+
+        Args:
+            message: Success message from CML API
+            completed_at: ISO timestamp when deregistration completed
+        """
+        self.state.on(
+            self.register_event(  # type: ignore
+                CMLWorkerLicenseDeregistrationCompletedDomainEvent(
+                    aggregate_id=self.id(),
+                    worker_id=self.id(),
+                    message=message,
+                    completed_at=completed_at,
+                )
+            )
+        )
+
+    def fail_license_deregistration(
+        self,
+        error_message: str,
+        failed_at: str,
+    ) -> None:
+        """Mark license deregistration as failed.
+
+        Args:
+            error_message: Error message describing failure
+            failed_at: ISO timestamp when deregistration failed
+        """
+        self.state.on(
+            self.register_event(  # type: ignore
+                CMLWorkerLicenseDeregistrationFailedDomainEvent(
+                    aggregate_id=self.id(),
+                    worker_id=self.id(),
+                    error_message=error_message,
                     failed_at=failed_at,
                 )
             )

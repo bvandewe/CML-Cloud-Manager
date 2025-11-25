@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from application.services.background_scheduler import ScheduledBackgroundJob, backgroundjob
 from application.settings import app_settings
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
-from integration.services.cml_api_client import CMLApiClient
+from integration.services.cml_api_client import CMLApiClientFactory
 
 log = logging.getLogger(__name__)
 
@@ -70,6 +70,7 @@ class LicenseRegistrationJob(ScheduledBackgroundJob):
 
         scope = self._service_provider.create_scope()
         repository = scope.get_required_service(CMLWorkerRepository)
+        cml_client_factory = scope.get_required_service(CMLApiClientFactory)
 
         try:
             # Get worker
@@ -96,14 +97,8 @@ class LicenseRegistrationJob(ScheduledBackgroundJob):
                 log.error(f"Worker {self.worker_id} does not have reachable IP/endpoint")
                 return
 
-            # Create CML API client
-            cml_client = CMLApiClient(
-                base_url=endpoint,
-                username=app_settings.cml_worker_api_username,
-                password=app_settings.cml_worker_api_password,
-                verify_ssl=app_settings.cml_worker_api_verify_ssl,
-                timeout=30.0,
-            )
+            # Create CML API client using factory
+            cml_client = cml_client_factory.create(base_url=endpoint)
 
             # Start registration
             log.info(f"🔐 Starting license registration for worker {self.worker_id} " f"(reregister={self.reregister})")
@@ -218,6 +213,7 @@ class LicenseRegistrationJob(ScheduledBackgroundJob):
             await repository.update_async(worker)
 
         except Exception as e:
+            log.error(f"License registration job failed for worker {self.worker_id}: {e}")
             log.error(f"License registration job failed for worker {self.worker_id}: {e}")
             log.error(f"License registration job failed for worker {self.worker_id}: {e}")
             log.error(f"License registration job failed for worker {self.worker_id}: {e}")
