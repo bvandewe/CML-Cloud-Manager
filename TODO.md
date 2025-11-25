@@ -6,6 +6,7 @@
 - map domain to DTO with neuroglia.mapper
 
 - idle activity detection
+- manage user access to labs (sync user with CML users)
 
 - Expand on Monitoring
 - Manage Labs
