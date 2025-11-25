@@ -15,53 +15,35 @@ from multipledispatch import dispatch
 from neuroglia.data.abstractions import AggregateRoot, AggregateState
 
 from domain.enums import CMLServiceStatus, CMLWorkerStatus, LicenseStatus
-from domain.events.cloudwatch_monitoring_updated_domain_event import CloudWatchMonitoringUpdatedDomainEvent
+from domain.events.cloudwatch_monitoring_updated_domain_event import \
+    CloudWatchMonitoringUpdatedDomainEvent
 from domain.events.cml_worker import (
-    CMLServiceStatusUpdatedDomainEvent,
-    CMLWorkerCreatedDomainEvent,
-    CMLWorkerEndpointUpdatedDomainEvent,
-    CMLWorkerImportedDomainEvent,
-    CMLWorkerInstanceAssignedDomainEvent,
-    CMLWorkerLicenseDeregisteredDomainEvent,
+    CMLServiceStatusUpdatedDomainEvent, CMLWorkerCreatedDomainEvent,
+    CMLWorkerEndpointUpdatedDomainEvent, CMLWorkerImportedDomainEvent,
+    CMLWorkerInstanceAssignedDomainEvent, CMLWorkerLicenseDeregisteredDomainEvent,
     CMLWorkerLicenseDeregistrationCompletedDomainEvent,
     CMLWorkerLicenseDeregistrationFailedDomainEvent,
     CMLWorkerLicenseDeregistrationStartedDomainEvent,
     CMLWorkerLicenseRegistrationCompletedDomainEvent,
     CMLWorkerLicenseRegistrationFailedDomainEvent,
-    CMLWorkerLicenseRegistrationStartedDomainEvent,
-    CMLWorkerLicenseUpdatedDomainEvent,
-    CMLWorkerStatusUpdatedDomainEvent,
-    CMLWorkerTagsUpdatedDomainEvent,
-    CMLWorkerTelemetryUpdatedDomainEvent,
-    CMLWorkerTerminatedDomainEvent,
-    WorkerDataRefreshCompletedDomainEvent,
-    WorkerDataRefreshRequestedDomainEvent,
-    WorkerDataRefreshSkippedDomainEvent,
-)
-from domain.events.worker_activity_events import (
-    IdleDetectionToggledDomainEvent,
-    WorkerActivityUpdatedDomainEvent,
-    WorkerPausedDomainEvent,
-    WorkerResumedDomainEvent,
-)
-from domain.events.worker_metrics_events import (
-    CloudWatchMetricsUpdatedDomainEvent,
-    CMLMetricsUpdatedDomainEvent,
-    EC2InstanceDetailsUpdatedDomainEvent,
-    EC2MetricsUpdatedDomainEvent,
-)
+    CMLWorkerLicenseRegistrationStartedDomainEvent, CMLWorkerLicenseUpdatedDomainEvent,
+    CMLWorkerStatusUpdatedDomainEvent, CMLWorkerTagsUpdatedDomainEvent,
+    CMLWorkerTelemetryUpdatedDomainEvent, CMLWorkerTerminatedDomainEvent,
+    WorkerDataRefreshCompletedDomainEvent, WorkerDataRefreshRequestedDomainEvent,
+    WorkerDataRefreshSkippedDomainEvent)
+from domain.events.worker_activity_events import (IdleDetectionToggledDomainEvent,
+                                                  WorkerActivityUpdatedDomainEvent,
+                                                  WorkerPausedDomainEvent,
+                                                  WorkerResumedDomainEvent)
+from domain.events.worker_metrics_events import (CloudWatchMetricsUpdatedDomainEvent,
+                                                 CMLMetricsUpdatedDomainEvent,
+                                                 EC2InstanceDetailsUpdatedDomainEvent,
+                                                 EC2MetricsUpdatedDomainEvent)
 from domain.value_objects.cml_license import CMLLicense
-from domain.value_objects.cml_metrics import (
-    CMLMetrics,
-    CMLSystemHealth,
-    CMLSystemInfo,
-    CMLSystemInfoCompute,
-    CMLSystemInfoComputeStats,
-    CpuStats,
-    DiskStats,
-    DomInfoStats,
-    MemoryStats,
-)
+from domain.value_objects.cml_metrics import (CMLMetrics, CMLSystemHealth,
+                                              CMLSystemInfo, CMLSystemInfoCompute,
+                                              CMLSystemInfoComputeStats, CpuStats,
+                                              DiskStats, DomInfoStats, MemoryStats)
 
 
 class CMLWorkerState(AggregateState[str]):
