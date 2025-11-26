@@ -15,6 +15,9 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ### Fixed
 
+- **DevOps**: Fixed `docker-compose.prod.yml` indentation issues preventing production stack startup
+- **DevOps**: Configured Nginx with `sub_filter` and `X-Forwarded-Prefix` to correctly serve `event-player` frontend under `/events/` subpath
+- **Security**: Updated Keycloak realm with audience and role mappers to ensure `event-player` receives correct token claims
 - **DevOps**: Fixed `Makefile` syntax error causing `make ps` to fail
 - **Observability**: Fixed `otel-collector` configuration in dev stack (missing MongoDB credentials and host volumes)
 
