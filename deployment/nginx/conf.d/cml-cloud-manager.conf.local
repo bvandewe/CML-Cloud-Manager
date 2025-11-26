@@ -146,6 +146,9 @@ server {
 
         sub_filter_once off;
         sub_filter_types text/html application/javascript;
+
+        # Rewrite redirects (e.g. after login)
+        proxy_redirect / /events/;
     }
 
     # Grafana (proxy to grafana service)
