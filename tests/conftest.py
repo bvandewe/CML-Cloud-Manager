@@ -149,12 +149,6 @@ def test_settings() -> Any:
     return app_settings
 
 
-@pytest.fixture
-def jwt_secret() -> str:
-    """Provide JWT secret for testing."""
-    return app_settings.jwt_secret_key
-
-
 # ============================================================================
 # CLEANUP FIXTURES
 # ============================================================================

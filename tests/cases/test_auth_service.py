@@ -98,23 +98,6 @@ def test_rs256_issuer_mismatch(monkeypatch, auth_service):
         pytest.fail("Issuer mismatch should reject the token")
 
 
-def test_hs256_fallback(monkeypatch, auth_service):
-    # Create HS256 token with legacy secret
-    claims = {
-        "sub": "legacy1",
-        "username": "legacy-user",
-        "roles": ["user"],
-        "exp": datetime.utcnow() + timedelta(minutes=5),
-    }
-    token = jwt.encode(claims, app_settings.jwt_secret_key, algorithm=app_settings.jwt_algorithm)
-
-    user = auth_service.get_user_from_jwt(token)
-    if user is None:
-        pytest.fail("Expected user for HS256 fallback token")
-    if user.get("legacy") is not True:
-        pytest.fail("Legacy flag should be True for HS256 token")
-
-
 def test_invalid_signature_rs256(monkeypatch, auth_service):
     # RS256 token signed with one key but JWKS returns different key
     priv1, jwk1 = generate_rs256_keys()

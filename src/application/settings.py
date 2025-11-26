@@ -12,120 +12,81 @@ from integration.enums import Ec2InstanceType
 class Settings(ApplicationSettings):
     """Application settings with Keycloak OAuth2/OIDC configuration and observability."""
 
-    # Debugging Configuration
-    debug: bool = False
-    environment: str = "development"  # development, production
-
-    log_level: str = "INFO"
-
-    # Application Configuration
+    # ============================================================================
+    # Core Application Configuration
+    # ============================================================================
     app_name: str = "Cml Cloud Manager"
     app_version: str = "1.0.0"
+    environment: str = "production"  # Default to production for safety
+    debug: bool = False
+    log_level: str = "INFO"
+
+    # Networking
+    app_host: str = "127.0.0.1"  # Default to localhost for security (use 0.0.0.0 in Docker)
+    app_port: int = 8080
     app_url: str = "http://localhost:8020"  # External URL for callbacks
-    app_host: str = "127.0.0.1"  # Uvicorn bind address (override in production as needed)
-    app_port: int = 8080  # Uvicorn port
 
-    # Observability Configuration
-    service_name: str = "cml-cloud-manager"
-    service_version: str = app_version
-    deployment_environment: str = "development"
+    # ============================================================================
+    # Security & Authentication
+    # ============================================================================
 
-    observability_enabled: bool = True
-    observability_metrics_enabled: bool = True
-    observability_tracing_enabled: bool = True
-    observability_logging_enabled: bool = True
-    observability_health_endpoint: bool = True
-    observability_metrics_endpoint: bool = True
-    observability_ready_endpoint: bool = True
-    observability_health_path: str = "/health"
-    observability_metrics_path: str = "/metrics"
-    observability_ready_path: str = "/ready"
-    observability_health_checks: list[str] = []
-
-    otel_enabled: bool = True
-    otel_endpoint: str = "http://otel-collector:4317"
-    otel_protocol: str = "grpc"
-    otel_timeout: int = 10
-    otel_console_export: bool = False
-    otel_batch_max_queue_size: int = 2048
-    otel_batch_schedule_delay_ms: int = 5000
-    otel_batch_max_export_size: int = 512
-    otel_metrics_interval_ms: int = 60000
-    otel_metrics_timeout_ms: int = 30000
-    otel_instrument_fastapi: bool = True
-    otel_instrument_httpx: bool = True
-    otel_instrument_logging: bool = True
-    otel_instrument_system_metrics: bool = True
-    otel_resource_attributes: dict[str, str] = {}
-
-    # Session Configuration
-    session_secret_key: str = "change-me-in-production-use-secrets-token-urlsafe"
-    session_max_duration_minutes: int = 120  # 120 minutes default
-    session_expiration_warning_minutes: int = 10  # Warning banner appears 10 minutes before expiration
-
-    # Redis Configuration (for production session storage)
-    redis_enabled: bool = False  # Set to True for production with Redis
-    redis_url: str = "redis://redis:6379/0"  # Internal Docker network URL
-    redis_key_prefix: str = "session:"
-
-    # CORS Configuration
+    # CORS
     enable_cors: bool = True
     cors_origins: list[str] = ["http://localhost:8020", "http://localhost:3000"]
 
-    # Keycloak OAuth2/OIDC Configuration
+    # Keycloak OAuth2/OIDC
     keycloak_url: str = "http://localhost:8031"  # External URL (browser/Swagger accessible)
     keycloak_url_internal: str | None = None  # Internal Docker network URL (auto-populated if not set)
     keycloak_realm: str = "cml-cloud-manager"
 
-    # Backend confidential client for secure token exchange
-    keycloak_client_id: str = "cml-cloud-manager-backend"
-    keycloak_client_secret: str = "cml-cloud-manager-backend-secret-change-in-production"
+    # Clients
+    keycloak_client_id: str = "cml-cloud-manager-backend"  # Confidential client for backend
+    keycloak_client_secret: str = "change-me-in-production"
+    keycloak_public_client_id: str = "cml-cloud-manager-public"  # Public client for Swagger/Frontend
 
-    # Legacy public client (deprecated)
-    keycloak_public_client_id: str = "cml-cloud-manager-public"  # Using existing client from realm config
-
-    # Legacy JWT (deprecated - will be removed)
-    jwt_secret_key: str = "your-secret-key-change-in-production"
-    jwt_algorithm: str = "HS256"
-    jwt_expiration_hours: int = 24
-
-    # Token Claim Validation (optional hardened checks)
-    verify_issuer: bool = False  # Set True to enforce 'iss' claim
+    # Token Validation
+    verify_issuer: bool = True
     expected_issuer: str = ""  # e.g. "http://localhost:8031/realms/cml-cloud-manager"
-    verify_audience: bool = False  # Set True to enforce 'aud' claim
-    expected_audience: list[str] = ["cml-cloud-manager"]  # Audience claim expected in tokens
-    refresh_auto_leeway_seconds: int = 60  # Auto-refresh if exp is within this window
+    verify_audience: bool = True
+    expected_audience: list[str] = ["cml-cloud-manager"]
+    refresh_auto_leeway_seconds: int = 60
 
-    # Persistence Configuration
-    consumer_group: str | None = "cml-cloud-manager-consumer-group"
-    connection_strings: dict[str, str] = {
-        "mongo": "mongodb://root:pass@mongodb:27017/?authSource=admin"  # pragma: allowlist secret
-    }
+    # Session Management
+    session_secret_key: str = "change-me-in-production-use-secrets-token-urlsafe"
+    session_max_duration_minutes: int = 120
+    session_expiration_warning_minutes: int = 10
 
-    # Background Job Store Configuration (APScheduler persistence)
+    # ============================================================================
+    # Database & Persistence
+    # ============================================================================
+
+    # MongoDB
+    connection_strings: dict[str, str] = {"mongo": "mongodb://root:pass@mongodb:27017/?authSource=admin"}
+
+    # Redis (Session Store)
+    redis_enabled: bool = False
+    redis_url: str = "redis://redis:6379/0"
+    redis_key_prefix: str = "session:"
+
+    # Background Job Store (APScheduler)
     background_job_store: dict[str, Any] = {
-        # Redis configuration (recommended for production)
         "redis_host": "redis",
         "redis_port": 6379,
-        "redis_db": 1,  # Use separate DB from session storage (DB 0)
-        # Alternatively, use MongoDB (if Redis not available)
-        # "mongo_uri": "mongodb://root:password123@mongodb:27017/?authSource=admin",  # pragma: allowlist secret
-        # "mongo_db": "cml_cloud_manager",
-        # "mongo_collection": "background_jobs",
+        "redis_db": 1,
     }
 
-    # Cloud Events Configuration
-    cloud_event_sink: str | None = None
-    cloud_event_source: str | None = None
-    cloud_event_type_prefix: str = "io.system.cml-cloud-manager"
-    cloud_event_retry_attempts: int = 5
-    cloud_event_retry_delay: float = 1.0
+    # Consumer Group
+    consumer_group: str | None = "cml-cloud-manager-consumer-group"
 
-    # AWS Account Credentials
+    # ============================================================================
+    # AWS & CML Worker Configuration
+    # ============================================================================
+
+    # AWS Credentials
     aws_access_key_id: str = "YOUR_ACCESS_KEY_ID"
     aws_secret_access_key: str = "YOUR_SECRET_ACCESS_KEY"
 
-    # AWS EC2 CML Worker Settings
+    # Worker Provisioning
     cml_worker_ami_name_default: str = "my-cml2.7.0-lablet-v0.1.0"
     cml_worker_ami_ids: dict[str, str] = {
         "us-east-1": "ami-0123456789abcdef0",
@@ -142,31 +103,36 @@ class Settings(ApplicationSettings):
     cml_worker_subnet_id: str = "subnet-0123456789abcdef0"
     cml_worker_key_name: str = "cml_worker_key_pair"
     cml_worker_username: str = "sys-admin"
-    cml_worker_api_username: str = "admin"  # CML API username for system_stats
-    cml_worker_api_password: str = "admin"  # CML API password (change in production)
-    cml_worker_api_verify_ssl: bool = (
-        False  # Verify SSL certificates for CML API calls (False for dev/self-signed certs)
-    )
     cml_worker_default_tags: dict[str, str] = {
         "Environment": "dev",
         "ApplicationName": "CML-Cloud-Manager",
         "ManagedBy": "CML-Cloud-Manager",
         "Name": "cml-worker-{worker_id}",
     }
+    use_private_ip_for_monitoring: bool = False
 
-    # Worker Monitoring Configuration
+    # CML API Credentials
+    cml_worker_api_username: str = "admin"
+    cml_worker_api_password: str = "admin"
+    cml_worker_api_verify_ssl: bool = False
+
+    # ============================================================================
+    # Monitoring & Background Jobs
+    # ============================================================================
+
+    # Worker Monitoring
     worker_monitoring_enabled: bool = True
-    worker_metrics_poll_interval: int = 300  # 5 minutes (must match WorkerMetricsCollectionJob)
+    worker_metrics_poll_interval: int = 300
+    metrics_change_threshold_percent: float = 5.0
 
-    # Worker Activity Detection & Idle Timeout Configuration
-    worker_activity_detection_enabled: bool = True  # Feature flag
-    worker_activity_detection_interval: int = 1800  # 30 minutes between checks
-    worker_idle_timeout_minutes: int = 60  # Idle time before auto-pause
-    worker_auto_pause_enabled: bool = True  # Enable automatic pause on idle
-    worker_auto_pause_snooze_minutes: int = 60  # Prevent re-pause after resume
-    worker_activity_events_max_stored: int = 10  # Max recent events to store
-
-    # Event filtering for activity detection
+    # Activity Detection & Auto-Pause
+    worker_activity_detection_enabled: bool = True
+    worker_activity_detection_interval: int = 1800
+    worker_idle_timeout_minutes: int = 60
+    worker_auto_pause_enabled: bool = True
+    worker_auto_pause_snooze_minutes: int = 60
+    worker_activity_events_max_stored: int = 10
+    worker_activity_excluded_user_pattern: str = "^00000000-0000-.*"
     worker_activity_relevant_categories: list[str] = [
         "start_lab",
         "stop_lab",
@@ -177,33 +143,79 @@ class Settings(ApplicationSettings):
         "stop_node",
         "queue_node",
         "boot_node",
-        "user_activity",  # Filtered further by user_id pattern
+        "user_activity",
     ]
-    worker_activity_excluded_user_pattern: str = "^00000000-0000-.*"  # Admin UUID pattern (automated API calls)
-    worker_notification_webhooks: list[str] = []  # List of webhook URLs for notifications
-    # Metrics Change Threshold (percentage delta required to broadcast utilization updates)
-    metrics_change_threshold_percent: float = 5.0  # Override via METRICS_CHANGE_THRESHOLD_PERCENT
-    # Labs Refresh Background Job Configuration
-    labs_refresh_interval: int = 1800  # Seconds between labs refresh runs (default: 30 minutes)
+
+    # Notifications
+    worker_notification_webhooks: list[str] = []
+
+    # Labs Refresh
+    labs_refresh_interval: int = 1800
 
     # Worker Refresh Rate Limiting
-    worker_refresh_min_interval: int = 10  # Seconds - minimum time between manual refresh requests
-    worker_refresh_check_upcoming_job_threshold: int = (
-        10  # Seconds - skip manual refresh if background job is within this threshold
-    )
-    # Auto-Import Workers Configuration
-    auto_import_workers_enabled: bool = False  # Enable/disable auto-import job
-    auto_import_workers_interval: int = 3600  # Seconds between auto-import runs (default: 1 hour)
-    auto_import_workers_region: str = "us-east-1"  # AWS region to scan for workers
-    auto_import_workers_ami_name: str = ""  # AMI name pattern to search for (e.g., "CML-2.7.0-*")
+    worker_refresh_min_interval: int = 10
+    worker_refresh_check_upcoming_job_threshold: int = 10
 
-    # AWS Configuration
-    use_private_ip_for_monitoring: bool = False  # Set to True when running in AWS to use private IPs for monitoring
+    # Auto-Import Workers
+    auto_import_workers_enabled: bool = False
+    auto_import_workers_interval: int = 3600
+    auto_import_workers_region: str = "us-east-1"
+    auto_import_workers_ami_name: str = ""
+
+    # ============================================================================
+    # Observability (OpenTelemetry)
+    # ============================================================================
+
+    # General
+    service_name: str = "cml-cloud-manager"
+    service_version: str = app_version
+    deployment_environment: str = "development"
+    observability_enabled: bool = True
+
+    # Endpoints
+    observability_metrics_enabled: bool = True
+    observability_tracing_enabled: bool = True
+    observability_logging_enabled: bool = True
+    observability_health_endpoint: bool = True
+    observability_metrics_endpoint: bool = True
+    observability_ready_endpoint: bool = True
+    observability_health_path: str = "/health"
+    observability_metrics_path: str = "/metrics"
+    observability_ready_path: str = "/ready"
+    observability_health_checks: list[str] = []
+
+    # OpenTelemetry Collector
+    otel_enabled: bool = True
+    otel_endpoint: str = "http://otel-collector:4317"
+    otel_protocol: str = "grpc"
+    otel_timeout: int = 10
+    otel_console_export: bool = False
+    otel_batch_max_queue_size: int = 2048
+    otel_batch_schedule_delay_ms: int = 5000
+    otel_batch_max_export_size: int = 512
+    otel_metrics_interval_ms: int = 60000
+    otel_metrics_timeout_ms: int = 30000
+
+    # Instrumentation
+    otel_instrument_fastapi: bool = True
+    otel_instrument_httpx: bool = True
+    otel_instrument_logging: bool = True
+    otel_instrument_system_metrics: bool = True
+    otel_resource_attributes: dict[str, str] = {}
+
+    # ============================================================================
+    # Cloud Events
+    # ============================================================================
+    cloud_event_sink: str | None = None
+    cloud_event_source: str | None = None
+    cloud_event_type_prefix: str = "io.system.cml-cloud-manager"
+    cloud_event_retry_attempts: int = 5
+    cloud_event_retry_delay: float = 1.0
 
     class Config:
         env_file = ".env"
         case_sensitive = False
-        extra = "ignore"  # Ignore extra environment variables
+        extra = "ignore"
 
     def __init__(self, **kwargs: Any) -> None:
         """Initialize settings."""

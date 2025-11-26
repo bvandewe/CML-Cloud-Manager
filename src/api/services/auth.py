@@ -148,23 +148,6 @@ class DualAuthService:
         if rs256_payload:
             return self._map_claims(rs256_payload)
 
-        # Fallback: legacy HS256 secret (deprecated)
-        try:
-            unverified = jwt.get_unverified_header(token)
-            if unverified.get("alg") == app_settings.jwt_algorithm:
-                legacy_payload = jwt.decode(
-                    token,
-                    app_settings.jwt_secret_key,
-                    algorithms=[app_settings.jwt_algorithm],
-                    options={"verify_aud": False},
-                )
-                return self._map_claims(legacy_payload, legacy=True)
-        except jwt.ExpiredSignatureError:
-            self._log.info("Legacy HS256 token expired")
-        except jwt.InvalidTokenError as e:
-            self._log.debug(f"Legacy HS256 token invalid: {e}")
-        except Exception as e:
-            self._log.debug(f"Legacy HS256 decode error: {e}")
         return None
 
     def _map_claims(self, payload: dict, legacy: bool = False) -> dict:
