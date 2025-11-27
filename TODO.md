@@ -6,6 +6,7 @@
 - map domain to DTO with neuroglia.mapper
 
 - idle activity detection
+- add filter for users to see only instances for which a Tag matches the "USER_TAG_PATTERN" setting
 - manage user access to labs (sync user with CML users)
 
 - Expand on Monitoring

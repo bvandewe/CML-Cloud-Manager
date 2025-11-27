@@ -92,7 +92,7 @@ repos:
       hooks:
           - id: detect-secrets
             args: ['--baseline', '.secrets.baseline']
-            exclude: 'package-lock\.json|poetry\.lock|deployment/keycloak/.*realm.*\.json|.*cml_v2.9_openapi.json|notes/OAUTH2_CLIENT_CONFIGURATION.md|deployment/docker-compose/\.env\.prod\.example'
+            exclude: 'package-lock\.json|poetry\.lock|deployment/keycloak/.*realm.*\.json|.*cml_v2.9_openapi.json|notes/OAUTH2_CLIENT_CONFIGURATION.md|deployment/docker-compose/\.env\.prod\.example|docs/cml-feature-requests.md'
 
 # Configure pre-commit to run only on commit (not on push)
 default_install_hook_types: [pre-commit]

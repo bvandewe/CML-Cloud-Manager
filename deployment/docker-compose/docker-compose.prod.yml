@@ -366,7 +366,7 @@ services:
     expose:
       - "8080"
     environment:
-      tag: "v0.4.11"
+      tag: "v0.5.0"
       log_level: INFO
 
       # Authentication & Authorization
