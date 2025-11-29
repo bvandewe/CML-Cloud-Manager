@@ -7,6 +7,7 @@ from neuroglia.mediation import Mediator
 
 from application.commands.detect_worker_idle_command import DetectWorkerIdleCommand
 from application.services.background_scheduler import RecurrentBackgroundJob, backgroundjob
+from application.services.system_configuration_service import SystemConfigurationService
 from application.settings import app_settings
 from domain.enums import CMLWorkerStatus
 from domain.repositories import CMLWorkerRepository
@@ -53,24 +54,28 @@ class ActivityDetectionJob(RecurrentBackgroundJob):
 
         Called by the BackgroundTaskScheduler at regular intervals.
         """
-        if not app_settings.worker_auto_pause_enabled:
+        # Create scope for accessing repositories and mediator
+        scope = self._service_provider.create_scope() if self._service_provider else None
+
+        if not scope:
+            log.error("❌ service_provider not configured - job cannot execute")
+            return
+
+        # Get configuration service
+        config_service = scope.get_required_service(SystemConfigurationService)
+        idle_settings = await config_service.get_idle_detection_settings_async()
+
+        if not idle_settings.enabled:
             log.debug("Activity detection job skipped: worker_auto_pause_enabled=False")
             return
 
         log.info(
             f"Starting activity detection job "
             f"(interval={app_settings.worker_activity_detection_interval}s, "
-            f"idle_timeout={app_settings.worker_idle_timeout_minutes}m)"
+            f"idle_timeout={idle_settings.timeout_minutes}m)"
         )
 
-        # Create scope for accessing repositories and mediator
-        scope = self._service_provider.create_scope() if self._service_provider else None
-
         try:
-            if not scope:
-                log.error("❌ service_provider not configured - job cannot execute")
-                return
-
             # Get repository and mediator from scope
             repository = scope.get_required_service(CMLWorkerRepository)
             mediator = scope.get_required_service(Mediator)
@@ -149,4 +154,5 @@ class ActivityDetectionJob(RecurrentBackgroundJob):
         finally:
             # Clean up scope
             if scope:
+                scope.dispose()
                 scope.dispose()

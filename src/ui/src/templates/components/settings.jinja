@@ -1,0 +1,67 @@
+<div id="settings-section" style="display: none;">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>System Settings</h2>
+        <button id="save-settings-btn" class="btn btn-primary">
+            <i class="bi bi-save"></i> Save Changes
+        </button>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Worker Provisioning</h5>
+                </div>
+                <div class="card-body">
+                    <form id="worker-provisioning-form">
+                        <div class="mb-3">
+                            <label class="form-label">Default AMI Name</label>
+                            <input type="text" class="form-control" name="ami_name_default">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Instance Type</label>
+                            <input type="text" class="form-control" name="instance_type">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Security Group IDs (comma separated)</label>
+                            <input type="text" class="form-control" name="security_group_ids">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Subnet ID</label>
+                            <input type="text" class="form-control" name="subnet_id">
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Monitoring & Idle Detection</h5>
+                </div>
+                <div class="card-body">
+                    <form id="monitoring-form">
+                        <h6 class="mb-3">Monitoring</h6>
+                        <div class="mb-3">
+                            <label class="form-label">Metrics Poll Interval (seconds)</label>
+                            <input type="number" class="form-control" name="worker_metrics_poll_interval_seconds">
+                        </div>
+
+                        <hr class="my-4">
+
+                        <h6 class="mb-3">Idle Detection</h6>
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="idle-detection-enabled" name="enabled">
+                            <label class="form-check-label" for="idle-detection-enabled">Enable Idle Detection</label>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Idle Timeout (minutes)</label>
+                            <input type="number" class="form-control" name="timeout_minutes">
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -21,18 +21,22 @@ from api.services.openapi_config import configure_api_openapi, configure_mounted
 from application.services.background_scheduler import BackgroundTaskScheduler
 from application.services.cml_health_service import CMLHealthService
 from application.services.sse_event_relay import SSEEventRelayHostedService
+from application.services.system_configuration_service import SystemConfigurationService
 from application.services.system_health_service import SystemHealthService
 from application.settings import app_settings, configure_logging
 from domain.entities import Task
 from domain.entities.cml_worker import CMLWorker
 from domain.entities.lab_record import LabRecord
+from domain.entities.system_settings import SystemSettings
 from domain.repositories import TaskRepository
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
 from domain.repositories.lab_record_repository import LabRecordRepository
+from domain.repositories.system_settings_repository import SystemSettingsRepository
 from domain.services.idle_detection_service import IdleDetectionService
 from infrastructure.services.worker_refresh_throttle import WorkerRefreshThrottle
 from integration.repositories.motor_cml_worker_repository import MongoCMLWorkerRepository
 from integration.repositories.motor_lab_record_repository import MongoLabRecordRepository
+from integration.repositories.motor_system_settings_repository import MongoSystemSettingsRepository
 from integration.repositories.motor_task_repository import MongoTaskRepository
 from integration.services.aws_ec2_api_client import AwsEc2Client
 from integration.services.cml_api_client import CMLApiClientFactory
@@ -181,6 +185,17 @@ def create_app() -> FastAPI:
         implementation_type=MongoLabRecordRepository,
     )
 
+    # Configure System Settings Repository
+    MotorRepository.configure(
+        builder,
+        entity_type=SystemSettings,
+        key_type=str,
+        database_name="cml_cloud_manager",
+        collection_name="system_settings",
+        domain_repository_type=SystemSettingsRepository,
+        implementation_type=MongoSystemSettingsRepository,
+    )
+
     # Configure BackgroundTaskScheduler for worker monitoring jobs
     # import pkgutil
 
@@ -198,6 +213,7 @@ def create_app() -> FastAPI:
     CMLApiClientFactory.configure(builder)
     SystemHealthService.configure(builder)
     CMLHealthService.configure(builder)
+    SystemConfigurationService.configure(builder)
     IdleDetectionService.configure(builder)
     WorkerRefreshThrottle.configure(builder)
 
@@ -264,6 +280,13 @@ def create_app() -> FastAPI:
 if __name__ == "__main__":
     import uvicorn
 
+    uvicorn.run(
+        "main:create_app",
+        factory=True,
+        host=app_settings.app_host,
+        port=app_settings.app_port,
+        reload=app_settings.debug,
+    )
     uvicorn.run(
         "main:create_app",
         factory=True,

@@ -6,6 +6,12 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ## [Unreleased]
 
+### Added
+
+- **Settings**: Added System Settings feature for dynamic configuration of worker provisioning, monitoring, and idle detection
+- **Settings**: Added `SystemConfigurationService` to prioritize dynamic DB settings over static environment variables
+- **UI**: Added "Settings saved successfully" modal and improved settings view error handling
+
 ### Changed
 
 - **Configuration**: Refactored `settings.py` to group settings into logical sections (Core, Security, DB, AWS, Monitoring)
@@ -798,25 +804,3 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 - Updated `neuroglia-python` from 0.6.6 to 0.6.7 (later updated to 0.6.8)
 - Added `apscheduler = "^3.11.1"` for background task scheduling
-
-### Fixed
-
-- **APScheduler Pickle Serialization**: Fixed "Can't pickle local object" errors preventing background job persistence
-  - Modified job wrappers to accept only serializable parameters (task_type_name, task_id, task_data)
-  - Job wrappers reconstruct task objects from minimal data using service provider
-  - Eliminated unpicklable references (JsonSerializer lambdas) from job arguments
-  - Enables Redis/MongoDB job stores to persist scheduled and recurrent jobs successfully
-
-- **Enhanced Worker Refresh**: Refresh endpoint now triggers immediate metrics collection
-  - Creates and executes WorkerMetricsCollectionJob instance on-demand
-  - Collects EC2 status and CloudWatch metrics instantly
-  - Worker aggregate emits domain events for any state changes (status, IP, telemetry)
-  - Domain event handlers can react asynchronously to worker updates
-  - Ensures monitoring scheduler tracks worker after refresh
-
-- Fixed dependency injection for authentication middleware to properly resolve service provider
-- Fixed configuration issues in CI workflow for Git LFS checkout to ensure GitHub Pages deployment includes LFS assets
-- Fixed Bandit security scanner configuration to skip test directories and B101 (assert_used) check, eliminating 155 false positive warnings
-- Fixed job serialization to store only minimal data (worker_id), avoiding non-serializable dependencies
-- Fixed job stop implementation in `WorkerMonitoringScheduler` to properly call APScheduler's remove_job
-- Fixed job state validation to check for terminated workers and raise exceptions to stop jobs gracefully

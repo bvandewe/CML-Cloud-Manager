@@ -4,6 +4,7 @@ from .app_controller import AppController
 from .auth_controller import AuthController
 from .events_controller import EventsController
 from .labs_controller import LabsController
+from .settings_controller import SettingsController
 from .system_controller import SystemController
 from .tasks_controller import TasksController
 from .workers_controller import WorkersController
@@ -14,6 +15,7 @@ __all__ = [
     "EventsController",
     "LabsController",
     "SystemController",
+    "SettingsController",
     "TasksController",
     "WorkersController",
 ]

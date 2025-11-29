@@ -9,6 +9,7 @@ import { checkAuth } from './api/client.js';
 import { login, logout, showLoginForm, showDashboard } from './ui/auth.js';
 import { loadTasks, handleCreateTask, handleUpdateTask } from './ui/tasks.js';
 import { initializeSystemView } from './ui/system.js';
+import { initializeSettingsView } from './ui/settings.js';
 import { initializeTheme } from './services/theme.js';
 import { sessionManager } from './services/session-manager.js';
 import { eventBus, EventTypes } from './core/EventBus.js';
@@ -84,19 +85,23 @@ function showView(view) {
     const dashboardSection = document.getElementById('dashboard-section');
     const workersSection = document.getElementById('workers-section');
     const systemSection = document.getElementById('system-view');
+    const settingsSection = document.getElementById('settings-section');
 
     if (dashboardSection) dashboardSection.style.display = 'none';
     if (workersSection) workersSection.style.display = 'none';
     if (systemSection) systemSection.style.display = 'none';
+    if (settingsSection) settingsSection.style.display = 'none';
 
     // Update nav links
     const navTasks = document.getElementById('nav-tasks');
     const navWorkers = document.getElementById('nav-workers');
     const navSystem = document.getElementById('nav-system');
+    const navSettings = document.getElementById('nav-settings');
 
     if (navTasks) navTasks.classList.remove('active');
     if (navWorkers) navWorkers.classList.remove('active');
     if (navSystem) navSystem.classList.remove('active');
+    if (navSettings) navSettings.classList.remove('active');
 
     // Show selected section
     if (view === 'tasks') {
@@ -122,6 +127,11 @@ function showView(view) {
         if (systemSection) systemSection.style.display = 'block';
         if (navSystem) navSystem.classList.add('active');
         initializeSystemView();
+    } else if (view === 'settings') {
+        console.log('[APP showView] Showing settings view');
+        if (settingsSection) settingsSection.style.display = 'block';
+        if (navSettings) navSettings.classList.add('active');
+        initializeSettingsView();
     }
 }
 
@@ -167,6 +177,14 @@ function setupEventListeners() {
         navSystem.addEventListener('click', e => {
             e.preventDefault();
             showView('system');
+        });
+    }
+
+    const navSettings = document.getElementById('nav-settings');
+    if (navSettings) {
+        navSettings.addEventListener('click', e => {
+            e.preventDefault();
+            showView('settings');
         });
     }
 

@@ -68,9 +68,11 @@ export function showLoginForm() {
     // Hide all other sections
     const workersSection = document.getElementById('workers-section');
     const systemView = document.getElementById('system-view');
+    const settingsSection = document.getElementById('settings-section');
     const mainNav = document.getElementById('main-nav');
     if (workersSection) workersSection.style.display = 'none';
     if (systemView) systemView.style.display = 'none';
+    if (settingsSection) settingsSection.style.display = 'none';
     if (mainNav) mainNav.style.display = 'none';
 
     // Clear user roles from localStorage on logout

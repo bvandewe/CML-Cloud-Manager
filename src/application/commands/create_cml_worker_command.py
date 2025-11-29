@@ -12,6 +12,7 @@ from neuroglia.mediation import Command, CommandHandler, Mediator
 from neuroglia.observability.tracing import add_span_attributes
 from opentelemetry import trace
 
+from application.services.system_configuration_service import SystemConfigurationService
 from application.settings import Settings
 from domain.entities.cml_worker import CMLWorker
 from domain.enums import CMLWorkerStatus
@@ -59,6 +60,7 @@ class CreateCMLWorkerCommandHandler(
         cml_worker_repository: CMLWorkerRepository,
         aws_ec2_client: AwsEc2Client,
         settings: Settings,
+        configuration_service: SystemConfigurationService,
     ):
         super().__init__(
             mediator,
@@ -69,6 +71,7 @@ class CreateCMLWorkerCommandHandler(
         self.cml_worker_repository = cml_worker_repository
         self.aws_ec2_client = aws_ec2_client
         self.settings = settings
+        self.configuration_service = configuration_service
 
     async def handle_async(self, request: CreateCMLWorkerCommand) -> OperationResult[dict]:
         """Handle create CML Worker command.
@@ -101,6 +104,13 @@ class CreateCMLWorkerCommandHandler(
                 ami_creation_date = None
 
                 if not ami_id:
+                    # Get effective provisioning settings
+                    prov_settings = await self.configuration_service.get_worker_provisioning_settings_async()
+
+                    # TODO: The current SystemSettings entity doesn't support per-region AMI maps yet,
+                    # so we still rely on static settings for the map, but we could enhance this later.
+                    # For now, we'll use the static map but allow the default AMI name to be overridden.
+
                     # Get AMI from settings for the specified region
                     region_ami_ids = self.settings.cml_worker_ami_ids
                     if command.aws_region not in region_ami_ids:
@@ -112,7 +122,7 @@ class CreateCMLWorkerCommandHandler(
 
                     # Get AMI name from settings
                     region_ami_names = self.settings.cml_worker_ami_names
-                    ami_name = region_ami_names.get(command.aws_region, "CML Worker AMI")
+                    ami_name = region_ami_names.get(command.aws_region, prov_settings.ami_name_default)
 
                 # Fetch full AMI details from AWS (optional, non-blocking)
                 if ami_id:
@@ -175,6 +185,7 @@ class CreateCMLWorkerCommandHandler(
 
         except Exception as e:
             log.error(f"Unexpected error creating CML Worker: {e}", exc_info=True)
+            return self.bad_request(f"Unexpected error: {str(e)}")
             return self.bad_request(f"Unexpected error: {str(e)}")
             return self.bad_request(f"Unexpected error: {str(e)}")
             return self.bad_request(f"Unexpected error: {str(e)}")

@@ -1,0 +1,76 @@
+{
+    "name": "sessions",
+    "description": "Default authorization policy for sessions",
+    "requirements": [
+        {
+            "type": "Composite",
+            "conditionType": "All",
+            "requirements": [
+                {
+                    "type": "Composite",
+                    "conditionType": "Any",
+                    "requirements": [
+                        {
+                            "type": "Claim",
+                            "claimType": "trackType",
+                            "claimValue": "${ $SESSION.trackQualifiedName | split(\" \") | .[0] }"
+                        },
+                        {
+                            "type": "Claim",
+                            "claimType": "trackType",
+                            "claimValue": "all"
+                        }
+                    ]
+                },
+                {
+                    "type": "Composite",
+                    "conditionType": "Any",
+                    "requirements": [
+                        {
+                            "type": "Claim",
+                            "claimType": "trackLevel",
+                            "claimValue": "${ $SESSION.trackQualifiedName | split(\" \") | .[1] }"
+                        },
+                        {
+                            "type": "Claim",
+                            "claimType": "trackLevel",
+                            "claimValue": "all"
+                        }
+                    ]
+                },
+                {
+                    "type": "Composite",
+                    "conditionType": "Any",
+                    "requirements": [
+                        {
+                            "type": "Claim",
+                            "claimType": "trackAcronym",
+                            "claimValue": "${ $SESSION.trackQualifiedName | split(\" \") | .[2] }"
+                        },
+                        {
+                            "type": "Claim",
+                            "claimType": "trackAcronym",
+                            "claimValue": "all"
+                        }
+                    ]
+                },
+                {
+                    "type": "Composite",
+                    "conditionType": "Any",
+                    "requirements": [
+                        {
+                            "type": "Claim",
+                            "claimType": "labLocation",
+                            "claimValue": "${ $SESSION.locationId }"
+                        },
+                        {
+                            "type": "Claim",
+                            "claimType": "labLocation",
+                            "claimValue": "all"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

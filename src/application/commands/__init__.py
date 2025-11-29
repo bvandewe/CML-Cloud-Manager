@@ -46,6 +46,7 @@ from .sync_worker_ec2_status_command import SyncWorkerEC2StatusCommand, SyncWork
 from .terminate_cml_worker_command import TerminateCMLWorkerCommand, TerminateCMLWorkerCommandHandler
 from .update_cml_worker_status_command import UpdateCMLWorkerStatusCommand, UpdateCMLWorkerStatusCommandHandler
 from .update_cml_worker_tags_command import UpdateCMLWorkerTagsCommand, UpdateCMLWorkerTagsCommandHandler
+from .update_system_settings_command import UpdateSystemSettingsCommand, UpdateSystemSettingsCommandHandler
 from .update_task_command import UpdateTaskCommand, UpdateTaskCommandHandler
 
 __all__ = [
@@ -109,6 +110,8 @@ __all__ = [
     "UpdateCMLWorkerStatusCommandHandler",
     "UpdateCMLWorkerTagsCommand",
     "UpdateCMLWorkerTagsCommandHandler",
+    "UpdateSystemSettingsCommand",
+    "UpdateSystemSettingsCommandHandler",
     "UpdateTaskCommand",
     "UpdateTaskCommandHandler",
 ]

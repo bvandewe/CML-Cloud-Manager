@@ -7,6 +7,7 @@ from .cml_worker_requests import (
     RegisterLicenseRequest,
     UpdateCMLWorkerTagsRequest,
 )
+from .system_settings_requests import UpdateSystemSettingsRequest
 
 __all__ = [
     "CreateCMLWorkerRequest",
@@ -14,4 +15,5 @@ __all__ = [
     "ImportCMLWorkerRequest",
     "RegisterLicenseRequest",
     "UpdateCMLWorkerTagsRequest",
+    "UpdateSystemSettingsRequest",
 ]

@@ -10,6 +10,7 @@ from neuroglia.mediation import Query, QueryHandler
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 
+from application.services.system_configuration_service import SystemConfigurationService
 from application.settings import app_settings
 from domain.repositories import CMLWorkerRepository
 from domain.services.idle_detection_service import IdleDetectionService
@@ -35,15 +36,22 @@ class GetWorkerIdleStatusQueryHandler(QueryHandler[GetWorkerIdleStatusQuery, Ope
     Evaluates idle conditions and determines if worker should be auto-paused.
     """
 
-    def __init__(self, worker_repository: CMLWorkerRepository, idle_service: IdleDetectionService):
+    def __init__(
+        self,
+        worker_repository: CMLWorkerRepository,
+        idle_service: IdleDetectionService,
+        configuration_service: SystemConfigurationService,
+    ):
         """Initialize the handler.
 
         Args:
             worker_repository: Repository for CML worker aggregates
             idle_service: Domain service for idle detection
+            configuration_service: Service for effective system configuration
         """
         self._repository = worker_repository
         self._idle_service = idle_service
+        self._configuration_service = configuration_service
 
     async def handle_async(self, request: GetWorkerIdleStatusQuery) -> OperationResult[dict[str, Any]]:
         """Execute the query.
@@ -69,6 +77,9 @@ class GetWorkerIdleStatusQueryHandler(QueryHandler[GetWorkerIdleStatusQuery, Ope
                         f"Worker {request.worker_id} not found",
                     )
 
+                # Get effective idle settings
+                idle_settings = await self._configuration_service.get_idle_detection_settings_async()
+
                 # Calculate idle duration
                 idle_minutes = worker.calculate_idle_duration()
 
@@ -76,10 +87,10 @@ class GetWorkerIdleStatusQueryHandler(QueryHandler[GetWorkerIdleStatusQuery, Ope
                 in_snooze = worker.in_snooze_period(app_settings.worker_auto_pause_snooze_minutes)
 
                 # Determine if worker is idle based on threshold using domain service
-                is_idle = self._idle_service.is_worker_idle(worker, app_settings.worker_idle_timeout_minutes)
+                is_idle = self._idle_service.is_worker_idle(worker, idle_settings.timeout_minutes)
 
                 # Check if auto-pause is enabled (globally and for this worker)
-                auto_pause_enabled = app_settings.worker_auto_pause_enabled and worker.state.is_idle_detection_enabled
+                auto_pause_enabled = idle_settings.enabled and worker.state.is_idle_detection_enabled
 
                 # Determine if eligible for auto-pause
                 eligible_for_pause = (
@@ -91,7 +102,7 @@ class GetWorkerIdleStatusQueryHandler(QueryHandler[GetWorkerIdleStatusQuery, Ope
                     "worker_id": request.worker_id,
                     "is_idle": is_idle,
                     "idle_minutes": idle_minutes,
-                    "idle_threshold_minutes": app_settings.worker_idle_timeout_minutes,
+                    "idle_threshold_minutes": idle_settings.timeout_minutes,
                     "last_activity_at": worker.state.last_activity_at,
                     "in_snooze_period": in_snooze,
                     "snooze_until": worker.state.last_resumed_at,
