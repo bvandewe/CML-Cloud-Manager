@@ -21,6 +21,7 @@ class GetCMLWorkersQuery(Query[OperationResult[list[dict[str, Any]]]]):
 
     aws_region: AwsRegion
     status: CMLWorkerStatus | None = None
+    include_terminated: bool = False
 
 
 class GetCMLWorkersQueryHandler(QueryHandler[GetCMLWorkersQuery, OperationResult[list[dict[str, Any]]]]):
@@ -36,6 +37,8 @@ class GetCMLWorkersQueryHandler(QueryHandler[GetCMLWorkersQuery, OperationResult
             # Get workers based on status filter
             if request.status:
                 workers = await self.worker_repository.get_by_status_async(request.status)
+            elif request.include_terminated:
+                workers = await self.worker_repository.get_all_async()
             else:
                 workers = await self.worker_repository.get_active_workers_async()
 

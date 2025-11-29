@@ -8,6 +8,7 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ### Added
 
+- **Workers**: Added ability for admins to list terminated workers via UI filter and API parameter
 - **Settings**: Added System Settings feature for dynamic configuration of worker provisioning, monitoring, and idle detection
 - **Settings**: Added `SystemConfigurationService` to prioritize dynamic DB settings over static environment variables
 - **UI**: Added "Settings saved successfully" modal and improved settings view error handling
@@ -472,6 +473,7 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
   - Returns settings slice (`worker_metrics_poll_interval`, `labs_refresh_interval`, `auto_import_workers_interval`).
 - **SystemHealthService**: New singleton aggregating multi-component health checks (MongoDB latency, background scheduler status & job count, Redis/in-memory session store ping, CloudEvent sink POST validation, Keycloak OIDC discovery, OTEL collector TCP reachability).
   - Produces structured `components` map with per-service `status`, `latency_ms`, and contextual metadata; overall `status` downgraded to `degraded` on any unhealthy/error component.
+  - Added health check endpoint `/api/system/health` for aggregated health status
 - **Workers UI Modularization (God file breakup – Phase 1)**: Extracted monolithic `workers.js` concerns into discrete modules improving cohesion & testability:
   - Store & Data Flow: `store/workerStore.js` (Map-based store, subscription API, timing metadata, in-flight request dedup, snapshot upsert & metrics update helpers).
   - Rendering Components: `components/metricsPanel.js`, `components/status-badges.js`, `components/workerCmlPanel.js`, `components/workerLicensePanel.js`, `components/escape.js` (central HTML escaping).

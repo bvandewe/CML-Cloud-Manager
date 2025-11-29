@@ -103,6 +103,9 @@ class WorkersApp {
                 case 'status':
                     this.updateFilterAttribute('filter-status', data.value);
                     break;
+                case 'include_terminated':
+                    this.updateFilterAttribute('include-terminated', data.value);
+                    break;
                 case 'search':
                     this.updateFilterAttribute('search', data.value);
                     break;
@@ -245,7 +248,7 @@ class WorkersApp {
                 <!-- Workers Panel -->
                 <div class="tab-pane fade show active" id="workers-panel" role="tabpanel" aria-labelledby="workers-tab">
                     <!-- Filter Bar -->
-                    <filter-bar view="${this.currentView}"></filter-bar>
+                    <filter-bar view="${this.currentView}" is-admin="${isAdmin}"></filter-bar>
 
                     <!-- Workers List -->
                     <worker-list

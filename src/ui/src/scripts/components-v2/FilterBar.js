@@ -13,7 +13,7 @@ import { EventTypes } from '../core/EventBus.js';
 
 export class FilterBar extends BaseComponent {
     static get observedAttributes() {
-        return ['view'];
+        return ['view', 'is-admin'];
     }
 
     constructor() {
@@ -36,6 +36,7 @@ export class FilterBar extends BaseComponent {
 
     render() {
         const currentView = this.getAttr('view') || 'cards';
+        const isAdmin = this.getAttr('is-admin') === 'true';
 
         this.innerHTML = `
             <div class="filter-bar mb-3">
@@ -57,7 +58,20 @@ export class FilterBar extends BaseComponent {
                             <option value="stopped">Stopped</option>
                             <option value="stopping">Stopping</option>
                             <option value="pending">Pending</option>
+                            <option value="terminated">Terminated</option>
                         </select>
+                        ${
+                            isAdmin
+                                ? `
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" id="include-terminated">
+                            <label class="form-check-label" for="include-terminated">
+                                Include Terminated
+                            </label>
+                        </div>
+                        `
+                                : ''
+                        }
                     </div>
                     <div class="col-md-4">
                         <label for="search-workers" class="form-label">Search</label>
@@ -85,6 +99,7 @@ export class FilterBar extends BaseComponent {
         const statusSelect = this.$('#filter-status');
         const searchInput = this.$('#search-workers');
         const viewSelect = this.$('#view-toggle');
+        const includeTerminatedCheckbox = this.$('#include-terminated');
 
         if (regionSelect) {
             regionSelect.addEventListener('change', e => {
@@ -100,6 +115,15 @@ export class FilterBar extends BaseComponent {
                 this.emit(EventTypes.UI_FILTER_CHANGED, {
                     type: 'status',
                     value: e.target.value,
+                });
+            });
+        }
+
+        if (includeTerminatedCheckbox) {
+            includeTerminatedCheckbox.addEventListener('change', e => {
+                this.emit(EventTypes.UI_FILTER_CHANGED, {
+                    type: 'include_terminated',
+                    value: e.target.checked,
                 });
             });
         }

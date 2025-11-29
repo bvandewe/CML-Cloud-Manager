@@ -74,12 +74,13 @@ class WorkersController(ControllerBase):
         self,
         aws_region: aws_region_annotation,
         status: CMLWorkerStatus | None = None,
+        include_terminated: bool = False,
         token: str = Depends(get_current_user),
     ) -> Any:
         """Queries for all CML Worker instances in a region.
 
         (**Requires valid token.**)"""
-        query = GetCMLWorkersQuery(aws_region=aws_region, status=status)
+        query = GetCMLWorkersQuery(aws_region=aws_region, status=status, include_terminated=include_terminated)
         return self.process(await self.mediator.execute_async(query))
 
     @get(

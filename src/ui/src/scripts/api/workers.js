@@ -9,11 +9,16 @@ import { apiRequest } from './client.js';
  * List all CML Workers in a region
  * @param {string} region - AWS region
  * @param {string|null} status - Optional status filter
+ * @param {boolean} includeTerminated - Whether to include terminated workers
  * @returns {Promise<Array>}
  */
-export async function listWorkers(region = 'us-east-1', status = null) {
-    const params = status ? `?status=${status}` : '';
-    const response = await apiRequest(`/api/workers/region/${region}/workers${params}`, {
+export async function listWorkers(region = 'us-east-1', status = null, includeTerminated = false) {
+    const params = new URLSearchParams();
+    if (status) params.append('status', status);
+    if (includeTerminated) params.append('include_terminated', 'true');
+
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+    const response = await apiRequest(`/api/workers/region/${region}/workers${queryString}`, {
         method: 'GET',
     });
     return await response.json();

@@ -16,7 +16,7 @@ import * as bootstrap from 'bootstrap';
 
 export class WorkerList extends BaseComponent {
     static get observedAttributes() {
-        return ['region', 'view', 'filter-status', 'search'];
+        return ['region', 'view', 'filter-status', 'search', 'include-terminated'];
     }
 
     constructor() {
@@ -93,11 +93,12 @@ export class WorkerList extends BaseComponent {
         this.isLoadingWorkers = true;
         console.log('[WorkerList] Loading workers...');
         const region = this.getAttr('region', 'us-east-1');
+        const includeTerminated = this.getAttr('include-terminated') === 'true';
 
         try {
             // Import API dynamically to avoid circular dependencies
             const { listWorkers } = await import('../api/workers.js');
-            const workers = await listWorkers(region);
+            const workers = await listWorkers(region, null, includeTerminated);
 
             console.log(`[WorkerList] Loaded ${workers.length} workers`);
 
@@ -229,6 +230,8 @@ export class WorkerList extends BaseComponent {
 
     onAttributeChange(name, oldValue, newValue) {
         if (name === 'region' && oldValue !== newValue) {
+            this.loadWorkers();
+        } else if (name === 'include-terminated' && oldValue !== newValue) {
             this.loadWorkers();
         } else if (name === 'filter-status' || name === 'search' || name === 'view') {
             this.render();
