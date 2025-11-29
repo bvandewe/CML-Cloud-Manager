@@ -97,7 +97,7 @@ class OpenAPIConfigService:
                 return app.openapi_schema
 
             openapi_schema = get_openapi(
-                title=app.title,
+                title=f"{settings.app_name} API",
                 version=app.version,
                 description=app.description,
                 routes=app.routes,
@@ -267,6 +267,9 @@ class OpenAPIConfigService:
         app.swagger_ui_parameters = {
             **existing_params,
             "persistAuthorization": True,
+            "docExpansion": "none",
+            "operationsSorter": "alpha",
+            "tagsSorter": "alpha",
             # Ensure requests get Authorization header when flow completes
             # FastAPI's Swagger UI auto-injects once token is stored; we just keep it.
         }

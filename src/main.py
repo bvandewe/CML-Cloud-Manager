@@ -248,7 +248,7 @@ def create_app() -> FastAPI:
 
     # Build the application
     app = builder.build_app_with_lifespan(
-        title="Cml Cloud Manager",
+        title="CML Cloud Manager",
         description="Task management application with multi-app architecture",
         version="1.0.0",
         debug=True,
@@ -280,13 +280,6 @@ def create_app() -> FastAPI:
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(
-        "main:create_app",
-        factory=True,
-        host=app_settings.app_host,
-        port=app_settings.app_port,
-        reload=app_settings.debug,
-    )
     uvicorn.run(
         "main:create_app",
         factory=True,

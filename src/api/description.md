@@ -1,5 +1,3 @@
-# CML Cloud Manager API
-
 ## Overview
 
 The CML Cloud Manager API provides programmatic access to manage AWS EC2-based Cisco Modeling Lab (CML) workers. This RESTful API enables automated provisioning, monitoring, and lifecycle management of CML infrastructure at scale.
