@@ -6,6 +6,8 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-01-12
+
 ### Added
 
 - **Workers**: Added ability for admins to list terminated workers via UI filter and API parameter
