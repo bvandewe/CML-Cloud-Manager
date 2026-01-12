@@ -397,8 +397,8 @@ prod-down: ## Stop and remove production services
 	$(PROD_COMPOSE) down
 	@echo "$(GREEN)Production services stopped!$(NC)"
 
-prod-logs: ## Show logs from production services
-	$(PROD_COMPOSE) logs -f
+prod-logs: ## Show recent logs from production services (tail 100 lines)
+	$(PROD_COMPOSE) logs -f --tail=100
 
 prod-ps: ## Show running production containers
 	$(PROD_COMPOSE) ps
