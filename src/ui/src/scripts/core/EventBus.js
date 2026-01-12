@@ -151,10 +151,15 @@ export const EventTypes = {
     WORKER_RESUMED: 'worker.resumed',
     WORKER_REFRESH_THROTTLED: 'worker.refresh.throttled',
     WORKER_DATA_REFRESHED: 'worker.data.refreshed',
+    WORKER_ENDPOINT_UPDATED: 'worker.endpoint.updated',
+    WORKER_EC2_DETAILS_UPDATED: 'worker.ec2_details.updated',
     WORKER_LICENSE_REGISTRATION_STARTED: 'worker.license.registration.started',
     WORKER_LICENSE_REGISTRATION_COMPLETED: 'worker.license.registration.completed',
     WORKER_LICENSE_REGISTRATION_FAILED: 'worker.license.registration.failed',
     WORKER_LICENSE_DEREGISTERED: 'worker.license.deregistered',
+
+    // Workers list events (bulk operations)
+    WORKERS_REFRESH_COMPLETED: 'workers.refresh.completed',
 
     // System events
     SYSTEM_SSE_SHUTDOWN: 'system.sse.shutdown',
