@@ -12,6 +12,13 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 - **Settings**: Added System Settings feature for dynamic configuration of worker provisioning, monitoring, and idle detection
 - **Settings**: Added `SystemConfigurationService` to prioritize dynamic DB settings over static environment variables
 - **UI**: Added "Settings saved successfully" modal and improved settings view error handling
+- **Workers**: Added worker lifecycle commands (`StartCMLWorkerCommand`, `StopCMLWorkerCommand`, `TerminateCMLWorkerCommand`) with resume/pause metrics tracking
+- **Workers**: Added worker data sync commands for EC2 status, CML health/version/labs, and background status updates
+- **Workers**: Added worker management commands for EC2 tags, telemetry activity tracking, and on-demand data refresh with throttling
+- **License**: Added async `RegisterCMLWorkerLicenseCommand` with background job scheduling and SSE progress updates
+- **UI**: Added Web Components architecture for workers view (`FilterBar`, `StatisticsPanel`, `WorkerCard`, `WorkerList`)
+- **UI**: Added `WorkerDetailsModal` with horizontal tabs (AWS, CML, Labs, Monitoring, Events) and lab operations
+- **UI**: Added `WorkersApp` as main controller with SSE connection management and EventBus integration
 
 ### Changed
 
