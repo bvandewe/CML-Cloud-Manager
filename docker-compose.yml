@@ -107,7 +107,7 @@ services:
         command: ['sh', '-c', 'cd /app/src && pip install debugpy -t /tmp && PYTHONPATH=/tmp:/app/src python -m debugpy --listen 0.0.0.0:5678 -m uvicorn api_server:app --host 0.0.0.0 --port 8080 --reload --reload-dir /app/src']
         ports:
             - '${APP_PORT:-8020}:8080'
-            - '5678:5678'
+            - '5680:5678'
         environment:
             # Core Application
             APP_NAME: ${APP_NAME}
@@ -193,7 +193,7 @@ services:
                 'pip install debugpy watchfiles && cd src && python -m watchfiles --ignore-paths /app/src/logs "sh -c ''sleep 1 && exec python background_worker.py''" .',
             ]
         ports:
-            - '5679:5679'
+            - '5681:5679'
         environment:
             # Core Application
             APP_NAME: ${APP_NAME}

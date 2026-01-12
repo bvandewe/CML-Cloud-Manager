@@ -217,7 +217,7 @@ async def scheduled_job_wrapper(
                 modules = (
                     scheduler_options.modules if scheduler_options else ["application.services", "application.jobs"]
                 )
-            except:
+            except Exception:
                 modules = ["application.services", "application.jobs"]
         else:
             modules = ["application.services", "application.jobs"]

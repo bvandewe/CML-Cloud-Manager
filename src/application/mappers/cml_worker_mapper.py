@@ -15,9 +15,6 @@ from domain.entities.cml_worker import CMLWorker
 log = logging.getLogger(__name__)
 
 
-# TODO: use neuroglia.mapper to produce the DTO instead of manual mapping!
-
-
 def map_worker_to_dto(worker: CMLWorker) -> CMLWorkerDto:
     """Map CMLWorker aggregate to CMLWorkerDto.
 
