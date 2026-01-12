@@ -81,7 +81,8 @@ def test_no_starter_branding_left():
     To run after executing scripts/rename_project.py.
     Set SKIP_RENAME_INTEGRITY=1 to skip when still in starter state.
     """
-    repo_root = Path(__file__).resolve().parents[1]
+    # parents[2] to go from tests/cases/test_rename_integrity.py -> repo root
+    repo_root = Path(__file__).resolve().parents[2]
     # Auto-skip if still in original repo name unless forced
     if repo_root.name == "cml-cloud-manager" and os.getenv(FORCE_ENV) != "1":
         pytest.skip("Repository still named cml-cloud-manager; rename not yet applied.")
