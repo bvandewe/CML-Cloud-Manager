@@ -15,35 +15,53 @@ from multipledispatch import dispatch
 from neuroglia.data.abstractions import AggregateRoot, AggregateState
 
 from domain.enums import CMLServiceStatus, CMLWorkerStatus, LicenseStatus
-from domain.events.cloudwatch_monitoring_updated_domain_event import \
-    CloudWatchMonitoringUpdatedDomainEvent
+from domain.events.cloudwatch_monitoring_updated_domain_event import CloudWatchMonitoringUpdatedDomainEvent
 from domain.events.cml_worker import (
-    CMLServiceStatusUpdatedDomainEvent, CMLWorkerCreatedDomainEvent,
-    CMLWorkerEndpointUpdatedDomainEvent, CMLWorkerImportedDomainEvent,
-    CMLWorkerInstanceAssignedDomainEvent, CMLWorkerLicenseDeregisteredDomainEvent,
+    CMLServiceStatusUpdatedDomainEvent,
+    CMLWorkerCreatedDomainEvent,
+    CMLWorkerEndpointUpdatedDomainEvent,
+    CMLWorkerImportedDomainEvent,
+    CMLWorkerInstanceAssignedDomainEvent,
+    CMLWorkerLicenseDeregisteredDomainEvent,
     CMLWorkerLicenseDeregistrationCompletedDomainEvent,
     CMLWorkerLicenseDeregistrationFailedDomainEvent,
     CMLWorkerLicenseDeregistrationStartedDomainEvent,
     CMLWorkerLicenseRegistrationCompletedDomainEvent,
     CMLWorkerLicenseRegistrationFailedDomainEvent,
-    CMLWorkerLicenseRegistrationStartedDomainEvent, CMLWorkerLicenseUpdatedDomainEvent,
-    CMLWorkerStatusUpdatedDomainEvent, CMLWorkerTagsUpdatedDomainEvent,
-    CMLWorkerTelemetryUpdatedDomainEvent, CMLWorkerTerminatedDomainEvent,
-    WorkerDataRefreshCompletedDomainEvent, WorkerDataRefreshRequestedDomainEvent,
-    WorkerDataRefreshSkippedDomainEvent)
-from domain.events.worker_activity_events import (IdleDetectionToggledDomainEvent,
-                                                  WorkerActivityUpdatedDomainEvent,
-                                                  WorkerPausedDomainEvent,
-                                                  WorkerResumedDomainEvent)
-from domain.events.worker_metrics_events import (CloudWatchMetricsUpdatedDomainEvent,
-                                                 CMLMetricsUpdatedDomainEvent,
-                                                 EC2InstanceDetailsUpdatedDomainEvent,
-                                                 EC2MetricsUpdatedDomainEvent)
+    CMLWorkerLicenseRegistrationStartedDomainEvent,
+    CMLWorkerLicenseUpdatedDomainEvent,
+    CMLWorkerStatusUpdatedDomainEvent,
+    CMLWorkerTagsUpdatedDomainEvent,
+    CMLWorkerTelemetryUpdatedDomainEvent,
+    CMLWorkerTerminatedDomainEvent,
+    WorkerDataRefreshCompletedDomainEvent,
+    WorkerDataRefreshRequestedDomainEvent,
+    WorkerDataRefreshSkippedDomainEvent,
+)
+from domain.events.worker_activity_events import (
+    IdleDetectionToggledDomainEvent,
+    WorkerActivityUpdatedDomainEvent,
+    WorkerPausedDomainEvent,
+    WorkerResumedDomainEvent,
+)
+from domain.events.worker_metrics_events import (
+    CloudWatchMetricsUpdatedDomainEvent,
+    CMLMetricsUpdatedDomainEvent,
+    EC2InstanceDetailsUpdatedDomainEvent,
+    EC2MetricsUpdatedDomainEvent,
+)
 from domain.value_objects.cml_license import CMLLicense
-from domain.value_objects.cml_metrics import (CMLMetrics, CMLSystemHealth,
-                                              CMLSystemInfo, CMLSystemInfoCompute,
-                                              CMLSystemInfoComputeStats, CpuStats,
-                                              DiskStats, DomInfoStats, MemoryStats)
+from domain.value_objects.cml_metrics import (
+    CMLMetrics,
+    CMLSystemHealth,
+    CMLSystemInfo,
+    CMLSystemInfoCompute,
+    CMLSystemInfoComputeStats,
+    CpuStats,
+    DiskStats,
+    DomInfoStats,
+    MemoryStats,
+)
 
 
 class CMLWorkerState(AggregateState[str]):
@@ -248,8 +266,22 @@ class CMLWorkerState(AggregateState[str]):
             self.start_initiated_at = None
         elif event.new_status == CMLWorkerStatus.STOPPING:
             self.stop_initiated_at = event.transition_initiated_at or event.updated_at
+            # Set service status to unavailable when stopping
+            self.service_status = CMLServiceStatus.UNAVAILABLE
         elif event.new_status == CMLWorkerStatus.STOPPED:
             self.stop_initiated_at = None
+            # Reset mutable network fields - EC2 releases public IP when stopped
+            self.public_ip = None
+            self.private_ip = None
+            self.https_endpoint = None
+            # Reset service status
+            self.service_status = CMLServiceStatus.UNAVAILABLE
+            # Reset resource utilization metrics
+            self.cloudwatch_cpu_utilization = None
+            self.cloudwatch_memory_utilization = None
+            self.cloudwatch_last_collected_at = None
+            # Reset CML metrics (worker is not running, no CML data available)
+            self.metrics = CMLMetrics()
 
     @dispatch(CMLServiceStatusUpdatedDomainEvent)
     def on(self, event: CMLServiceStatusUpdatedDomainEvent) -> None:  # type: ignore[override]
