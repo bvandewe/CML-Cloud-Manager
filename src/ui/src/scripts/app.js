@@ -117,7 +117,7 @@ function showView(view) {
 
         // Always use Web Components implementation
         console.log('[APP] Using Web Components implementation');
-        import('./components-v2/WorkersApp.js').then(module => {
+        import('./components/WorkersApp.js').then(module => {
             module.initializeWorkersView(currentUser);
         });
 
