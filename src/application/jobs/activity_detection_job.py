@@ -5,8 +5,9 @@ import logging
 
 from neuroglia.mediation import Mediator
 
-from application.commands.detect_worker_idle_command import DetectWorkerIdleCommand
-from application.services.background_scheduler import RecurrentBackgroundJob, backgroundjob
+from application.commands.worker import DetectWorkerIdleCommand
+from application.services.background_scheduler import (RecurrentBackgroundJob,
+                                                       backgroundjob)
 from application.services.system_configuration_service import SystemConfigurationService
 from application.settings import app_settings
 from domain.enums import CMLWorkerStatus
@@ -154,5 +155,6 @@ class ActivityDetectionJob(RecurrentBackgroundJob):
         finally:
             # Clean up scope
             if scope:
+                scope.dispose()
                 scope.dispose()
                 scope.dispose()

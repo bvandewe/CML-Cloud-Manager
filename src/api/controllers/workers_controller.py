@@ -9,34 +9,28 @@ from neuroglia.mediation.mediator import Mediator
 from neuroglia.mvc.controller_base import ControllerBase
 
 from api.dependencies import get_current_user, require_roles
-from api.models import (
-    CreateCMLWorkerRequest,
-    DeleteCMLWorkerRequest,
-    ImportCMLWorkerRequest,
-    RegisterLicenseRequest,
-    UpdateCMLWorkerTagsRequest,
-)
-from application.commands import (
-    BulkImportCMLWorkersCommand,
-    CreateCMLWorkerCommand,
-    DeleteCMLWorkerCommand,
-    DisableIdleDetectionCommand,
-    EnableIdleDetectionCommand,
-    EnableWorkerDetailedMonitoringCommand,
-    ImportCMLWorkerCommand,
-    StartCMLWorkerCommand,
-    StopCMLWorkerCommand,
-    UpdateCMLWorkerStatusCommand,
-    UpdateCMLWorkerTagsCommand,
-)
-from application.commands.deregister_cml_worker_license_command import DeregisterCMLWorkerLicenseCommand
-from application.commands.register_cml_worker_license_command import RegisterCMLWorkerLicenseCommand
-from application.commands.request_worker_data_refresh_command import RequestWorkerDataRefreshCommand
-from application.queries import GetCMLWorkerByIdQuery, GetCMLWorkerResourcesQuery, GetCMLWorkersQuery
+from api.models import (CreateCMLWorkerRequest, DeleteCMLWorkerRequest,
+                        ImportCMLWorkerRequest, RegisterLicenseRequest,
+                        UpdateCMLWorkerTagsRequest)
+from application.commands import (BulkImportCMLWorkersCommand, CreateCMLWorkerCommand,
+                                  DeleteCMLWorkerCommand,
+                                  DeregisterCMLWorkerLicenseCommand,
+                                  DisableIdleDetectionCommand,
+                                  EnableIdleDetectionCommand,
+                                  EnableWorkerDetailedMonitoringCommand,
+                                  ImportCMLWorkerCommand,
+                                  RegisterCMLWorkerLicenseCommand,
+                                  RequestWorkerDataRefreshCommand,
+                                  StartCMLWorkerCommand, StopCMLWorkerCommand,
+                                  UpdateCMLWorkerStatusCommand,
+                                  UpdateCMLWorkerTagsCommand)
+from application.queries import (GetCMLWorkerByIdQuery, GetCMLWorkerResourcesQuery,
+                                 GetCMLWorkersQuery)
 from application.queries.get_worker_activity_query import GetWorkerActivityQuery
 from application.queries.get_worker_idle_status_query import GetWorkerIdleStatusQuery
 from domain.enums import CMLWorkerStatus
-from integration.enums import AwsRegion, Ec2InstanceResourcesUtilizationRelativeStartTime
+from integration.enums import (AwsRegion,
+                               Ec2InstanceResourcesUtilizationRelativeStartTime)
 from integration.services.aws_ec2_api_client import Ec2InstanceResourcesUtilization
 
 logger = logging.getLogger(__name__)
@@ -563,3 +557,97 @@ class WorkersController(ControllerBase):
 
         command = DisableIdleDetectionCommand(worker_id=worker_id, disabled_by=user_id)
         return self.process(await self.mediator.execute_async(command))
+
+    @post(
+        "/workers/refresh",
+        response_model=dict[str, Any],
+        summary="Trigger Workers Refresh",
+        description="Trigger the auto-import workers job to refresh the workers list.",
+        status_code=200,
+        responses=ControllerBase.error_responses,
+    )
+    async def trigger_workers_refresh(
+        self,
+        token: str = Depends(get_current_user),
+    ) -> Any:
+        """Trigger a full workers refresh via the auto-import job.
+
+        This endpoint triggers the AutoImportWorkersJob to:
+        1. Discover EC2 instances matching the configured AMI
+        2. Import any new instances not already registered
+        3. Refresh data for newly imported workers
+
+        If the next scheduled job run is within 10 seconds, the request
+        is skipped to avoid redundant execution.
+
+        If a job is currently running, returns a status indicating
+        the job is in progress.
+
+        (**Requires authentication!**)
+        """
+        import datetime
+
+        from application.services import BackgroundTaskScheduler
+
+        logger.info("Manual workers refresh requested")
+
+        try:
+            scheduler: BackgroundTaskScheduler = self.service_provider.get_required_service(BackgroundTaskScheduler)
+            if not scheduler or not scheduler._scheduler:
+                raise HTTPException(status_code=503, detail="Scheduler not available")
+
+            job_id = "AutoImportWorkersJob-global"
+            job = scheduler._scheduler.get_job(job_id)
+
+            if not job:
+                # Job not scheduled - may be disabled
+                logger.warning(f"AutoImportWorkersJob not found - auto-import may be disabled")
+                return {
+                    "status": "unavailable",
+                    "message": "Auto-import workers job is not scheduled. Check if auto-import is enabled.",
+                    "job_id": job_id,
+                }
+
+            # Check if job is running (next_run_time is None when executing)
+            if job.next_run_time is None:
+                logger.info("AutoImportWorkersJob is currently running")
+                return {
+                    "status": "running",
+                    "message": "Workers refresh is already in progress. Please wait for completion.",
+                    "job_id": job_id,
+                }
+
+            # Check if next scheduled run is within 10 seconds
+            now = datetime.datetime.now(datetime.timezone.utc)
+            next_run = job.next_run_time
+            if next_run.tzinfo is None:
+                next_run = next_run.replace(tzinfo=datetime.timezone.utc)
+
+            seconds_until_next = (next_run - now).total_seconds()
+
+            if seconds_until_next <= 10:
+                logger.info(f"AutoImportWorkersJob scheduled in {seconds_until_next:.1f}s - skipping manual trigger")
+                return {
+                    "status": "scheduled",
+                    "message": f"Workers refresh is scheduled to run in {seconds_until_next:.0f} seconds.",
+                    "job_id": job_id,
+                    "next_run_time": next_run.isoformat(),
+                    "seconds_until_next": round(seconds_until_next, 1),
+                }
+
+            # Trigger the job to run now
+            await scheduler.trigger_job_now(job_id)
+
+            logger.info(f"AutoImportWorkersJob triggered manually (was scheduled in {seconds_until_next:.0f}s)")
+            return {
+                "status": "triggered",
+                "message": "Workers refresh triggered successfully. The list will update when complete.",
+                "job_id": job_id,
+                "previous_next_run": next_run.isoformat(),
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to trigger workers refresh: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to trigger workers refresh: {str(e)}")

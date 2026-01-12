@@ -10,14 +10,9 @@ from neuroglia.mediation.mediator import Mediator
 from neuroglia.mvc.controller_base import ControllerBase
 
 from api.dependencies import get_current_user
-from application.commands import (
-    ControlLabCommand,
-    DeleteLabCommand,
-    DownloadLabCommand,
-    ImportLabCommand,
-    RefreshWorkerLabsCommand,
-)
-from application.commands.control_lab_command import LabAction
+from application.commands import (ControlLabCommand, DeleteLabCommand,
+                                  DownloadLabCommand, ImportLabCommand, LabAction,
+                                  RefreshWorkerLabsCommand)
 from application.queries import GetWorkerLabsQuery
 from integration.enums import AwsRegion
 

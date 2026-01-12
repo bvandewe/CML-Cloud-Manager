@@ -12,7 +12,7 @@ from neuroglia.mvc.controller_base import ControllerBase
 
 from api.dependencies import get_current_user, require_roles
 from api.models import UpdateSystemSettingsRequest
-from application.commands.update_system_settings_command import UpdateSystemSettingsCommand
+from application.commands import UpdateSystemSettingsCommand
 from application.queries.get_system_settings_query import GetSystemSettingsQuery
 
 logger = logging.getLogger(__name__)

@@ -5,13 +5,16 @@ CML Worker instances from AWS EC2 by AMI name at regular intervals.
 """
 
 import logging
+from datetime import datetime, timezone
 
 from neuroglia.mediation import Mediator
 from opentelemetry import trace
 
-from application.commands.bulk_import_cml_workers_command import BulkImportCMLWorkersCommand
-from application.commands.request_worker_data_refresh_command import RequestWorkerDataRefreshCommand
-from application.services.background_scheduler import RecurrentBackgroundJob, backgroundjob
+from application.commands.worker import (BulkImportCMLWorkersCommand,
+                                         RequestWorkerDataRefreshCommand)
+from application.services.background_scheduler import (RecurrentBackgroundJob,
+                                                       backgroundjob)
+from application.services.sse_event_relay import SSEEventRelay
 from application.settings import app_settings
 
 logger = logging.getLogger(__name__)
@@ -34,21 +37,25 @@ class AutoImportWorkersJob(RecurrentBackgroundJob):
 
     Attributes:
         mediator: Mediator for executing commands
+        sse_relay: SSE event relay for broadcasting job completion
     """
 
-    def __init__(self, mediator: Mediator | None = None):
+    def __init__(self, mediator: Mediator | None = None, sse_relay: SSEEventRelay | None = None):
         """Initialize the auto-import workers job.
 
         Args:
             mediator: Mediator instance (will be injected from service provider if None)
+            sse_relay: SSE relay for broadcasting events (will be injected if None)
         """
         self.mediator = mediator
+        self.sse_relay = sse_relay
         self._service_provider = None  # Will be set during configure()
 
     def __getstate__(self):
         """Custom pickle serialization - exclude unpicklable objects."""
         state = self.__dict__.copy()
         state["mediator"] = None  # Don't serialize mediator
+        state["sse_relay"] = None  # Don't serialize SSE relay
         state["_service_provider"] = None  # Don't serialize service provider
         return state
 
@@ -76,6 +83,15 @@ class AutoImportWorkersJob(RecurrentBackgroundJob):
             else:
                 logger.error("Cannot configure AutoImportWorkersJob without Mediator")
                 raise RuntimeError("Mediator is required for AutoImportWorkersJob")
+
+        # Inject SSE relay for broadcasting job completion
+        if not hasattr(self, "sse_relay") or not self.sse_relay:
+            if self._service_provider:
+                try:
+                    self.sse_relay = self._service_provider.get_required_service(SSEEventRelay)
+                except Exception:
+                    logger.warning("SSEEventRelay not available - job completion won't broadcast")
+                    self.sse_relay = None
 
         logger.info("✅ AutoImportWorkersJob configured successfully")
 
@@ -195,6 +211,13 @@ class AutoImportWorkersJob(RecurrentBackgroundJob):
                         except Exception as refresh_ex:
                             logger.error(f"Failed to trigger refresh for imported worker: {refresh_ex}")
 
+                # Broadcast SSE event for job completion so UI can refresh
+                await self._broadcast_refresh_completed(
+                    total_found=total_found,
+                    total_imported=total_imported,
+                    total_skipped=total_skipped,
+                )
+
                 return {
                     "status": "success",
                     "status_code": status_code,
@@ -209,7 +232,52 @@ class AutoImportWorkersJob(RecurrentBackgroundJob):
                 span.set_attribute("job.status", "error")
                 span.set_attribute("job.error", str(ex))
 
+                # Broadcast error event so UI knows refresh is done (even if failed)
+                await self._broadcast_refresh_completed(error=str(ex))
+
                 return {
                     "status": "error",
                     "error": str(ex),
                 }
+
+    async def _broadcast_refresh_completed(
+        self,
+        total_found: int = 0,
+        total_imported: int = 0,
+        total_skipped: int = 0,
+        error: str | None = None,
+    ) -> None:
+        """Broadcast SSE event when workers refresh job completes.
+
+        Args:
+            total_found: Number of EC2 instances found
+            total_imported: Number of new workers imported
+            total_skipped: Number of instances skipped (already registered)
+            error: Error message if job failed
+        """
+        if not self.sse_relay:
+            return
+
+        try:
+            event_data = {
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+                "total_found": total_found,
+                "total_imported": total_imported,
+                "total_skipped": total_skipped,
+                "status": "error" if error else "success",
+            }
+            if error:
+                event_data["error"] = error
+
+            await self.sse_relay.broadcast_event(
+                event_type="workers.refresh.completed",
+                data=event_data,
+                source="job.auto_import_workers",
+            )
+            logger.debug(f"Broadcasted workers.refresh.completed event: {event_data}")
+        except Exception as e:
+            logger.warning(f"Failed to broadcast workers.refresh.completed event: {e}")
+            logger.debug(f"Broadcasted workers.refresh.completed event: {event_data}")
+        except Exception as e:
+            logger.warning(f"Failed to broadcast workers.refresh.completed event: {e}")
+            logger.warning(f"Failed to broadcast workers.refresh.completed event: {e}")

@@ -11,9 +11,10 @@ import logging
 from neuroglia.mediation import Mediator
 from opentelemetry import trace
 
-from application.commands.refresh_worker_labs_command import RefreshWorkerLabsCommand
-from application.commands.refresh_worker_metrics_command import RefreshWorkerMetricsCommand
-from application.services.background_scheduler import RecurrentBackgroundJob, backgroundjob
+from application.commands.worker import (RefreshWorkerLabsCommand,
+                                         RefreshWorkerMetricsCommand)
+from application.services.background_scheduler import (RecurrentBackgroundJob,
+                                                       backgroundjob)
 from application.settings import app_settings
 from domain.repositories import CMLWorkerRepository
 from integration.services.aws_ec2_api_client import AwsEc2Client
@@ -229,6 +230,8 @@ class WorkerMetricsCollectionJob(RecurrentBackgroundJob):
                 raise
             finally:
                 # Dispose the scope to release scoped services
+                if scope:
+                    scope.dispose()
                 if scope:
                     scope.dispose()
                 if scope:
