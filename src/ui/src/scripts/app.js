@@ -13,15 +13,43 @@ import { initializeSettingsView } from './ui/settings.js';
 import { initializeTheme } from './services/theme.js';
 import { sessionManager } from './services/session-manager.js';
 import { eventBus, EventTypes } from './core/EventBus.js';
+import { showToast } from './ui/notifications.js';
 
 // Current user and active view
 let currentUser = null;
 let activeView = 'tasks';
 
 /**
+ * Check for authentication error query parameters and display appropriate toast
+ */
+function handleAuthErrorParams() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const authError = urlParams.get('auth_error');
+
+    if (authError) {
+        // Remove the error parameter from URL to prevent showing toast on refresh
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, newUrl);
+
+        // Show appropriate error message based on error type
+        const errorMessages = {
+            keycloak_unavailable: 'Authentication service is currently unavailable. Please try again later or contact your administrator.',
+            session_expired: 'Your session has expired. Please log in again.',
+            unauthorized: 'You are not authorized to access this application.',
+        };
+
+        const message = errorMessages[authError] || 'An authentication error occurred. Please try again.';
+        showToast(message, 'error', 8000);
+    }
+}
+
+/**
  * Initialize the application
  */
 async function initializeApp() {
+    // Check for authentication error parameters first (e.g., Keycloak unavailable)
+    handleAuthErrorParams();
+
     // Set page title from config
     if (window.APP_CONFIG && window.APP_CONFIG.title) {
         document.title = window.APP_CONFIG.title;

@@ -1,5 +1,6 @@
 """Authentication API controller with OAuth2/OIDC flow."""
 
+import logging
 import secrets
 from datetime import datetime, timezone
 from urllib.parse import urlencode
@@ -9,6 +10,7 @@ from classy_fastapi.decorators import get, post
 from fastapi import Cookie, HTTPException, status
 from fastapi.responses import RedirectResponse
 from keycloak import KeycloakOpenID
+from keycloak.exceptions import KeycloakConnectionError
 from neuroglia.dependency_injection import ServiceProviderBase
 from neuroglia.mapping import Mapper
 from neuroglia.mediation import Mediator
@@ -17,6 +19,8 @@ from neuroglia.mvc import ControllerBase
 from application.settings import app_settings
 from domain.events import UserLoggedInDomainEvent
 from infrastructure import SessionStore
+
+logger = logging.getLogger(__name__)
 
 
 class AuthController(ControllerBase):
@@ -54,20 +58,27 @@ class AuthController(ControllerBase):
         """Initiate OAuth2 login - redirect user to Keycloak login page.
 
         Returns:
-            Redirect to Keycloak authorization endpoint
+            Redirect to Keycloak authorization endpoint, or
+            Redirect to home with error parameter if Keycloak is unavailable
         """
-        # Generate state parameter for CSRF protection
-        state = secrets.token_urlsafe(16)
+        try:
+            # Generate state parameter for CSRF protection
+            state = secrets.token_urlsafe(16)
 
-        # Build Keycloak authorization URL
-        # Note: Request roles scope to include user roles in token/userinfo
-        auth_url = self.keycloak.auth_url(
-            redirect_uri=f"{app_settings.app_url}/api/auth/callback",
-            scope="openid profile email roles",
-            state=state,
-        )
+            # Build Keycloak authorization URL
+            # Note: Request roles scope to include user roles in token/userinfo
+            auth_url = self.keycloak.auth_url(
+                redirect_uri=f"{app_settings.app_url}/api/auth/callback",
+                scope="openid profile email roles",
+                state=state,
+            )
 
-        return RedirectResponse(url=auth_url)
+            return RedirectResponse(url=auth_url)
+        except KeycloakConnectionError as e:
+            # Keycloak is unavailable - redirect to home with error parameter
+            logger.error(f"Keycloak connection error during login: {e}")
+            error_params = urlencode({"auth_error": "keycloak_unavailable"})
+            return RedirectResponse(url=f"/?{error_params}", status_code=status.HTTP_303_SEE_OTHER)
 
     @get("/callback")
     async def callback(self, code: str, state: str):

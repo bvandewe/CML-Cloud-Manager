@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "cml-cloud-manager"
-version = "0.1.8"
+version = "0.1.9"
 description = "Cml Cloud Manager"
 authors = ["Bruno van de Werve <bvandewe@gmail.com>"]
 readme = "README.md"

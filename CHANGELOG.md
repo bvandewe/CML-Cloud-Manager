@@ -6,6 +6,10 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ## [Unreleased]
 
+### Fixed
+
+- **Authentication**: Added graceful error handling when Keycloak is unavailable during login, displaying a toast notification instead of throwing an exception
+
 ## [0.1.9] - 2026-01-12
 
 ### Added
