@@ -4,7 +4,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from application.queries.get_cml_workers_query import GetCMLWorkersQuery, GetCMLWorkersQueryHandler
+from application.queries.get_cml_workers_query import (GetCMLWorkersQuery,
+                                                       GetCMLWorkersQueryHandler)
 from domain.enums import CMLWorkerStatus
 from integration.enums import AwsRegion
 from tests.fixtures.mixins import BaseTestCase
@@ -85,4 +86,5 @@ class TestGetCMLWorkersQuery(BaseTestCase):
         # Assert
         assert result.is_success
         mock_repository.get_by_status_async.assert_called_once_with(CMLWorkerStatus.RUNNING)
+        mock_repository.get_all_async.assert_not_called()
         mock_repository.get_all_async.assert_not_called()

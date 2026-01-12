@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from application.commands.import_cml_worker_command import ImportCMLWorkerCommand, ImportCMLWorkerCommandHandler
+from application.commands import ImportCMLWorkerCommand, ImportCMLWorkerCommandHandler
 from domain.entities.cml_worker import CMLWorker
 from domain.enums import CMLWorkerStatus
 from integration.services.aws_ec2_api_client import Ec2InstanceDescriptor

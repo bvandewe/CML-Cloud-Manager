@@ -7,7 +7,8 @@ from neuroglia.eventing.cloud_events.infrastructure import CloudEventBus
 from neuroglia.mapping import Mapper
 from neuroglia.mediation import Mediator
 
-from application.commands.sync_worker_cml_data_command import SyncWorkerCMLDataCommand, SyncWorkerCMLDataCommandHandler
+from application.commands import (SyncWorkerCMLDataCommand,
+                                  SyncWorkerCMLDataCommandHandler)
 from application.services.cml_health_service import CMLHealthResult, CMLHealthService
 from application.settings import Settings
 from domain.entities.cml_worker import CMLWorker

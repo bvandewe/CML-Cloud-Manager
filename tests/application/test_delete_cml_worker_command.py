@@ -4,16 +4,18 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_bus import CloudEventBus
-from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import CloudEventPublishingOptions
+from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import \
+    CloudEventPublishingOptions
 from neuroglia.mapping import Mapper
 from neuroglia.mediation import Mediator
 
-from application.commands.delete_cml_worker_command import DeleteCMLWorkerCommand, DeleteCMLWorkerCommandHandler
+from application.commands import DeleteCMLWorkerCommand, DeleteCMLWorkerCommandHandler
 from domain.entities.cml_worker import CMLWorker
 from domain.enums import CMLWorkerStatus
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
 from integration.enums import AwsRegion
-from integration.exceptions import EC2InstanceNotFoundException, EC2InstanceOperationException
+from integration.exceptions import (EC2InstanceNotFoundException,
+                                    EC2InstanceOperationException)
 from integration.services.aws_ec2_api_client import AwsEc2Client
 
 
@@ -300,5 +302,7 @@ class TestDeleteCMLWorkerCommand:
         result = await command_handler.handle_async(command)
 
         # Assert
+        assert result.status_code == 400
+        assert "failed to delete" in result.detail.lower()
         assert result.status_code == 400
         assert "failed to delete" in result.detail.lower()

@@ -3,8 +3,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from neuroglia.mediation import Mediator
 
-from application.commands.bulk_import_cml_workers_command import BulkImportCMLWorkersCommand, BulkImportResult
-from application.commands.request_worker_data_refresh_command import RequestWorkerDataRefreshCommand
+from application.commands import (BulkImportCMLWorkersCommand, BulkImportResult,
+                                  RequestWorkerDataRefreshCommand)
 from application.jobs.auto_import_workers_job import AutoImportWorkersJob
 from integration.enums import AwsRegion
 from integration.models.cml_worker_instance_dto import CMLWorkerInstanceDto
@@ -58,4 +58,5 @@ async def test_auto_import_triggers_refresh() -> None:
         cmd = args[0]
         assert isinstance(cmd, RequestWorkerDataRefreshCommand)
         assert cmd.worker_id == "i-12345"
+        assert cmd.region == "us-east-1"
         assert cmd.region == "us-east-1"

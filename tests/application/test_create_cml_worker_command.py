@@ -3,12 +3,15 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from neuroglia.eventing.cloud_events.infrastructure.cloud_event_bus import CloudEventBus
-from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import CloudEventPublishingOptions
+from neuroglia.eventing.cloud_events.infrastructure.cloud_event_publisher import \
+    CloudEventPublishingOptions
 from neuroglia.mapping import Mapper
 from neuroglia.mediation import Mediator
 
-from application.commands.create_cml_worker_command import CreateCMLWorkerCommand, CreateCMLWorkerCommandHandler
-from application.events.domain.provision_cml_worker_event_handler import ProvisionCMLWorkerEventHandler
+from application.commands import CreateCMLWorkerCommand, CreateCMLWorkerCommandHandler
+from application.events.domain.provision_cml_worker_event_handler import \
+    ProvisionCMLWorkerEventHandler
+from application.services.system_configuration_service import SystemConfigurationService
 from application.settings import Settings
 from domain.entities.cml_worker import CMLWorker
 from domain.enums import CMLWorkerStatus
@@ -67,6 +70,12 @@ def mock_settings():
     return settings
 
 
+@pytest.fixture
+def mock_configuration_service():
+    service = AsyncMock(spec=SystemConfigurationService)
+    return service
+
+
 @pytest.mark.asyncio
 class TestCreateCMLWorkerCommand:
     async def test_create_worker_command_success(
@@ -78,6 +87,7 @@ class TestCreateCMLWorkerCommand:
         mock_repository,
         mock_aws_client,
         mock_settings,
+        mock_configuration_service,
     ):
         # Arrange
         handler = CreateCMLWorkerCommandHandler(
@@ -88,6 +98,7 @@ class TestCreateCMLWorkerCommand:
             mock_repository,
             mock_aws_client,
             mock_settings,
+            mock_configuration_service,
         )
 
         command = CreateCMLWorkerCommand(
@@ -239,6 +250,9 @@ class TestProvisionCMLWorkerEventHandler:
         # Verify AWS called
         mock_aws_client.create_instance.assert_called_once()
 
+        # Verify worker updated to FAILED
+        mock_repository.update_async.assert_called_once()
+        worker.update_status.assert_called_once_with(CMLWorkerStatus.FAILED)
         # Verify worker updated to FAILED
         mock_repository.update_async.assert_called_once()
         worker.update_status.assert_called_once_with(CMLWorkerStatus.FAILED)

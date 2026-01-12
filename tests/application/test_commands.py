@@ -9,18 +9,9 @@ from neuroglia.eventing.cloud_events.infrastructure import CloudEventBus
 from neuroglia.mapping import Mapper
 from neuroglia.mediation import Mediator
 
-from application.commands.create_task_command import (
-    CreateTaskCommand,
-    CreateTaskCommandHandler,
-)
-from application.commands.delete_task_command import (
-    DeleteTaskCommand,
-    DeleteTaskCommandHandler,
-)
-from application.commands.update_task_command import (
-    UpdateTaskCommand,
-    UpdateTaskCommandHandler,
-)
+from application.commands import (CreateTaskCommand, CreateTaskCommandHandler,
+                                  DeleteTaskCommand, DeleteTaskCommandHandler,
+                                  UpdateTaskCommand, UpdateTaskCommandHandler)
 from domain.entities import Task
 from domain.enums import TaskPriority, TaskStatus
 from tests.fixtures.factories import TaskFactory

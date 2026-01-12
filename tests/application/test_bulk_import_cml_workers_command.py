@@ -4,11 +4,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from application.commands.bulk_import_cml_workers_command import (
-    BulkImportCMLWorkersCommand,
-    BulkImportCMLWorkersCommandHandler,
-    BulkImportResult,
-)
+from application.commands import (BulkImportCMLWorkersCommand,
+                                  BulkImportCMLWorkersCommandHandler, BulkImportResult)
 from integration.services.aws_ec2_api_client import AmiDetails, Ec2InstanceDescriptor
 
 # from tests.fixtures.factories import CMLWorkerFactory
