@@ -122,7 +122,7 @@ site/
 
 # private environment files
 deployment/docker-compose/.env.prod
-assets/
+/assets/
 
 # Local configuration overrides
 *.local
