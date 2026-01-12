@@ -153,6 +153,20 @@ export class SSEService {
                 eventBus.emit(EventTypes.WORKER_RESUMED, data.data);
             });
 
+            // Worker endpoint updated event - fired when HTTPS endpoint changes (e.g., after resume)
+            this.eventSource.addEventListener('worker.endpoint.updated', event => {
+                const data = JSON.parse(event.data);
+                console.log('[SSE] Worker endpoint updated', data);
+                eventBus.emit(EventTypes.WORKER_ENDPOINT_UPDATED, data.data);
+            });
+
+            // Worker EC2 details updated event - fired when EC2 instance details change
+            this.eventSource.addEventListener('worker.ec2_details.updated', event => {
+                const data = JSON.parse(event.data);
+                console.log('[SSE] Worker EC2 details updated', data);
+                eventBus.emit(EventTypes.WORKER_EC2_DETAILS_UPDATED, data.data);
+            });
+
             // Worker refresh throttled event
             this.eventSource.addEventListener('worker.refresh.throttled', event => {
                 const data = JSON.parse(event.data);
@@ -167,6 +181,21 @@ export class SSEService {
                 const data = JSON.parse(event.data);
                 console.log('[SSE] Worker data refreshed', data);
                 eventBus.emit(EventTypes.WORKER_DATA_REFRESHED, data.data);
+            });
+
+            // Workers refresh job completed event (auto-import job finished)
+            this.eventSource.addEventListener('workers.refresh.completed', event => {
+                const data = JSON.parse(event.data);
+                console.log('[SSE] Workers refresh completed', data);
+                const eventData = data.data || data;
+                if (eventData.status === 'success') {
+                    if (eventData.total_imported > 0) {
+                        showToast(`Workers refresh complete: ${eventData.total_imported} new worker(s) imported.`, 'success');
+                    }
+                } else if (eventData.error) {
+                    showToast(`Workers refresh failed: ${eventData.error}`, 'error');
+                }
+                eventBus.emit(EventTypes.WORKERS_REFRESH_COMPLETED, eventData);
             });
 
             // System shutdown event - server is restarting or shutting down
