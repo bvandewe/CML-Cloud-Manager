@@ -5,6 +5,7 @@ import sys
 from typing import Any
 
 from neuroglia.hosting.abstractions import ApplicationSettings
+from pydantic_settings import SettingsConfigDict
 
 from integration.enums import Ec2InstanceType
 
@@ -113,7 +114,7 @@ class Settings(ApplicationSettings):
 
     # CML API Credentials
     cml_worker_api_username: str = "admin"
-    cml_worker_api_password: str = "admin"
+    cml_worker_api_password: str = "admin"  # pragma: allowlist secret
     cml_worker_api_verify_ssl: bool = False
 
     # ============================================================================
@@ -212,10 +213,11 @@ class Settings(ApplicationSettings):
     cloud_event_retry_attempts: int = 5
     cloud_event_retry_delay: float = 1.0
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
-        extra = "ignore"
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=False,
+        extra="ignore",
+    )
 
     def __init__(self, **kwargs: Any) -> None:
         """Initialize settings."""
