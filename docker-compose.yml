@@ -320,6 +320,7 @@ services:
             MONGO_INITDB_DATABASE: ${MONGODB_DATABASE:-neuroglia}
         volumes:
             - mongodb_data:/data/db
+            - ./deployment/mongodb/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
         networks:
             - cml-cloud-manager-net
 
@@ -429,8 +430,10 @@ services:
             - '${OTEL_COLLECTOR_METRICS_PORT:-8888}:8888' # Prometheus metrics about the collector itself
             - '${OTEL_COLLECTOR_HEALTH_PORT:-13133}:13133' # Health check endpoint
         environment:
-            MONGODB_USERNAME: ${MONGODB_ROOT_USERNAME:-root}
-            MONGODB_PASSWORD: ${MONGODB_ROOT_PASSWORD:-password123}
+            # Use dedicated monitoring user with clusterMonitor role
+            # (root user lacks privileges for $indexStats on system collections)
+            MONGODB_USERNAME: ${MONGODB_OTEL_USERNAME:-otel_monitor}
+            MONGODB_PASSWORD: ${MONGODB_OTEL_PASSWORD:-otel_monitor_password}
         volumes:
             - ./deployment/otel/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
             - /:/hostfs:ro

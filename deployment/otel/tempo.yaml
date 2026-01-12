@@ -63,9 +63,10 @@ storage:
             path: /tmp/tempo/wal
         local:
             path: /tmp/tempo/blocks
-
-overrides:
-    metrics_generator_processors:
-        - service-graphs
-        - span-metrics
-        - local-blocks
+# NOTE: metrics_generator_processors removed because metrics_generator is disabled
+# Re-enable both together when WAL configuration is fixed
+# overrides:
+#     metrics_generator_processors:
+#         - service-graphs
+#         - span-metrics
+#         - local-blocks

@@ -31,6 +31,7 @@ receivers:
         collection_interval: 10s
 
     # MongoDB receiver
+    # Uses dedicated monitoring user with clusterMonitor role for metrics access
     mongodb:
         hosts:
             - endpoint: 'mongodb:27017'
@@ -39,6 +40,8 @@ receivers:
         password: ${env:MONGODB_PASSWORD}
         tls:
             insecure: true
+        # Index stats require clusterMonitor role on admin database
+        # Disabled metrics reduce noise but don't prevent $indexStats auth errors
         metrics:
             mongodb.index.access.count:
                 enabled: false

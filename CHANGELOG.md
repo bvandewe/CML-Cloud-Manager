@@ -6,6 +6,11 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ## [Unreleased]
 
+### Fixed
+
+- **Observability**: Fixed MongoDB metrics scraping authorization errors by creating dedicated `otel_monitor` user with `clusterMonitor` role
+- **Observability**: Fixed Tempo "DoBatch: InstancesCount <= 0" warnings by commenting out orphaned `metrics_generator_processors` config
+
 ## [0.1.9] - 2026-01-12
 
 ### Added
