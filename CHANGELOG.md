@@ -6,10 +6,6 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ## [Unreleased]
 
-### Fixed
-
-- **Authentication**: Added graceful error handling when Keycloak is unavailable during login, displaying a toast notification instead of throwing an exception
-
 ## [0.1.9] - 2026-01-12
 
 ### Added
@@ -35,6 +31,7 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ### Fixed
 
+- **Authentication**: Added graceful error handling when Keycloak is unavailable during login, displaying a toast notification instead of throwing an exception
 - **DevOps**: Fixed `docker-compose.prod.yml` indentation issues preventing production stack startup
 - **DevOps**: Configured Nginx with `sub_filter` and `X-Forwarded-Prefix` to correctly serve `event-player` frontend under `/events/` subpath
 - **DevOps**: Added `proxy_redirect` to Nginx configuration to fix `event-player` redirect loop in production
