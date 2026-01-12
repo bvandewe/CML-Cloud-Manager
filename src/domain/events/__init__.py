@@ -30,12 +30,14 @@ from .user import UserLoggedInDomainEvent
 from .worker_metrics_events import (
     CloudWatchMetricsUpdatedDomainEvent,
     CMLMetricsUpdatedDomainEvent,
+    EC2InstanceDetailsUpdatedDomainEvent,
     EC2MetricsUpdatedDomainEvent,
 )
 
 __all__ = [
     "CloudWatchMonitoringUpdatedDomainEvent",
     "EC2MetricsUpdatedDomainEvent",
+    "EC2InstanceDetailsUpdatedDomainEvent",
     "CloudWatchMetricsUpdatedDomainEvent",
     "CMLMetricsUpdatedDomainEvent",
     "CMLServiceStatusUpdatedDomainEvent",

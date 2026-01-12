@@ -16,12 +16,16 @@ from application.mappers import map_worker_to_dto, worker_dto_to_dict
 from application.services.sse_event_relay import SSEEventRelay
 from domain.events.cml_worker import (
     CMLWorkerCreatedDomainEvent,
+    CMLWorkerEndpointUpdatedDomainEvent,
     CMLWorkerImportedDomainEvent,
     CMLWorkerStatusUpdatedDomainEvent,
     CMLWorkerTelemetryUpdatedDomainEvent,
     CMLWorkerTerminatedDomainEvent,
 )
-from domain.events.worker_metrics_events import CMLMetricsUpdatedDomainEvent
+from domain.events.worker_metrics_events import (
+    CMLMetricsUpdatedDomainEvent,
+    EC2InstanceDetailsUpdatedDomainEvent,
+)
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
 
 log = logging.getLogger(__name__)
@@ -316,6 +320,89 @@ class CMLMetricsUpdatedDomainEventHandler(DomainEventHandler[CMLMetricsUpdatedDo
         log.debug(
             "Broadcasted worker.metrics.updated (CML metrics) for %s",
             notification.aggregate_id,
+        )
+        return None
+
+
+class CMLWorkerEndpointUpdatedDomainEventHandler(DomainEventHandler[CMLWorkerEndpointUpdatedDomainEvent]):
+    """Broadcast SSE events when worker HTTPS endpoint is updated.
+
+    This handler is critical for notifying the UI when a worker's endpoint changes,
+    particularly after a worker is resumed (started after being stopped) and receives
+    a new public IP address from AWS EC2.
+    """
+
+    def __init__(self, sse_relay: SSEEventRelay, repository: CMLWorkerRepository, serializer: JsonSerializer):
+        self._sse_relay = sse_relay
+        self._repository = repository
+        self._serializer = serializer
+
+    async def handle_async(self, notification: CMLWorkerEndpointUpdatedDomainEvent) -> None:  # type: ignore[override]
+        """Broadcast endpoint updated event and worker snapshot."""
+        await self._sse_relay.broadcast_event(
+            event_type="worker.endpoint.updated",
+            data={
+                "worker_id": notification.aggregate_id,
+                "https_endpoint": notification.https_endpoint,
+                "public_ip": notification.public_ip,
+                "updated_at": _utc_iso(notification.updated_at),
+            },
+            source="domain.cml_worker",
+        )
+        await _broadcast_worker_snapshot(
+            self._repository,
+            self._sse_relay,
+            self._serializer,
+            notification.aggregate_id,
+            reason="endpoint_updated",
+        )
+        log.info(
+            "Broadcasted worker.endpoint.updated + snapshot for %s: endpoint=%s",
+            notification.aggregate_id,
+            notification.https_endpoint,
+        )
+        return None
+
+
+class EC2InstanceDetailsUpdatedDomainEventHandler(DomainEventHandler[EC2InstanceDetailsUpdatedDomainEvent]):
+    """Broadcast SSE events when EC2 instance details (IPs, type, AMI) are updated.
+
+    This handler ensures the UI is updated when EC2 instance details change,
+    such as when a stopped instance is started and receives new IP addresses.
+    """
+
+    def __init__(self, sse_relay: SSEEventRelay, repository: CMLWorkerRepository, serializer: JsonSerializer):
+        self._sse_relay = sse_relay
+        self._repository = repository
+        self._serializer = serializer
+
+    async def handle_async(self, notification: EC2InstanceDetailsUpdatedDomainEvent) -> None:  # type: ignore[override]
+        """Broadcast EC2 instance details updated event and worker snapshot."""
+        await self._sse_relay.broadcast_event(
+            event_type="worker.ec2_details.updated",
+            data={
+                "worker_id": notification.aggregate_id,
+                "public_ip": notification.public_ip,
+                "private_ip": notification.private_ip,
+                "instance_type": notification.instance_type,
+                "ami_id": notification.ami_id,
+                "ami_name": notification.ami_name,
+                "updated_at": _utc_iso(notification.updated_at),
+            },
+            source="domain.cml_worker",
+        )
+        await _broadcast_worker_snapshot(
+            self._repository,
+            self._sse_relay,
+            self._serializer,
+            notification.aggregate_id,
+            reason="ec2_details_updated",
+        )
+        log.debug(
+            "Broadcasted worker.ec2_details.updated + snapshot for %s: public_ip=%s, private_ip=%s",
+            notification.aggregate_id,
+            notification.public_ip,
+            notification.private_ip,
         )
         return None
 

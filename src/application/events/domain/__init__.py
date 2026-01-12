@@ -6,10 +6,12 @@ from .cml_worker_data_refresh_events import (
 from .cml_worker_events import (
     CMLMetricsUpdatedDomainEventHandler,
     CMLWorkerCreatedDomainEventHandler,
+    CMLWorkerEndpointUpdatedDomainEventHandler,
     CMLWorkerImportedDomainEventHandler,
     CMLWorkerStatusUpdatedDomainEventHandler,
     CMLWorkerTelemetryUpdatedDomainEventHandler,
     CMLWorkerTerminatedDomainEventHandler,
+    EC2InstanceDetailsUpdatedDomainEventHandler,
 )
 from .cml_worker_license_events import (
     CMLWorkerLicenseDeregisteredEventHandler,
@@ -41,7 +43,9 @@ __all__ = [
     "CMLWorkerStatusUpdatedDomainEventHandler",
     "CMLWorkerTerminatedDomainEventHandler",
     "CMLWorkerTelemetryUpdatedDomainEventHandler",
+    "CMLWorkerEndpointUpdatedDomainEventHandler",
     "CMLMetricsUpdatedDomainEventHandler",
+    "EC2InstanceDetailsUpdatedDomainEventHandler",
     # CML Worker license events
     "CMLWorkerLicenseRegistrationStartedEventHandler",
     "CMLWorkerLicenseRegistrationCompletedEventHandler",
