@@ -421,3 +421,12 @@ prod-pull: ## Pull latest images for production services
 	@echo "$(BLUE)Pulling latest images...$(NC)"
 	$(PROD_COMPOSE) pull
 	@echo "$(GREEN)Images pulled!$(NC)"
+
+prod-upgrade: ## Upgrade api and worker to new image tag (pull + recreate)
+	@echo "$(BLUE)Upgrading api and worker services to new image...$(NC)"
+	@echo "$(YELLOW)Pulling new images...$(NC)"
+	$(PROD_COMPOSE) pull api worker
+	@echo "$(YELLOW)Recreating api and worker containers...$(NC)"
+	$(PROD_COMPOSE) up -d --force-recreate --no-deps api worker
+	@echo "$(GREEN)Upgrade complete! Services now running with new image.$(NC)"
+	@$(MAKE) prod-ps
