@@ -23,8 +23,8 @@ from domain.repositories.cml_worker_repository import CMLWorkerRepository
 from infrastructure.services.worker_refresh_throttle import WorkerRefreshThrottle
 from observability.metrics import meter
 
+from ..command_handler_base import CommandHandlerBase
 from .collect_worker_cloudwatch_metrics_command import CollectWorkerCloudWatchMetricsCommand
-from .command_handler_base import CommandHandlerBase
 from .sync_worker_cml_data_command import SyncWorkerCMLDataCommand
 from .sync_worker_ec2_status_command import SyncWorkerEC2StatusCommand
 

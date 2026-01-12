@@ -20,7 +20,7 @@ from integration.exceptions import EC2AuthenticationException, EC2InvalidParamet
 from integration.models import CMLWorkerInstanceDto
 from integration.services.aws_ec2_api_client import AwsEc2Client
 
-from .command_handler_base import CommandHandlerBase
+from ..command_handler_base import CommandHandlerBase
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)

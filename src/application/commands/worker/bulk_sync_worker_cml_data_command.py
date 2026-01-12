@@ -1,4 +1,4 @@
-"""Bulk sync EC2 status for multiple workers command with handler."""
+"""Bulk sync CML data for multiple workers command with handler."""
 
 import asyncio
 import logging
@@ -14,10 +14,11 @@ from neuroglia.mediation import Command, CommandHandler, Mediator
 from neuroglia.observability.tracing import add_span_attributes
 from opentelemetry import trace
 
+from domain.enums import CMLWorkerStatus
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
 
-from .command_handler_base import CommandHandlerBase
-from .sync_worker_ec2_status_command import SyncWorkerEC2StatusCommand
+from ..command_handler_base import CommandHandlerBase
+from .sync_worker_cml_data_command import SyncWorkerCMLDataCommand
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -35,15 +36,15 @@ class BulkSyncResult:
 
 
 @dataclass
-class BulkSyncWorkerEC2StatusCommand(Command[OperationResult[BulkSyncResult]]):
-    """Command to bulk sync EC2 status for multiple workers.
+class BulkSyncWorkerCMLDataCommand(Command[OperationResult[BulkSyncResult]]):
+    """Command to bulk sync CML data for multiple workers.
 
-    This command synchronizes EC2 instance status for all specified workers
-    (or all active workers if none specified) by executing SyncWorkerEC2StatusCommand
-    for each worker concurrently with rate limiting.
+    This command synchronizes CML service data (health, version, stats, licensing, labs)
+    for all specified workers (or all running workers if none specified) by executing
+    SyncWorkerCMLDataCommand for each worker concurrently with rate limiting.
 
     Args:
-        worker_ids: Optional list of specific worker IDs to sync (syncs all active if None)
+        worker_ids: Optional list of specific worker IDs to sync (syncs all running if None)
         max_concurrent: Maximum concurrent sync operations (default: 10)
     """
 
@@ -51,11 +52,11 @@ class BulkSyncWorkerEC2StatusCommand(Command[OperationResult[BulkSyncResult]]):
     max_concurrent: int = 10
 
 
-class BulkSyncWorkerEC2StatusCommandHandler(
+class BulkSyncWorkerCMLDataCommandHandler(
     CommandHandlerBase,
-    CommandHandler[BulkSyncWorkerEC2StatusCommand, OperationResult[BulkSyncResult]],
+    CommandHandler[BulkSyncWorkerCMLDataCommand, OperationResult[BulkSyncResult]],
 ):
-    """Handle bulk EC2 status sync for multiple workers."""
+    """Handle bulk CML data sync for multiple workers."""
 
     def __init__(
         self,
@@ -73,8 +74,8 @@ class BulkSyncWorkerEC2StatusCommandHandler(
         )
         self.cml_worker_repository = cml_worker_repository
 
-    async def handle_async(self, request: BulkSyncWorkerEC2StatusCommand) -> OperationResult[BulkSyncResult]:
-        """Handle bulk EC2 status sync command.
+    async def handle_async(self, request: BulkSyncWorkerCMLDataCommand) -> OperationResult[BulkSyncResult]:
+        """Handle bulk CML data sync command.
 
         Args:
             request: Bulk sync command with optional worker IDs
@@ -87,7 +88,7 @@ class BulkSyncWorkerEC2StatusCommandHandler(
         # Add tracing context
         add_span_attributes(
             {
-                "bulk_sync.type": "ec2_status",
+                "bulk_sync.type": "cml_data",
                 "bulk_sync.has_worker_filter": command.worker_ids is not None,
                 "bulk_sync.max_concurrent": command.max_concurrent,
             }
@@ -97,7 +98,7 @@ class BulkSyncWorkerEC2StatusCommandHandler(
             with tracer.start_as_current_span("get_target_workers") as span:
                 # Get target workers
                 if command.worker_ids:
-                    log.info(f"Syncing EC2 status for {len(command.worker_ids)} specified workers")
+                    log.info(f"Syncing CML data for {len(command.worker_ids)} specified workers")
                     workers = []
                     for worker_id in command.worker_ids:
                         worker = await self.cml_worker_repository.get_by_id_async(worker_id)
@@ -106,11 +107,16 @@ class BulkSyncWorkerEC2StatusCommandHandler(
                         else:
                             log.warning(f"Worker {worker_id} not found - skipping")
                 else:
-                    log.info("Syncing EC2 status for all active workers")
-                    workers = await self.cml_worker_repository.get_active_workers_async()
+                    log.info("Syncing CML data for all running workers")
+                    # Get all workers and filter for RUNNING status
+                    all_workers = await self.cml_worker_repository.get_all_async()
+
+                    workers = [
+                        w for w in all_workers if w.state.status == CMLWorkerStatus.RUNNING and w.state.https_endpoint
+                    ]
 
                 if not workers:
-                    log.warning("No workers found to sync")
+                    log.warning("No workers found to sync CML data")
                     return self.ok(
                         BulkSyncResult(
                             synced=[],
@@ -121,7 +127,7 @@ class BulkSyncWorkerEC2StatusCommandHandler(
                         )
                     )
 
-                log.info(f"Found {len(workers)} workers to sync EC2 status")
+                log.info(f"Found {len(workers)} workers to sync CML data")
                 span.set_attribute("workers.count", len(workers))
 
             with tracer.start_as_current_span("sync_workers") as sync_span:
@@ -135,21 +141,21 @@ class BulkSyncWorkerEC2StatusCommandHandler(
                     """Sync single worker with semaphore rate limiting."""
                     async with semaphore:
                         try:
-                            with tracer.start_as_current_span("sync_worker_ec2_status") as worker_span:
+                            with tracer.start_as_current_span("sync_worker_cml_data") as worker_span:
                                 worker_span.set_attribute("worker.id", worker_id)
 
                                 # Execute sync command via mediator
                                 result = await self.mediator.execute_async(
-                                    SyncWorkerEC2StatusCommand(worker_id=worker_id)
+                                    SyncWorkerCMLDataCommand(worker_id=worker_id)
                                 )
 
                                 if result.status == 200:
-                                    log.debug(f"✅ EC2 status synced for worker {worker_id}")
+                                    log.debug(f"✅ CML data synced for worker {worker_id}")
                                     worker_span.set_attribute("sync.success", True)
                                     return {"worker_id": worker_id, "success": True}
                                 else:
                                     error_msg = result.detail or "Unknown error"
-                                    log.warning(f"⚠️ EC2 status sync failed for worker {worker_id}: {error_msg}")
+                                    log.warning(f"⚠️ CML data sync failed for worker {worker_id}: {error_msg}")
                                     worker_span.set_attribute("sync.success", False)
                                     worker_span.set_attribute("sync.error", error_msg)
                                     return {
@@ -160,7 +166,7 @@ class BulkSyncWorkerEC2StatusCommandHandler(
 
                         except Exception as e:
                             log.error(
-                                f"❌ Failed to sync EC2 status for worker {worker_id}: {e}",
+                                f"❌ Failed to sync CML data for worker {worker_id}: {e}",
                                 exc_info=True,
                             )
                             return {
@@ -202,12 +208,12 @@ class BulkSyncWorkerEC2StatusCommandHandler(
             )
 
             log.info(
-                f"🎉 Bulk EC2 status sync completed: {bulk_result.total_synced} synced, "
+                f"🎉 Bulk CML data sync completed: {bulk_result.total_synced} synced, "
                 f"{bulk_result.total_failed} failed out of {bulk_result.total_workers} workers"
             )
 
             return self.ok(bulk_result)
 
         except Exception as e:
-            log.error(f"Unexpected error in bulk EC2 status sync: {e}", exc_info=True)
+            log.error(f"Unexpected error in bulk CML data sync: {e}", exc_info=True)
             return self.internal_server_error(f"Bulk sync failed: {str(e)}")

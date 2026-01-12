@@ -12,12 +12,12 @@ from neuroglia.mapping import Mapper
 from neuroglia.mediation import Command, CommandHandler, Mediator
 from opentelemetry import trace
 
-from application.commands.command_handler_base import CommandHandlerBase
-from application.jobs.on_demand_worker_data_refresh_job import OnDemandWorkerDataRefreshJob
 from application.services.background_scheduler import BackgroundTaskScheduler
 from application.settings import Settings
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
 from integration.services.cml_api_client import CMLApiClientFactory
+
+from ..command_handler_base import CommandHandlerBase
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -157,6 +157,9 @@ class ControlLabCommandHandler(
         Args:
             worker_id: ID of the worker to refresh
         """
+        # Import here to avoid circular import at module load time
+        from application.jobs.on_demand_worker_data_refresh_job import OnDemandWorkerDataRefreshJob
+
         try:
             job_id = f"on_demand_refresh_{worker_id}"
 

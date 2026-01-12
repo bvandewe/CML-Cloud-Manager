@@ -7,7 +7,6 @@ from datetime import UTC, datetime
 from neuroglia.core import OperationResult
 from neuroglia.mediation.mediator import Command, CommandHandler
 
-from application.jobs.license_deregistration_job import LicenseDeregistrationJob
 from application.services.background_scheduler import BackgroundTaskScheduler
 from domain.repositories.cml_worker_repository import CMLWorkerRepository
 
@@ -53,6 +52,9 @@ class DeregisterCMLWorkerLicenseCommandHandler(
             return self.not_found("Worker", f"Worker {request.worker_id} not found")
 
         # Schedule background job
+        # Import here to avoid circular import at module load time
+        from application.jobs.license_deregistration_job import LicenseDeregistrationJob
+
         job_id = f"license_dereg_{request.worker_id}_{int(datetime.now(UTC).timestamp())}"
 
         try:

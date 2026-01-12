@@ -22,7 +22,7 @@ from integration.exceptions import (
 )
 from integration.services.aws_ec2_api_client import AwsEc2Client
 
-from .command_handler_base import CommandHandlerBase
+from ..command_handler_base import CommandHandlerBase
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)

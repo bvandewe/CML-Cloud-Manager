@@ -8,10 +8,11 @@ from neuroglia.mediation import Command, CommandHandler, Mediator
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 
-from application.commands.pause_worker_command import PauseWorkerCommand
-from application.commands.update_worker_activity_command import UpdateWorkerActivityCommand
 from application.queries.get_worker_idle_status_query import GetWorkerIdleStatusQuery
 from application.queries.get_worker_telemetry_events_query import GetWorkerTelemetryEventsQuery
+
+from .pause_worker_command import PauseWorkerCommand
+from .update_worker_activity_command import UpdateWorkerActivityCommand
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -166,11 +167,15 @@ class DetectWorkerIdleCommandHandler(CommandHandler[DetectWorkerIdleCommand, dic
                         )
                         detection_result["error"] = "Failed to trigger auto-pause"
                 else:
-                    log.debug(
+                    # Log at INFO level for easier debugging
+                    log.info(
                         f"Worker {command.worker_id} not eligible for auto-pause: "
                         f"is_idle={idle_status.get('is_idle')}, "
+                        f"idle_minutes={idle_status.get('idle_minutes')}, "
+                        f"threshold_minutes={idle_status.get('idle_threshold_minutes')}, "
                         f"auto_pause_enabled={idle_status.get('auto_pause_enabled')}, "
-                        f"in_snooze={idle_status.get('in_snooze_period')}"
+                        f"in_snooze={idle_status.get('in_snooze_period')}, "
+                        f"last_activity={idle_status.get('last_activity_at')}"
                     )
 
                 span.set_status(Status(StatusCode.OK))
@@ -183,4 +188,7 @@ class DetectWorkerIdleCommandHandler(CommandHandler[DetectWorkerIdleCommand, dic
                 )
                 detection_result["error"] = str(e)
                 span.set_status(Status(StatusCode.ERROR, str(e)))
+                return self.ok(detection_result)
+                span.set_status(Status(StatusCode.ERROR, str(e)))
+                return self.ok(detection_result)
                 return self.ok(detection_result)

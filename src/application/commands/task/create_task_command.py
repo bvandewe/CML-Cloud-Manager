@@ -21,7 +21,7 @@ from domain.repositories import TaskRepository
 from integration.models.task_dto import TaskCreatedDto
 from observability import task_processing_time, tasks_created
 
-from .command_handler_base import CommandHandlerBase
+from ..command_handler_base import CommandHandlerBase
 
 log = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
