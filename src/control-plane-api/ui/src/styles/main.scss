@@ -1,0 +1,127 @@
+/* Main application styles */
+@import 'bootstrap/scss/bootstrap';
+
+/* Component styles */
+@import 'components/navbar';
+@import 'components/task-card';
+@import 'components/modals';
+@import 'components/dashboard';
+@import 'components/workers';
+@import 'components/system';
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background-color: #f8f9fa;
+}
+
+/* Dark theme overrides */
+[data-bs-theme='dark'] {
+    body {
+        background-color: #000;
+        color: #fff;
+    }
+
+    .bg-light {
+        background-color: #1a1a1a !important;
+    }
+
+    .text-muted {
+        color: #aaa !important;
+    }
+
+    .card {
+        background-color: #1a1a1a;
+        border-color: #333;
+        color: #fff;
+    }
+
+    .card-header {
+        background-color: #2a2a2a;
+        border-color: #333;
+        color: #fff;
+    }
+
+    .card-footer {
+        background-color: #2a2a2a;
+        border-color: #333;
+        color: #fff;
+    }
+
+    .table {
+        color: #fff;
+    }
+
+    .table-striped > tbody > tr:nth-of-type(odd) > * {
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+
+    .modal-content {
+        background-color: #1a1a1a;
+        color: #fff;
+    }
+
+    .modal-header {
+        background-color: #2a2a2a;
+        border-color: #333;
+        color: #fff;
+    }
+
+    .modal-footer {
+        background-color: #2a2a2a;
+        border-color: #333;
+        color: #fff;
+    }
+
+    .form-control,
+    .form-select {
+        background-color: #2a2a2a;
+        border-color: #444;
+        color: #fff;
+    }
+
+    .form-control:focus,
+    .form-select:focus {
+        background-color: #2a2a2a;
+        border-color: #666;
+        color: #fff;
+    }
+}
+
+/* Insufficient Permissions Error Page */
+#insufficient-permissions-section {
+    .badge-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .card-header {
+        h4 {
+            margin: 0;
+        }
+    }
+
+    ul {
+        padding-left: 1.5rem;
+    }
+
+    .bi-exclamation-triangle-fill {
+        font-size: 1.2rem;
+    }
+}
+
+/* Dark theme for error page */
+[data-bs-theme='dark'] {
+    #insufficient-permissions-section {
+        .card {
+            background-color: #1a1a1a;
+            border-color: #ffc107;
+        }
+
+        .card-header {
+            background-color: #664d03;
+            border-color: #ffc107;
+            color: #fff;
+        }
+    }
+}

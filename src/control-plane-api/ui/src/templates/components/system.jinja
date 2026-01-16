@@ -1,0 +1,99 @@
+{# System Monitoring Component #}
+<div id="system-view" class="container-fluid py-4" style="display: none;">
+    <div class="row mb-4">
+        <div class="col">
+            <h2>System Monitoring</h2>
+            <p class="text-muted">Monitor background services, schedulers, and system internals</p>
+        </div>
+    </div>
+
+    {# System Health Overview Cards #}
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-subtitle mb-2 text-muted">System Status</h6>
+                            <h3 class="card-title mb-0" id="system-overall-status">
+                                <span class="badge bg-secondary">Loading...</span>
+                            </h3>
+                        </div>
+                        <div class="text-primary">
+                            <i class="bi bi-heart-pulse" style="font-size: 2rem;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-subtitle mb-2 text-muted">Scheduler Jobs</h6>
+                            <h3 class="card-title mb-0" id="scheduler-job-count">
+                                <span class="badge bg-secondary">-</span>
+                            </h3>
+                        </div>
+                        <div class="text-info">
+                            <i class="bi bi-calendar3" style="font-size: 2rem;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    {# Tabs for detailed views #}
+    <ul class="nav nav-tabs" id="systemTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="health-tab" data-bs-toggle="tab" data-bs-target="#health-panel"
+                type="button" role="tab">
+                <i class="bi bi-heart-pulse me-2"></i>Health
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="scheduler-tab" data-bs-toggle="tab" data-bs-target="#scheduler-panel"
+                type="button" role="tab">
+                <i class="bi bi-calendar3 me-2"></i>Scheduler
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content border border-top-0 p-4" id="systemTabContent">
+        {# Health Tab #}
+        <div class="tab-pane fade show active" id="health-panel" role="tabpanel">
+            <h5 class="mb-3">System Health Components</h5>
+            <div id="health-components">
+                <div class="text-center text-muted py-4">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading health status...</p>
+                </div>
+            </div>
+        </div>
+
+        {# Scheduler Tab #}
+        <div class="tab-pane fade" id="scheduler-panel" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">APScheduler Jobs</h5>
+                <button class="btn btn-sm btn-outline-primary" onclick="window.systemApp.refreshScheduler()">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                </button>
+            </div>
+            <div id="scheduler-jobs">
+                <div class="text-center text-muted py-4">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading scheduler jobs...</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>

@@ -1,0 +1,202 @@
+<!-- Workers Dashboard Component -->
+<div id="workers-section" style="display: none">
+    <!-- Feature Flag: Web Components Container -->
+    <div id="workers-container">
+        <!-- Web Components will be dynamically inserted here -->
+        <!-- Falls back to legacy views below if feature flag disabled -->
+    </div>
+
+    <!-- Admin/Manager View: DataTable & Charts -->
+    <div id="workers-admin-view" class="admin-manager-view" style="display: none">
+        <div class="row mb-4">
+            <div class="col">
+                <h2>
+                    <i class="bi bi-server"></i> CML Workers Management
+                </h2>
+            </div>
+            <div class="col-auto">
+                <div class="btn-group" role="group">
+                    <button class="btn btn-primary admin-only-element" data-bs-toggle="modal"
+                        data-bs-target="#createWorkerModal" style="display: none;">
+                        <i class="bi bi-plus-circle"></i> New
+                    </button>
+                    <button class="btn btn-outline-primary admin-only-element" data-bs-toggle="modal"
+                        data-bs-target="#importWorkerModal" style="display: none;">
+                        <i class="bi bi-box-arrow-in-down"></i> Import
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="window.workersApp.refreshWorkers()">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics Cards -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card stats-card bg-primary text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="card-subtitle mb-2">Total Workers</h6>
+                                <h2 class="card-title mb-0" id="total-workers-count">0</h2>
+                            </div>
+                            <i class="bi bi-server fs-1 opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stats-card bg-success text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="card-subtitle mb-2">Running</h6>
+                                <h2 class="card-title mb-0" id="running-workers-count">0</h2>
+                            </div>
+                            <i class="bi bi-play-circle fs-1 opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stats-card bg-warning text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="card-subtitle mb-2">Stopped</h6>
+                                <h2 class="card-title mb-0" id="stopped-workers-count">0</h2>
+                            </div>
+                            <i class="bi bi-stop-circle fs-1 opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stats-card bg-info text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="card-subtitle mb-2">Avg CPU Usage</h6>
+                                <h2 class="card-title mb-0" id="avg-cpu-usage">0%</h2>
+                            </div>
+                            <i class="bi bi-cpu fs-1 opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filters and Search -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label for="filter-region" class="form-label">Region</label>
+                        <select class="form-select" id="filter-region">
+                            <option value="">All Regions</option>
+                            <option value="us-east-1">us-east-1</option>
+                            <option value="us-west-2">us-west-2</option>
+                            <option value="eu-west-1">eu-west-1</option>
+                            <option value="ap-southeast-1">ap-southeast-1</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="filter-status" class="form-label">Status</label>
+                        <select class="form-select" id="filter-status">
+                            <option value="">All Statuses</option>
+                            <option value="running">Running</option>
+                            <option value="stopped">Stopped</option>
+                            <option value="pending">Pending</option>
+                            <option value="terminated">Terminated</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="search-workers" class="form-label">Search</label>
+                        <input type="text" class="form-control" id="search-workers"
+                            placeholder="Search by name, instance ID, or IP...">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Workers DataTable -->
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover" id="workers-table">
+                        <thead>
+                            <tr>
+                                <th>Status</th>
+                                <th>Name</th>
+                                <th>Instance ID</th>
+                                <th>Type</th>
+                                <th>Region</th>
+                                <th>Service</th>
+                                <th>CPU</th>
+                                <th>Memory</th>
+                                <th>Disk</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="workers-table-body">
+                            <tr>
+                                <td colspan="10" class="text-center text-muted">
+                                    <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                                    Loading workers...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- User View: Cards -->
+    <div id="workers-user-view" class="user-view" style="display: none">
+        <div class="row mb-4">
+            <div class="col">
+                <h2>
+                    <i class="bi bi-server"></i> Available CML Workers
+                </h2>
+                <p class="text-muted">Browse and access CML workers available to you</p>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-outline-secondary" onclick="window.workersApp.refreshWorkers()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+            </div>
+        </div>
+
+        <!-- Search and Filter for Users -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <input type="text" class="form-control" id="search-workers-user" placeholder="Search workers...">
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" id="filter-status-user">
+                    <option value="">All Statuses</option>
+                    <option value="running">Available</option>
+                    <option value="stopped">Offline</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" id="sort-workers-user">
+                    <option value="name">Sort by Name</option>
+                    <option value="status">Sort by Status</option>
+                    <option value="usage">Sort by Usage</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Workers Cards Grid -->
+        <div id="workers-cards-container" class="row g-4">
+            <!-- Worker cards will be dynamically inserted here -->
+            <div class="col-12 text-center text-muted py-5">
+                <div class="spinner-border mb-3" role="status"></div>
+                <p>Loading available workers...</p>
+            </div>
+        </div>
+    </div>
+</div>

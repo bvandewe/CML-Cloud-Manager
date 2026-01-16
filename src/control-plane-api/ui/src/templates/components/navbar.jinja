@@ -1,0 +1,59 @@
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="/">CML Cloud Manager</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+            aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav me-auto" id="main-nav" style="display: none;">
+                <li class="nav-item admin-only-nav">
+                    <a class="nav-link" href="#" id="nav-tasks">
+                        <i class="bi bi-list-task"></i> Tasks
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" id="nav-workers">
+                        <i class="bi bi-server"></i> CML Workers
+                    </a>
+                </li>
+                <li class="nav-item admin-only-nav">
+                    <a class="nav-link" href="#" id="nav-system">
+                        <i class="bi bi-gear"></i> System
+                    </a>
+                </li>
+                <li class="nav-item admin-only-nav">
+                    <a class="nav-link" href="#" id="nav-settings">
+                        <i class="bi bi-sliders"></i> Settings
+                    </a>
+                </li>
+                <li class="nav-item dropdown admin-only-nav">
+                    <a class="nav-link dropdown-toggle" href="#" id="servicesDropdown" role="button"
+                        data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-grid-3x3-gap"></i> Services
+                    </a>
+                    <ul class="dropdown-menu" aria-labelledby="servicesDropdown">
+                        <li><a class="dropdown-item" href="/grafana/" target="_blank"><i class="bi bi-graph-up"></i>
+                                Grafana</a></li>
+                        <li><a class="dropdown-item" href="/events/" target="_blank"><i class="bi bi-broadcast"></i>
+                                Event Player</a></li>
+                        <li><a class="dropdown-item" href="/mongo-express/" target="_blank"><i
+                                    class="bi bi-database"></i>
+                                Mongo Express</a></li>
+                        <li><a class="dropdown-item" href="/auth/" target="_blank"><i class="bi bi-shield-lock"></i>
+                                Identity Management</a></li>
+                        <li><a class="dropdown-item" href="/api/docs/" target="_blank"><i class="bi bi-search"></i>
+                                API Documentation</a></li>
+                    </ul>
+                </li>
+            </ul>
+            <div class="navbar-nav">
+                <button id="theme-toggle" class="btn btn-outline-light btn-sm me-3" title="Toggle theme">
+                    <i class="bi bi-moon-fill" id="theme-icon"></i>
+                </button>
+                <span id="user-info" class="navbar-text text-white me-3"></span>
+                <button id="logout-btn" class="btn btn-outline-light btn-sm" style="display: none;">Logout</button>
+            </div>
+        </div>
+    </div>
+</nav>
