@@ -1,8 +1,16 @@
 {
     "folders": [
         {
-            "name": "🔧 cml-cloud-manager",
-            "path": "src/cml-cloud-manager"
+            "name": "🔧 control-plane-api",
+            "path": "src/control-plane-api"
+        },
+        {
+            "name": "🗓️ scheduler",
+            "path": "src/scheduler"
+        },
+        {
+            "name": "🎛️ controller",
+            "path": "src/controller"
         },
         {
             "name": "📄 docs",
@@ -127,34 +135,112 @@
         "version": "0.2.0",
         "configurations": [
             {
-                "name": "aix: Run",
+                "name": "control-plane-api: Run",
                 "type": "debugpy",
                 "request": "launch",
                 "module": "uvicorn",
                 "args": ["main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--reload"],
-                "cwd": "${workspaceFolder:🔧 aix}",
+                "cwd": "${workspaceFolder:🔧 control-plane-api}",
                 "env": {
-                    "PYTHONPATH": "${workspaceFolder:🔧 aix}"
+                    "PYTHONPATH": "${workspaceFolder:🔧 control-plane-api}"
                 },
                 "console": "integratedTerminal"
             },
             {
-                "name": "aix: pytest",
+                "name": "control-plane-api: pytest",
                 "type": "debugpy",
                 "request": "launch",
                 "module": "pytest",
                 "args": ["tests/", "-v"],
-                "cwd": "${workspaceFolder:🔧 aix}",
+                "cwd": "${workspaceFolder:🔧 control-plane-api}",
                 "env": {
-                    "PYTHONPATH": "${workspaceFolder:🔧 aix}"
+                    "PYTHONPATH": "${workspaceFolder:🔧 control-plane-api}"
                 },
                 "console": "integratedTerminal"
+            },
+            {
+                "name": "scheduler: Run",
+                "type": "debugpy",
+                "request": "launch",
+                "program": "${workspaceFolder:📅 scheduler}/main.py",
+                "cwd": "${workspaceFolder:📅 scheduler}",
+                "env": {
+                    "PYTHONPATH": "${workspaceFolder:📅 scheduler}",
+                    "ETCD_HOST": "localhost",
+                    "ETCD_PORT": "2379",
+                    "CONTROL_PLANE_API_URL": "http://localhost:8020"
+                },
+                "console": "integratedTerminal"
+            },
+            {
+                "name": "scheduler: Attach",
+                "type": "debugpy",
+                "request": "attach",
+                "connect": {
+                    "host": "localhost",
+                    "port": 5681
+                },
+                "pathMappings": [
+                    {
+                        "localRoot": "${workspaceFolder:📅 scheduler}",
+                        "remoteRoot": "/app"
+                    }
+                ]
+            },
+            {
+                "name": "controller: Run",
+                "type": "debugpy",
+                "request": "launch",
+                "program": "${workspaceFolder:🎛️ controller}/main.py",
+                "cwd": "${workspaceFolder:🎛️ controller}",
+                "env": {
+                    "PYTHONPATH": "${workspaceFolder:🎛️ controller}",
+                    "ETCD_HOST": "localhost",
+                    "ETCD_PORT": "2379",
+                    "CONTROL_PLANE_API_URL": "http://localhost:8020",
+                    "AWS_REGION": "us-east-1"
+                },
+                "console": "integratedTerminal"
+            },
+            {
+                "name": "controller: Attach",
+                "type": "debugpy",
+                "request": "attach",
+                "connect": {
+                    "host": "localhost",
+                    "port": 5682
+                },
+                "pathMappings": [
+                    {
+                        "localRoot": "${workspaceFolder:🎛️ controller}",
+                        "remoteRoot": "/app"
+                    }
+                ]
+            },
+            {
+                "name": "control-plane-api: Attach",
+                "type": "debugpy",
+                "request": "attach",
+                "connect": {
+                    "host": "localhost",
+                    "port": 5680
+                },
+                "pathMappings": [
+                    {
+                        "localRoot": "${workspaceFolder:🔧 control-plane-api}",
+                        "remoteRoot": "/app"
+                    }
+                ]
             }
         ],
         "compounds": [
             {
-                "name": "All Services",
-                "configurations": ["aix: Run", "agent-host: Run", "upstream-sample: Run", "knowledge-manager: Run"]
+                "name": "All Services (Local)",
+                "configurations": ["control-plane-api: Run", "scheduler: Run", "controller: Run"]
+            },
+            {
+                "name": "All Services (Attach Docker)",
+                "configurations": ["control-plane-api: Attach", "scheduler: Attach", "controller: Attach"]
             }
         ]
     },
@@ -162,79 +248,98 @@
         "version": "2.0.0",
         "tasks": [
             {
-                "label": "Docker: Up",
+                "label": "Docker: Up All",
                 "type": "shell",
                 "command": "make up",
                 "options": {
-                    "cwd": "${workspaceFolder:📦 root}"
+                    "cwd": "${workspaceFolder:🌳 root}"
                 },
                 "problemMatcher": []
             },
             {
-                "label": "Docker: Down",
+                "label": "Docker: Down All",
                 "type": "shell",
                 "command": "make down",
                 "options": {
-                    "cwd": "${workspaceFolder:📦 root}"
+                    "cwd": "${workspaceFolder:🌳 root}"
                 },
                 "problemMatcher": []
             },
             {
-                "label": "aix: Test",
+                "label": "Docker: Logs (all)",
+                "type": "shell",
+                "command": "make logs",
+                "options": {
+                    "cwd": "${workspaceFolder:🌳 root}"
+                },
+                "problemMatcher": []
+            },
+            {
+                "label": "control-plane-api: Test",
                 "type": "shell",
                 "command": "make test",
                 "options": {
-                    "cwd": "${workspaceFolder:🔧 aix}"
+                    "cwd": "${workspaceFolder:🔧 control-plane-api}"
                 },
                 "problemMatcher": []
             },
             {
-                "label": "aix: Build UI",
+                "label": "control-plane-api: Build UI",
                 "type": "shell",
                 "command": "make build-ui",
                 "options": {
-                    "cwd": "${workspaceFolder:🔧 aix}"
+                    "cwd": "${workspaceFolder:🔧 control-plane-api}"
                 },
                 "problemMatcher": []
             },
             {
-                "label": "agent-host: Build UI",
+                "label": "control-plane-api: Lint",
                 "type": "shell",
-                "command": "make build-ui",
+                "command": "make lint",
                 "options": {
-                    "cwd": "${workspaceFolder:🤖 agent-host}"
+                    "cwd": "${workspaceFolder:🔧 control-plane-api}"
                 },
                 "problemMatcher": []
             },
             {
-                "label": "knowledge-manager: Test",
+                "label": "scheduler: Test",
                 "type": "shell",
                 "command": "make test",
                 "options": {
-                    "cwd": "${workspaceFolder:📄 knowledge-manager}"
+                    "cwd": "${workspaceFolder:📅 scheduler}"
                 },
                 "problemMatcher": []
             },
             {
-                "label": "knowledge-manager: Setup",
+                "label": "scheduler: Lint",
                 "type": "shell",
-                "command": "make setup",
+                "command": "make lint",
                 "options": {
-                    "cwd": "${workspaceFolder:📄 knowledge-manager}"
+                    "cwd": "${workspaceFolder:📅 scheduler}"
+                },
+                "problemMatcher": []
+            },
+            {
+                "label": "controller: Test",
+                "type": "shell",
+                "command": "make test",
+                "options": {
+                    "cwd": "${workspaceFolder:🎛️ controller}"
+                },
+                "problemMatcher": []
+            },
+            {
+                "label": "controller: Lint",
+                "type": "shell",
+                "command": "make lint",
+                "options": {
+                    "cwd": "${workspaceFolder:🎛️ controller}"
                 },
                 "problemMatcher": []
             }
         ]
     },
     "extensions": {
-        "recommendations": [
-            "ms-python.python",
-            "ms-python.vscode-pylance",
-            "charliermarsh.ruff",
-            "ms-python.debugpy",
-            "esbenp.prettier-vscode",
-            "DavidAnson.vscode-markdownlint",
-            "ms-azuretools.vscode-docker"
-        ]
+        "recommendations": ["ms-python.python", "ms-python.vscode-pylance", "charliermarsh.ruff", "ms-python.debugpy", "esbenp.prettier-vscode", "DavidAnson.vscode-markdownlint", "ms-azuretools.vscode-docker"]
     }
 }
