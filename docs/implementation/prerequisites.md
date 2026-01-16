@@ -14,6 +14,7 @@
 ### 1.1 etcd Cluster
 
 **Development (Local/Docker)**
+
 ```yaml
 # docker-compose.yml addition
 services:
@@ -46,6 +47,7 @@ volumes:
 ```
 
 **Production (3-node cluster)**
+
 - Deploy via Helm chart or managed etcd (AWS EKS, etc.)
 - Minimum 3 nodes for quorum
 - Persistent storage with backup strategy
@@ -54,6 +56,7 @@ volumes:
 ### 1.2 S3/MinIO for Artifact Storage
 
 **Development (Local MinIO)**
+
 ```yaml
 # docker-compose.yml addition
 services:
@@ -80,6 +83,7 @@ volumes:
 ```
 
 **Production**
+
 - AWS S3 bucket with versioning enabled
 - IAM role with least-privilege access
 - Server-side encryption (SSE-S3 or SSE-KMS)
@@ -310,13 +314,13 @@ Add to `Makefile`:
 .PHONY: validate-prereqs start-lablet-infra
 
 validate-prereqs:
-	@bash scripts/validate-prerequisites.sh
+ @bash scripts/validate-prerequisites.sh
 
 start-lablet-infra:
-	docker-compose -f docker-compose.yml -f docker-compose.lablet.yml up -d etcd minio
-	@echo "Waiting for services to be healthy..."
-	@sleep 5
-	@$(MAKE) validate-prereqs
+ docker-compose -f docker-compose.yml -f docker-compose.lablet.yml up -d etcd minio
+ @echo "Waiting for services to be healthy..."
+ @sleep 5
+ @$(MAKE) validate-prereqs
 ```
 
 ---

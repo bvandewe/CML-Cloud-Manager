@@ -29,17 +29,20 @@
 #### Task 5.1: OpenTelemetry Tracing (2 days)
 
 **Files to Modify:**
+
 ```
 src/main.py (add OTEL instrumentation)
 src/application/services/*.py (add spans)
 ```
 
 **Files to Create:**
+
 ```
 src/infrastructure/observability/tracing.py
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Traces for all API endpoints
 - [ ] Traces for scheduling decisions
 - [ ] Traces for instantiation flow
@@ -48,6 +51,7 @@ src/infrastructure/observability/tracing.py
 - [ ] Export to OTEL Collector
 
 **Tracing Setup:**
+
 ```python
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
@@ -60,14 +64,14 @@ def configure_tracing(settings: Settings) -> None:
         "service.name": "ccm",
         "service.version": settings.APP_VERSION,
     }))
-    
+
     if settings.OTEL_EXPORTER_ENDPOINT:
         provider.add_span_processor(
             BatchSpanProcessor(OTLPSpanExporter(
                 endpoint=settings.OTEL_EXPORTER_ENDPOINT
             ))
         )
-    
+
     trace.set_tracer_provider(provider)
 
 
@@ -91,12 +95,14 @@ class SchedulerService:
 #### Task 5.2: Prometheus Metrics (2 days)
 
 **Files to Create:**
+
 ```
 src/infrastructure/observability/metrics.py
 src/api/middleware/metrics_middleware.py
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Business metrics:
   - `ccm_lablet_instances_total` (counter by state)
   - `ccm_lablet_instances_active` (gauge)
@@ -111,6 +117,7 @@ src/api/middleware/metrics_middleware.py
 - [ ] Prometheus endpoint `/metrics`
 
 **Metrics Definition:**
+
 ```python
 from prometheus_client import Counter, Gauge, Histogram
 
@@ -169,17 +176,20 @@ instantiation_duration = Histogram(
 #### Task 5.3: Structured Logging (1 day)
 
 **Files to Modify:**
+
 ```
 src/main.py (configure logging)
 src/application/services/*.py (add structured fields)
 ```
 
 **Files to Create:**
+
 ```
 src/infrastructure/observability/logging.py
 ```
 
 **Acceptance Criteria:**
+
 - [ ] JSON formatted logs in production
 - [ ] Correlation ID in all log entries
 - [ ] Standard fields: timestamp, level, service, trace_id
@@ -187,6 +197,7 @@ src/infrastructure/observability/logging.py
 - [ ] Log level configurable via settings
 
 **Logging Configuration:**
+
 ```python
 import structlog
 
@@ -229,6 +240,7 @@ async def schedule_instance(instance_id: str):
 #### Task 5.4: Load Testing Setup (2 days)
 
 **Files to Create:**
+
 ```
 tests/performance/locustfile.py
 tests/performance/scenarios/
@@ -236,6 +248,7 @@ tests/performance/README.md
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Locust load testing framework setup
 - [ ] Scenarios:
   - Create 100 instances concurrently
@@ -245,13 +258,14 @@ tests/performance/README.md
 - [ ] CI integration for regression testing
 
 **Locust Scenario:**
+
 ```python
 from locust import HttpUser, task, between
 
 
 class LabletAPIUser(HttpUser):
     wait_time = between(1, 3)
-    
+
     @task(3)
     def create_instance(self):
         self.client.post("/api/v1/instances", json={
@@ -260,11 +274,11 @@ class LabletAPIUser(HttpUser):
             "timeslot_end": "2026-01-20T12:00:00Z",
             "owner_id": f"user-{self.user_id}"
         })
-    
+
     @task(5)
     def list_instances(self):
         self.client.get("/api/v1/instances?page=1&size=50")
-    
+
     @task(2)
     def get_instance(self):
         self.client.get(f"/api/v1/instances/{self.instance_id}")
@@ -279,12 +293,14 @@ class LabletAPIUser(HttpUser):
 #### Task 5.5: Performance Optimization (3 days)
 
 **Files to Modify:**
+
 ```
 src/integration/repositories/*.py (query optimization)
 src/application/services/*.py (caching, batching)
 ```
 
 **Acceptance Criteria:**
+
 - [ ] API response time p95 < 500ms (NFR-3.1.1)
 - [ ] Scheduling decision time < 5s (NFR-3.1.2)
 - [ ] Instantiation time < 3 min (NFR-3.1.3)
@@ -293,6 +309,7 @@ src/application/services/*.py (caching, batching)
 - [ ] etcd key structure optimized
 
 **Optimization Areas:**
+
 ```python
 # MongoDB index optimization
 # Add to repository initialization
@@ -312,7 +329,7 @@ async def list_instances_async(self, filters, page, size):
         filters,
         projection={"state.lab_yaml_cached": 0}  # Exclude large field
     ).skip((page - 1) * size).limit(size)
-    
+
     return await cursor.to_list(length=size)
 
 # Batching for etcd watches
@@ -334,6 +351,7 @@ async def batch_update_states(self, updates: list[tuple[str, str]]):
 #### Task 5.6: Operational Runbooks (2 days)
 
 **Files to Create:**
+
 ```
 docs/operations/runbooks/
 docs/operations/runbooks/scheduler-troubleshooting.md
@@ -343,6 +361,7 @@ docs/operations/runbooks/instance-recovery.md
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Scheduler troubleshooting runbook
 - [ ] Scaling operations runbook
 - [ ] etcd cluster operations runbook
@@ -350,6 +369,7 @@ docs/operations/runbooks/instance-recovery.md
 - [ ] Alerting thresholds defined
 
 **Runbook Template:**
+
 ```markdown
 # Runbook: Scheduler Troubleshooting
 
@@ -379,16 +399,19 @@ If unresolved after 30 minutes, escalate to...
 #### Task 5.7: API Documentation (1 day)
 
 **Files to Modify:**
+
 ```
 src/api/controllers/*.py (enhance docstrings)
 ```
 
 **Files to Create:**
+
 ```
 docs/api/lablet-api-guide.md
 ```
 
 **Acceptance Criteria:**
+
 - [ ] OpenAPI spec complete and accurate
 - [ ] API guide with examples
 - [ ] Authentication instructions
@@ -404,6 +427,7 @@ docs/api/lablet-api-guide.md
 #### Task 5.8: UI Integration - Instance Management (2 days)
 
 **Files to Create:**
+
 ```
 src/ui/src/js/pages/lablet-instances.js
 src/ui/src/js/components/instance-card.js
@@ -411,6 +435,7 @@ src/ui/src/js/components/instance-state-badge.js
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Instance list view with filtering
 - [ ] Instance detail view
 - [ ] State badge with color coding
@@ -419,19 +444,20 @@ src/ui/src/js/components/instance-state-badge.js
 - [ ] Terminate instance action
 
 **UI Component:**
+
 ```javascript
 // Instance state badge component
 class InstanceStateBadge extends HTMLElement {
     static get observedAttributes() {
         return ['state'];
     }
-    
+
     attributeChangedCallback(name, oldValue, newValue) {
         if (name === 'state') {
             this.render(newValue);
         }
     }
-    
+
     render(state) {
         const colors = {
             'pending': 'secondary',
@@ -444,7 +470,7 @@ class InstanceStateBadge extends HTMLElement {
             'stopped': 'secondary',
             'terminated': 'dark'
         };
-        
+
         this.innerHTML = `
             <span class="badge bg-${colors[state] || 'secondary'}">
                 ${state.toUpperCase()}
@@ -465,12 +491,14 @@ customElements.define('instance-state-badge', InstanceStateBadge);
 #### Task 5.9: UI Integration - Definition Management (1 day)
 
 **Files to Create:**
+
 ```
 src/ui/src/js/pages/lablet-definitions.js
 src/ui/src/js/components/definition-card.js
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Definition list view
 - [ ] Definition detail view with versions
 - [ ] Create definition form
@@ -487,6 +515,7 @@ src/ui/src/js/components/definition-card.js
 #### Task 5.10: End-to-End Integration Tests (2 days)
 
 **Files to Create:**
+
 ```
 tests/e2e/test_full_lifecycle.py
 tests/e2e/test_scaling_scenarios.py
@@ -494,6 +523,7 @@ tests/e2e/test_assessment_flow.py
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Full instance lifecycle test (create → terminate)
 - [ ] Multi-instance scheduling test
 - [ ] Scale-up/down scenario test
@@ -509,6 +539,7 @@ tests/e2e/test_assessment_flow.py
 #### Task 5.11: Security Review (1 day)
 
 **Files to Review:**
+
 ```
 src/api/controllers/*.py
 src/api/dependencies.py
@@ -516,6 +547,7 @@ src/application/services/*.py
 ```
 
 **Acceptance Criteria:**
+
 - [ ] All endpoints require authentication
 - [ ] RBAC enforced appropriately
 - [ ] Input validation complete
@@ -532,6 +564,7 @@ src/application/services/*.py
 #### Task 5.12: Release Documentation (1 day)
 
 **Files to Create/Update:**
+
 ```
 CHANGELOG.md (update)
 README.md (update)
@@ -540,6 +573,7 @@ docs/deployment/upgrade-guide.md
 ```
 
 **Acceptance Criteria:**
+
 - [ ] CHANGELOG updated with all new features
 - [ ] README reflects new capabilities
 - [ ] Production deployment checklist
@@ -555,6 +589,7 @@ docs/deployment/upgrade-guide.md
 #### Task 5.13: Warm Pool Implementation (Optional, 2 days)
 
 **Files to Create:**
+
 ```
 src/application/services/warm_pool_service.py
 src/application/jobs/warm_pool_replenishment_job.py
@@ -562,6 +597,7 @@ tests/unit/application/services/test_warm_pool_service.py
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Maintain warm pool per LabletDefinition
 - [ ] Pre-import labs in STOPPED state
 - [ ] Start warm lab instead of importing new
@@ -624,6 +660,7 @@ Week 17                 Week 18                 Week 19                 Week 20
 ## 5. Phase 5 Acceptance Criteria
 
 ### Functional
+
 - [ ] All traces visible in Jaeger/OTEL backend
 - [ ] Prometheus metrics scraped successfully
 - [ ] Grafana dashboards functional
@@ -631,18 +668,21 @@ Week 17                 Week 18                 Week 19                 Week 20
 - [ ] All E2E tests pass
 
 ### Non-Functional
+
 - [ ] API response time p95 < 500ms under load
 - [ ] System handles 1000+ concurrent instances
 - [ ] No memory leaks under sustained load
 - [ ] Graceful degradation under overload
 
 ### Documentation
+
 - [ ] Operational runbooks complete
 - [ ] API documentation complete
 - [ ] Deployment guide complete
 - [ ] CHANGELOG updated
 
 ### Release Readiness
+
 - [ ] Security review passed
 - [ ] Performance benchmarks met
 - [ ] All tests passing in CI

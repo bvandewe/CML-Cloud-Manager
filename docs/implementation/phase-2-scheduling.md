@@ -29,12 +29,14 @@
 #### Task 2.1: Scheduler Leader Election (2 days)
 
 **Files to Create:**
+
 ```
 src/application/services/leader_election_service.py
 tests/integration/test_leader_election.py
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Leader election using etcd leases (15s TTL)
 - [ ] Campaign for leadership on startup
 - [ ] Maintain leadership via lease renewal
@@ -43,33 +45,34 @@ tests/integration/test_leader_election.py
 - [ ] Integration tests with multiple instances
 
 **Implementation:**
+
 ```python
 class LeaderElectionService:
     """etcd-based leader election for HA services."""
-    
+
     def __init__(self, etcd: EtcdStateStore, service_name: str, instance_id: str):
         self._etcd = etcd
         self._service_name = service_name
         self._instance_id = instance_id
         self._is_leader = False
         self._lease = None
-    
+
     async def start_async(self) -> None:
         """Start leader election process."""
         ...
-    
+
     async def stop_async(self) -> None:
         """Release leadership gracefully."""
         ...
-    
+
     @property
     def is_leader(self) -> bool:
         return self._is_leader
-    
+
     def on_leadership_acquired(self, callback: Callable) -> None:
         """Register callback for when leadership is acquired."""
         ...
-    
+
     def on_leadership_lost(self, callback: Callable) -> None:
         """Register callback for when leadership is lost."""
         ...
@@ -84,6 +87,7 @@ class LeaderElectionService:
 #### Task 2.2: Scheduler Service Core (3 days)
 
 **Files to Create:**
+
 ```
 src/application/services/scheduler_service.py
 src/application/services/placement_engine.py
@@ -92,6 +96,7 @@ tests/unit/application/services/test_placement_engine.py
 ```
 
 **Acceptance Criteria:**
+
 - [ ] SchedulerService with reconciliation loop (30s default)
 - [ ] Watch for PENDING instances via etcd
 - [ ] Delegate placement decisions to PlacementEngine
@@ -100,30 +105,31 @@ tests/unit/application/services/test_placement_engine.py
 - [ ] Comprehensive unit tests with mocks
 
 **Scheduling Loop:**
+
 ```python
 class SchedulerService:
     """Scheduler service with leader election."""
-    
+
     async def _run_scheduling_loop(self) -> None:
         """Main scheduling loop - only runs when leader."""
         while self._running:
             if not self._leader_election.is_leader:
                 await asyncio.sleep(1)
                 continue
-            
+
             try:
                 # Process pending instances
                 await self._process_pending_instances()
-                
+
                 # Check scheduled instances approaching timeslot
                 await self._check_approaching_timeslots()
-                
+
                 # Reconciliation check
                 await self._reconcile_scheduled_instances()
-                
+
             except Exception as e:
                 logger.error(f"Scheduling loop error: {e}")
-            
+
             await asyncio.sleep(self._reconcile_interval)
 ```
 
@@ -138,6 +144,7 @@ class SchedulerService:
 #### Task 2.3: Placement Engine (2 days)
 
 **Files to Create:**
+
 ```
 src/application/services/placement_engine.py
 src/application/models/scheduling_decision.py
@@ -145,6 +152,7 @@ tests/unit/application/services/test_placement_engine.py
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Filter workers by license affinity
 - [ ] Filter workers by resource requirements
 - [ ] Filter workers by AMI requirements
@@ -156,6 +164,7 @@ tests/unit/application/services/test_placement_engine.py
 - [ ] Unit tests with various scenarios
 
 **Algorithm:**
+
 ```python
 @dataclass
 class SchedulingDecision:
@@ -167,7 +176,7 @@ class SchedulingDecision:
 
 class PlacementEngine:
     """Placement algorithm for LabletInstances."""
-    
+
     def schedule(
         self,
         instance: LabletInstance,
@@ -176,17 +185,17 @@ class PlacementEngine:
     ) -> SchedulingDecision:
         # Phase 1: Filter eligible workers
         candidates = self._filter_eligible(workers, definition)
-        
+
         if not candidates:
             return SchedulingDecision(
                 action="scale_up",
                 worker_template=self._select_template(definition),
                 reason="No worker with sufficient capacity"
             )
-        
+
         # Phase 2: Score candidates (bin-packing)
         scored = self._score_candidates(candidates, definition)
-        
+
         # Phase 3: Select best
         best = max(scored, key=lambda x: x[1])
         return SchedulingDecision(
@@ -205,12 +214,14 @@ class PlacementEngine:
 #### Task 2.4: Timeslot Manager (2 days)
 
 **Files to Create:**
+
 ```
 src/application/services/timeslot_manager.py
 tests/unit/application/services/test_timeslot_manager.py
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Monitor scheduled instances approaching timeslot
 - [ ] Calculate lead time (35 min = worker boot + instantiation)
 - [ ] Trigger instantiation at appropriate time
@@ -219,6 +230,7 @@ tests/unit/application/services/test_timeslot_manager.py
 - [ ] Unit tests with time mocking
 
 **Lead Time Calculation:**
+
 ```python
 WORKER_BOOTUP_DELAY = timedelta(minutes=20)
 LABLET_INSTANTIATION_DELAY = timedelta(minutes=15)
@@ -227,7 +239,7 @@ TOTAL_LEAD_TIME = WORKER_BOOTUP_DELAY + LABLET_INSTANTIATION_DELAY  # 35 min
 
 class TimeslotManager:
     """Manages timeslot-based scheduling."""
-    
+
     def get_approaching_instances(
         self,
         instances: list[LabletInstance],
@@ -236,7 +248,7 @@ class TimeslotManager:
         """Get instances whose timeslot is approaching."""
         now = datetime.now(timezone.utc)
         threshold = now + lookahead
-        
+
         return [
             i for i in instances
             if i.state.state == LabletInstanceState.SCHEDULED
@@ -253,6 +265,7 @@ class TimeslotManager:
 #### Task 2.5: Internal Scheduler Endpoints (1 day)
 
 **Files to Create:**
+
 ```
 src/api/controllers/internal_scheduler_controller.py
 src/application/commands/schedule_instance_command.py
@@ -260,6 +273,7 @@ src/application/commands/allocate_ports_command.py
 ```
 
 **Acceptance Criteria:**
+
 - [ ] POST /api/internal/instances/{id}/schedule
 - [ ] POST /api/internal/instances/{id}/allocate-ports
 - [ ] POST /api/internal/instances/{id}/transition
@@ -277,12 +291,14 @@ src/application/commands/allocate_ports_command.py
 #### Task 2.6: Artifact Storage Service (1 day)
 
 **Files to Create:**
+
 ```
 src/integration/services/artifact_storage_service.py
 tests/integration/test_artifact_storage.py
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Download lab YAML from S3/MinIO
 - [ ] Upload rewritten YAML (temporary)
 - [ ] Async operations with aiobotocore
@@ -298,12 +314,14 @@ tests/integration/test_artifact_storage.py
 #### Task 2.7: Lab YAML Rewriting Service (2 days)
 
 **Files to Create:**
+
 ```
 src/application/services/lab_yaml_rewriter.py
 tests/unit/application/services/test_lab_yaml_rewriter.py
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Parse lab YAML using ruamel-yaml (preserve formatting)
 - [ ] Replace port placeholders with allocated ports
 - [ ] Handle smart_annotations tags (serial:, vnc:)
@@ -312,10 +330,11 @@ tests/unit/application/services/test_lab_yaml_rewriter.py
 - [ ] Comprehensive unit tests with sample YAMLs
 
 **Implementation:**
+
 ```python
 class LabYamlRewriter:
     """Rewrites lab YAML with allocated ports."""
-    
+
     def rewrite(
         self,
         lab_yaml: str,
@@ -324,24 +343,24 @@ class LabYamlRewriter:
     ) -> str:
         """
         Replace port placeholders with actual ports.
-        
+
         Template: serial:${PORT_SERIAL_1}
         Output:   serial:5041
         """
         yaml = ruamel.yaml.YAML()
         yaml.preserve_quotes = True
-        
+
         data = yaml.load(lab_yaml)
-        
+
         # Build placeholder -> port mapping
         port_map = self._build_port_map(port_template, allocated_ports)
-        
+
         # Rewrite smart_annotations
         self._rewrite_annotations(data, port_map)
-        
+
         # Rewrite node tags
         self._rewrite_node_tags(data, port_map)
-        
+
         # Serialize back
         stream = StringIO()
         yaml.dump(data, stream)
@@ -357,6 +376,7 @@ class LabYamlRewriter:
 #### Task 2.8: Instantiation Service (2 days)
 
 **Files to Create:**
+
 ```
 src/application/services/instantiation_service.py
 src/application/commands/instantiate_lablet_command.py
@@ -364,6 +384,7 @@ tests/unit/application/services/test_instantiation_service.py
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Download lab YAML from artifact storage
 - [ ] Rewrite with allocated ports
 - [ ] Import lab to CML worker via CML API
@@ -373,10 +394,11 @@ tests/unit/application/services/test_instantiation_service.py
 - [ ] Unit tests with mocked dependencies
 
 **Instantiation Flow:**
+
 ```python
 class InstantiationService:
     """Handles LabletInstance instantiation on workers."""
-    
+
     async def instantiate_async(
         self,
         instance_id: str,
@@ -384,7 +406,7 @@ class InstantiationService:
     ) -> OperationResult[str]:
         """
         Instantiate a scheduled LabletInstance.
-        
+
         Steps:
         1. Get instance and validate state (SCHEDULED)
         2. Get definition and download lab YAML
@@ -408,17 +430,20 @@ class InstantiationService:
 #### Task 2.9: SSE Instance State Updates (2 days)
 
 **Files to Modify:**
+
 ```
 src/application/services/sse_event_relay.py (extend)
 src/api/controllers/events_controller.py (extend)
 ```
 
 **Files to Create:**
+
 ```
 src/application/events/lablet_instance_state_changed_event.py
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Broadcast instance state changes via SSE
 - [ ] Filter by instance_id, definition_id, owner_id
 - [ ] Include state transition details
@@ -426,6 +451,7 @@ src/application/events/lablet_instance_state_changed_event.py
 - [ ] UI can subscribe to instance updates
 
 **Event Payload:**
+
 ```python
 @dataclass
 class LabletInstanceStateChangedEvent:
@@ -446,12 +472,14 @@ class LabletInstanceStateChangedEvent:
 #### Task 2.10: Scheduler Integration Tests (2 days)
 
 **Files to Create:**
+
 ```
 tests/integration/test_scheduler_e2e.py
 tests/integration/test_instantiation_e2e.py
 ```
 
 **Acceptance Criteria:**
+
 - [ ] End-to-end test: create instance → scheduled → instantiated → running
 - [ ] Test leader election failover
 - [ ] Test placement with multiple workers
@@ -468,16 +496,19 @@ tests/integration/test_instantiation_e2e.py
 #### Task 2.11: Scheduler Background Job Registration (1 day)
 
 **Files to Modify:**
+
 ```
 src/main.py (register scheduler startup)
 ```
 
 **Files to Create:**
+
 ```
 src/application/jobs/scheduler_startup_job.py
 ```
 
 **Acceptance Criteria:**
+
 - [ ] Scheduler starts on application startup (if enabled)
 - [ ] Graceful shutdown on application termination
 - [ ] Configuration via settings (enable/disable)
@@ -533,6 +564,7 @@ Week 5                  Week 6                  Week 7                  Week 8
 ## 5. Phase 2 Acceptance Criteria
 
 ### Functional
+
 - [ ] Scheduler automatically assigns PENDING instances to workers
 - [ ] Placement algorithm correctly selects worker based on constraints
 - [ ] Instances are instantiated when timeslot approaches
@@ -542,12 +574,14 @@ Week 5                  Week 6                  Week 7                  Week 8
 - [ ] Leader election provides HA (failover < 30s)
 
 ### Non-Functional
+
 - [ ] Scheduling decision time < 5s
 - [ ] Instantiation time < 3 min (excluding worker startup)
 - [ ] Scheduler loop interval configurable
 - [ ] No orphaned instances (state machine consistency)
 
 ### Documentation
+
 - [ ] Scheduler architecture documented
 - [ ] Placement algorithm explained
 - [ ] Troubleshooting guide for scheduling issues

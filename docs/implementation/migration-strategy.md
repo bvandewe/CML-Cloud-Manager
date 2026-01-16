@@ -27,6 +27,7 @@ This document outlines the strategy for integrating the Lablet Resource Manager 
 ### 2.1 MongoDB Collections (New)
 
 **New Collections:**
+
 ```
 lablet_definitions    # LabletDefinition aggregates
 lablet_instances      # LabletInstance aggregates
@@ -35,11 +36,12 @@ scaling_audit_events  # Scaling decision audit log
 ```
 
 **Migration Script:**
+
 ```python
 # migrations/001_lablet_collections.py
 async def upgrade(db: AsyncIOMotorDatabase):
     """Create collections for Lablet Resource Manager."""
-    
+
     # Create lablet_definitions collection
     await db.create_collection("lablet_definitions")
     await db.lablet_definitions.create_index("state.name")
@@ -47,7 +49,7 @@ async def upgrade(db: AsyncIOMotorDatabase):
         ("state.name", 1),
         ("state.version", 1)
     ], unique=True)
-    
+
     # Create lablet_instances collection
     await db.create_collection("lablet_instances")
     await db.lablet_instances.create_index("state.state")
@@ -57,11 +59,11 @@ async def upgrade(db: AsyncIOMotorDatabase):
         ("state.state", 1),
         ("state.timeslot_start", 1)
     ])
-    
+
     # Create worker_templates collection
     await db.create_collection("worker_templates")
     await db.worker_templates.create_index("state.name", unique=True)
-    
+
     # Create scaling_audit_events collection
     await db.create_collection("scaling_audit_events")
     await db.scaling_audit_events.create_index("timestamp")
@@ -81,11 +83,12 @@ async def downgrade(db: AsyncIOMotorDatabase):
 ### 2.2 CMLWorker Collection (Extensions)
 
 **Modified Fields on `cml_workers` collection:**
+
 ```python
 # migrations/002_cml_worker_extensions.py
 async def upgrade(db: AsyncIOMotorDatabase):
     """Add capacity tracking fields to CMLWorker."""
-    
+
     # Add default values for existing workers
     await db.cml_workers.update_many(
         {"state.template_name": {"$exists": False}},
@@ -109,7 +112,7 @@ async def upgrade(db: AsyncIOMotorDatabase):
             "state.lablet_instance_ids": []
         }}
     )
-    
+
     # Add index for capacity queries
     await db.cml_workers.create_index([
         ("state.status", 1),
@@ -125,12 +128,13 @@ async def downgrade(db: AsyncIOMotorDatabase):
 ### 2.3 Migration Execution
 
 **Run migrations on startup:**
+
 ```python
 # src/main.py
 async def run_migrations(db: AsyncIOMotorDatabase):
     """Run database migrations on startup."""
     from migrations import get_pending_migrations
-    
+
     for migration in get_pending_migrations(db):
         logger.info(f"Running migration: {migration.name}")
         await migration.upgrade(db)
@@ -147,6 +151,7 @@ async def run_migrations(db: AsyncIOMotorDatabase):
 ### 3.1 Existing APIs (Unchanged)
 
 The following APIs remain unchanged:
+
 ```
 /api/v1/workers/*        # CMLWorker management
 /api/v1/labs/*           # Lab operations (via CML API)
@@ -157,6 +162,7 @@ The following APIs remain unchanged:
 ### 3.2 New APIs (Additive)
 
 New APIs for Lablet Resource Manager:
+
 ```
 /api/v1/definitions/*    # LabletDefinition management
 /api/v1/instances/*      # LabletInstance management
@@ -167,6 +173,7 @@ New APIs for Lablet Resource Manager:
 ### 3.3 API Versioning
 
 All new APIs use `/api/v1/` prefix. If breaking changes needed in future:
+
 - Introduce `/api/v2/` for new version
 - Maintain `/api/v1/` for backward compatibility
 - Deprecation notice with timeline
@@ -178,30 +185,31 @@ All new APIs use `/api/v1/` prefix. If breaking changes needed in future:
 ### 4.1 New Settings
 
 **Add to Settings class (with defaults):**
+
 ```python
 class Settings(ApplicationSettings):
     # Existing settings...
-    
+
     # Lablet Resource Manager (Phase 1+)
     LABLET_ENABLED: bool = False  # Feature flag
-    
+
     # etcd Configuration
     ETCD_HOST: str = "localhost"
     ETCD_PORT: int = 2379
     ETCD_USERNAME: str | None = None
     ETCD_PASSWORD: str | None = None
-    
+
     # Artifact Storage
     ARTIFACT_STORAGE_ENDPOINT: str = "http://localhost:9000"
     ARTIFACT_STORAGE_BUCKET: str = "lablet-artifacts"
-    
+
     # Scheduler
     SCHEDULER_ENABLED: bool = False
     SCHEDULER_RECONCILE_INTERVAL: int = 30
-    
+
     # Resource Controller
     CONTROLLER_ENABLED: bool = False
-    
+
     # CloudEvents
     CLOUDEVENTS_SINK_URL: str | None = None
 ```
@@ -209,6 +217,7 @@ class Settings(ApplicationSettings):
 ### 4.2 Feature Flag Rollout
 
 **Phase 1: Foundation**
+
 ```python
 LABLET_ENABLED=true  # Enable new collections, APIs
 SCHEDULER_ENABLED=false
@@ -216,6 +225,7 @@ CONTROLLER_ENABLED=false
 ```
 
 **Phase 2: Scheduling**
+
 ```python
 LABLET_ENABLED=true
 SCHEDULER_ENABLED=true  # Enable scheduler
@@ -223,6 +233,7 @@ CONTROLLER_ENABLED=false
 ```
 
 **Phase 3: Auto-Scaling**
+
 ```python
 LABLET_ENABLED=true
 SCHEDULER_ENABLED=true
@@ -238,12 +249,14 @@ CONTROLLER_ENABLED=true  # Enable controller
 CMLWorker can be used in two modes:
 
 **Legacy Mode (existing functionality):**
+
 - Manual worker provisioning
 - Direct lab operations via UI
 - No capacity tracking
 - No scheduling integration
 
 **Lablet Mode (new functionality):**
+
 - Automatic worker provisioning via templates
 - LabletInstance scheduling
 - Capacity tracking
@@ -252,6 +265,7 @@ CMLWorker can be used in two modes:
 ### 5.2 Worker Detection
 
 Workers can be identified by mode:
+
 ```python
 def is_lablet_managed(worker: CMLWorker) -> bool:
     """Check if worker is managed by Lablet Resource Manager."""
@@ -279,6 +293,7 @@ def get_worker_mode(worker: CMLWorker) -> str:
 ### 6.1 Existing UI (Preserved)
 
 Current UI pages remain functional:
+
 - Worker dashboard
 - Worker details
 - Labs view
@@ -287,6 +302,7 @@ Current UI pages remain functional:
 ### 6.2 New UI Pages (Additive)
 
 New pages for Lablet features:
+
 - Lablet Definitions
 - Lablet Instances
 - Capacity Dashboard (optional)
@@ -294,6 +310,7 @@ New pages for Lablet features:
 ### 6.3 UI Feature Detection
 
 UI adapts based on feature flags:
+
 ```javascript
 // Fetch feature flags from API
 const features = await fetch('/api/v1/features').then(r => r.json());
@@ -317,6 +334,7 @@ if (features.lablet_enabled) {
 ### 7.1 Feature Flag Rollback
 
 Immediate rollback by disabling features:
+
 ```bash
 # Disable all Lablet features
 LABLET_ENABLED=false
@@ -327,6 +345,7 @@ CONTROLLER_ENABLED=false
 ### 7.2 Database Rollback
 
 **Not recommended** - data loss risk. If needed:
+
 1. Stop application
 2. Run `downgrade()` migrations
 3. Restart with features disabled
@@ -334,6 +353,7 @@ CONTROLLER_ENABLED=false
 ### 7.3 Graceful Degradation
 
 If Lablet features fail:
+
 1. Existing worker management continues
 2. Direct lab operations unaffected
 3. Scheduled instances stay in current state
@@ -349,17 +369,17 @@ If Lablet features fail:
 # tests/compatibility/test_legacy_apis.py
 class TestLegacyAPICompatibility:
     """Ensure existing APIs work unchanged."""
-    
+
     async def test_worker_crud_unchanged(self):
         # Create worker via existing API
         response = await client.post("/api/v1/workers", json={...})
         assert response.status_code == 201
-        
+
         # Verify worker has new fields with defaults
         worker = response.json()
         assert worker["template_name"] is None
         assert worker["declared_capacity"] is not None
-    
+
     async def test_lab_operations_unchanged(self):
         # Lab operations via existing API
         response = await client.get(f"/api/v1/workers/{worker_id}/labs")
@@ -372,14 +392,14 @@ class TestLegacyAPICompatibility:
 # tests/migrations/test_migrations.py
 class TestMigrations:
     """Test database migrations."""
-    
+
     async def test_upgrade_preserves_data(self):
         # Create legacy worker
         await db.cml_workers.insert_one({...})
-        
+
         # Run migration
         await upgrade(db)
-        
+
         # Verify data preserved + new fields added
         worker = await db.cml_workers.find_one({})
         assert worker["state"]["name"] == "test-worker"  # Preserved

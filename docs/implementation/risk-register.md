@@ -41,6 +41,7 @@
 etcd requires specialized operational knowledge. Cluster management, backup/restore, and troubleshooting are different from MongoDB/Redis.
 
 **Mitigation Strategies:**
+
 1. Consider managed etcd service (AWS EKS etcd, Azure CosmosDB etcd API)
 2. Create comprehensive operational runbooks (Task 5.6)
 3. Training session for operations team
@@ -66,6 +67,7 @@ If etcd proves too complex, evaluate MongoDB Change Streams as fallback (trade-o
 m5zn.metal EC2 instances take 15-20 minutes to start and initialize CML. This limits elasticity and requires predictive scaling.
 
 **Mitigation Strategies:**
+
 1. Predictive scaling based on scheduled timeslots
 2. Maintain minimum warm capacity (configurable)
 3. Pre-scale based on historical patterns
@@ -91,6 +93,7 @@ Accept longer lead times; communicate expected wait times to users.
 CML API may timeout or return errors during lab import/start operations. Network issues between CCM and workers can cause failures.
 
 **Mitigation Strategies:**
+
 1. Implement retry logic with exponential backoff
 2. Circuit breaker pattern for repeated failures
 3. Timeout configuration per operation type
@@ -116,6 +119,7 @@ Manual recovery procedures documented in runbooks.
 Dual storage architecture (etcd for state, MongoDB for specs) introduces potential for inconsistency.
 
 **Mitigation Strategies:**
+
 1. Clear data ownership per ADR-005
 2. MongoDB as source of truth for aggregates
 3. etcd only for coordination state
@@ -141,6 +145,7 @@ Reconciliation job to fix inconsistencies; manual intervention procedures.
 Leader election for Scheduler/Controller could fail or cause split-brain scenarios.
 
 **Mitigation Strategies:**
+
 1. Use proven etcd lease mechanism
 2. Short lease TTL (15s) for fast failover
 3. Idempotent operations (safe to replay)
@@ -166,6 +171,7 @@ Manual leadership override via admin API.
 Concurrent port allocations could lead to conflicts if not properly synchronized.
 
 **Mitigation Strategies:**
+
 1. etcd transactions for atomic allocation
 2. Compare-and-swap semantics
 3. Bitmap-based allocation for efficiency
@@ -191,6 +197,7 @@ Force release and re-allocate ports.
 Lab YAML files may have variations in format that break the rewriting logic.
 
 **Mitigation Strategies:**
+
 1. Extensive test fixtures with real lab YAMLs
 2. Graceful error handling
 3. YAML validation before and after rewriting
@@ -216,6 +223,7 @@ Manual YAML fixing; skip problematic sections with warnings.
 Assessment Platform may be unavailable or return errors during collection/grading.
 
 **Mitigation Strategies:**
+
 1. Retry logic with exponential backoff
 2. Circuit breaker pattern
 3. Async event-based communication
@@ -243,6 +251,7 @@ Manual grading fallback; instance can be terminated without grading.
 Additional requirements or changes during implementation could extend timeline.
 
 **Mitigation Strategies:**
+
 1. Clear phase boundaries and acceptance criteria
 2. Change control process
 3. Feature flags for incremental release
@@ -268,6 +277,7 @@ Defer P1/P2 features to future releases.
 Team may need time to learn etcd operations and patterns.
 
 **Mitigation Strategies:**
+
 1. Pair programming for knowledge sharing
 2. Spike tasks for complex areas
 3. Documentation as you go
@@ -294,6 +304,7 @@ Buffer time built into estimates.
 m5zn.metal instances are expensive. Poor scaling decisions could increase costs.
 
 **Mitigation Strategies:**
+
 1. Aggressive scale-down of idle workers
 2. Cost monitoring and alerting
 3. Budget limits in AWS
@@ -319,6 +330,7 @@ Emergency manual scale-down procedure.
 etcd cluster failure could lose coordination state.
 
 **Mitigation Strategies:**
+
 1. 3-node etcd cluster (quorum)
 2. Regular snapshots (every 30 min)
 3. Off-site backup storage

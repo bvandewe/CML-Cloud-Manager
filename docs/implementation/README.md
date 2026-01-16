@@ -18,6 +18,7 @@ This implementation plan transforms the CML Cloud Manager into a **Lablet Resour
 **Timeline:** 20 weeks (5 phases of 4 weeks each)
 
 **Key Deliverables:**
+
 - Declarative LabletDefinition and LabletInstance lifecycle management
 - Intelligent scheduling with time-windowed reservations
 - Automatic Worker scaling (up/down) based on demand
@@ -42,6 +43,7 @@ This implementation plan transforms the CML Cloud Manager into a **Lablet Resour
 See [Prerequisites & Environment Setup](./prerequisites.md) for detailed setup instructions.
 
 **Summary:**
+
 - etcd cluster (dev: single node, prod: 3-node)
 - Python etcd client library (`etcd3-py` or `aioetcd3`)
 - S3/MinIO for lab artifact storage
@@ -71,6 +73,7 @@ All architectural decisions are documented in [/docs/architecture/adr/](../archi
 See [Risk Register](./risk-register.md) for detailed risk analysis and mitigation strategies.
 
 **Top Risks:**
+
 1. **etcd Operational Complexity** - Mitigate with managed etcd or thorough runbooks
 2. **Worker Startup Time (15-20 min)** - Mitigate with predictive scaling, warm capacity
 3. **CML API Reliability** - Mitigate with retry logic, circuit breakers
@@ -83,6 +86,7 @@ See [Risk Register](./risk-register.md) for detailed risk analysis and mitigatio
 See [Migration Strategy](./migration-strategy.md) for backward compatibility approach.
 
 **Principles:**
+
 - Existing CMLWorker functionality preserved
 - New LabletInstance features additive
 - Feature flags for gradual rollout
@@ -93,6 +97,7 @@ See [Migration Strategy](./migration-strategy.md) for backward compatibility app
 ## 7. Definition of Done
 
 ### Per-Task DoD
+
 - [ ] Code implemented following Neuroglia patterns
 - [ ] Unit tests with ≥80% coverage
 - [ ] Integration tests for external dependencies
@@ -101,6 +106,7 @@ See [Migration Strategy](./migration-strategy.md) for backward compatibility app
 - [ ] No regressions in existing functionality
 
 ### Per-Phase DoD
+
 - [ ] All phase tasks completed
 - [ ] Phase-specific acceptance criteria met
 - [ ] Performance benchmarks validated
@@ -112,6 +118,7 @@ See [Migration Strategy](./migration-strategy.md) for backward compatibility app
 ## 8. Document Index
 
 ### Phase Documents
+
 - [Prerequisites & Environment Setup](./prerequisites.md)
 - [Phase 1: Foundation](./phase-1-foundation.md)
 - [Phase 2: Scheduling](./phase-2-scheduling.md)
@@ -120,6 +127,7 @@ See [Migration Strategy](./migration-strategy.md) for backward compatibility app
 - [Phase 5: Production Hardening](./phase-5-production.md)
 
 ### Supporting Documents
+
 - [Risk Register](./risk-register.md)
 - [Migration Strategy](./migration-strategy.md)
 - [Testing Strategy](./testing-strategy.md)

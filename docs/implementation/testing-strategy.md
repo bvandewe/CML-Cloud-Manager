@@ -31,6 +31,7 @@ This document defines the comprehensive testing strategy for the Lablet Resource
 **Markers**: `@pytest.mark.unit`
 
 **Target Coverage:**
+
 | Layer | Target |
 |-------|--------|
 | Domain entities | 90% |
@@ -40,6 +41,7 @@ This document defines the comprehensive testing strategy for the Lablet Resource
 | Utility functions | 90% |
 
 **Example:**
+
 ```python
 # tests/unit/domain/test_lablet_definition.py
 @pytest.mark.unit
@@ -51,7 +53,7 @@ class TestLabletDefinition:
         )
         assert definition.state.name == "test-definition"
         assert definition.state.status == LabletDefinitionStatus.DRAFT
-    
+
     def test_create_rejects_empty_name(self):
         with pytest.raises(ValidationError):
             LabletDefinition.create(name="", topology=...)
@@ -64,6 +66,7 @@ class TestLabletDefinition:
 **Markers**: `@pytest.mark.integration`
 
 **Target Coverage:**
+
 | Component | Target |
 |-----------|--------|
 | Repositories | 80% |
@@ -72,6 +75,7 @@ class TestLabletDefinition:
 | CML API client (mocked) | 80% |
 
 **Example:**
+
 ```python
 # tests/integration/test_lablet_definition_repository.py
 @pytest.mark.integration
@@ -80,11 +84,11 @@ class TestLabletDefinitionRepository:
     async def repository(self, mongodb_container):
         db = get_test_database(mongodb_container)
         return MongoLabletDefinitionRepository(db)
-    
+
     async def test_add_and_retrieve(self, repository):
         definition = LabletDefinition.create(name="test", topology=...)
         await repository.add_async(definition)
-        
+
         retrieved = await repository.get_by_id_async(definition.id())
         assert retrieved.state.name == "test"
 ```
@@ -96,6 +100,7 @@ class TestLabletDefinitionRepository:
 **Markers**: `@pytest.mark.api`
 
 **Target Coverage:**
+
 | Endpoint Group | Target |
 |----------------|--------|
 | Definition CRUD | 85% |
@@ -104,6 +109,7 @@ class TestLabletDefinitionRepository:
 | Internal APIs | 80% |
 
 **Example:**
+
 ```python
 # tests/api/test_definitions_controller.py
 @pytest.mark.api
@@ -116,7 +122,7 @@ class TestDefinitionsController:
         )
         assert response.status_code == 201
         assert response.json()["name"] == "test"
-    
+
     async def test_create_definition_unauthorized(self, client):
         response = await client.post("/api/v1/definitions", json={...})
         assert response.status_code == 401
@@ -129,6 +135,7 @@ class TestDefinitionsController:
 **Markers**: `@pytest.mark.e2e`
 
 **Target Coverage:**
+
 | Workflow | Target |
 |----------|--------|
 | Lablet instantiation | 100% |
@@ -137,6 +144,7 @@ class TestDefinitionsController:
 | Assessment integration | 100% |
 
 **Example:**
+
 ```python
 # tests/e2e/test_lablet_instantiation_workflow.py
 @pytest.mark.e2e
@@ -144,20 +152,20 @@ class TestLabletInstantiationWorkflow:
     async def test_full_instantiation_lifecycle(self, e2e_environment):
         # Create definition
         definition = await create_definition(...)
-        
+
         # Create scheduled request
         instance = await create_instance(
             definition_id=definition.id,
             timeslot_start=now() + timedelta(hours=1)
         )
         assert instance.state == "PENDING"
-        
+
         # Wait for scheduling
         await wait_for_state(instance.id, "SCHEDULED")
-        
+
         # Wait for instantiation
         await wait_for_state(instance.id, "RUNNING")
-        
+
         # Verify lab created on worker
         worker = await get_worker(instance.worker_id)
         assert instance.lab_id in worker.labs
@@ -170,6 +178,7 @@ class TestLabletInstantiationWorkflow:
 ### 3.1 Test Fixtures
 
 **Shared fixtures in `conftest.py`:**
+
 ```python
 # tests/conftest.py
 
@@ -220,12 +229,13 @@ async def client(test_app):
 ### 3.2 Mock Services
 
 **AWS EC2 Client Mock:**
+
 ```python
 # tests/mocks/aws_mock.py
 class MockAwsEc2Client:
     def __init__(self):
         self.instances = {}
-    
+
     async def create_instance_async(self, config):
         instance_id = f"i-{uuid4().hex[:8]}"
         self.instances[instance_id] = {
@@ -234,18 +244,19 @@ class MockAwsEc2Client:
             **config
         }
         return instance_id
-    
+
     async def get_instance_async(self, instance_id):
         return self.instances.get(instance_id)
 ```
 
 **CML API Client Mock:**
+
 ```python
 # tests/mocks/cml_mock.py
 class MockCMLApiClient:
     def __init__(self):
         self.labs = {}
-    
+
     async def create_lab_async(self, worker_url, lab_config):
         lab_id = str(uuid4())
         self.labs[lab_id] = {
@@ -254,7 +265,7 @@ class MockCMLApiClient:
             **lab_config
         }
         return lab_id
-    
+
     async def start_lab_async(self, worker_url, lab_id):
         self.labs[lab_id]["state"] = "STARTED"
 ```
@@ -268,14 +279,14 @@ from factory import Factory, LazyAttribute, SubFactory
 class TopologySpecFactory(Factory):
     class Meta:
         model = TopologySpec
-    
+
     format = TopologyFormat.YAML
     content = LazyAttribute(lambda _: generate_sample_topology())
 
 class LabletDefinitionFactory(Factory):
     class Meta:
         model = dict  # For creating via API
-    
+
     name = LazyAttribute(lambda _: f"definition-{uuid4().hex[:8]}")
     topology = SubFactory(TopologySpecFactory)
     resource_requirements = {
@@ -343,6 +354,7 @@ tests/
 - Test methods: `test_<scenario>_<expected_result>`
 
 **Examples:**
+
 ```python
 test_create_definition_with_valid_topology_succeeds
 test_create_definition_with_empty_name_raises_validation_error
@@ -356,12 +368,14 @@ test_scheduler_reconcile_assigns_pending_instances
 ### 5.1 Phase 1: Foundation
 
 **Focus Areas:**
+
 - Domain entity creation and validation
 - Repository CRUD operations
 - API endpoint functionality
 - Port allocation correctness
 
 **Test Counts:**
+
 | Category | Tests |
 |----------|-------|
 | Unit | ~100 |
@@ -371,12 +385,14 @@ test_scheduler_reconcile_assigns_pending_instances
 ### 5.2 Phase 2: Scheduling
 
 **Focus Areas:**
+
 - Scheduler reconciliation loops
 - Worker selection algorithms
 - State machine transitions
 - Leader election behavior
 
 **Test Counts:**
+
 | Category | Tests |
 |----------|-------|
 | Unit | ~80 |
@@ -386,12 +402,14 @@ test_scheduler_reconcile_assigns_pending_instances
 ### 5.3 Phase 3: Auto-Scaling
 
 **Focus Areas:**
+
 - Scale-up trigger conditions
 - Scale-down with DRAINING
 - Resource controller reconciliation
 - Concurrent operation handling
 
 **Test Counts:**
+
 | Category | Tests |
 |----------|-------|
 | Unit | ~60 |
@@ -401,12 +419,14 @@ test_scheduler_reconcile_assigns_pending_instances
 ### 5.4 Phase 4: Assessment
 
 **Focus Areas:**
+
 - CloudEvent processing
 - Grading Engine pod generation
 - External system integration
 - Event correlation
 
 **Test Counts:**
+
 | Category | Tests |
 |----------|-------|
 | Unit | ~50 |
@@ -416,12 +436,14 @@ test_scheduler_reconcile_assigns_pending_instances
 ### 5.5 Phase 5: Production
 
 **Focus Areas:**
+
 - Performance under load
 - Observability correctness
 - Security verification
 - Full workflow E2E
 
 **Test Counts:**
+
 | Category | Tests |
 |----------|-------|
 | E2E | ~30 |
@@ -497,22 +519,22 @@ jobs:
 ```makefile
 # Makefile additions
 test-unit:
-	PYTHONPATH=src pytest tests/unit -v -m unit --cov=src --cov-report=xml
+ PYTHONPATH=src pytest tests/unit -v -m unit --cov=src --cov-report=xml
 
 test-integration:
-	PYTHONPATH=src pytest tests/integration -v -m integration
+ PYTHONPATH=src pytest tests/integration -v -m integration
 
 test-api:
-	PYTHONPATH=src pytest tests/api -v -m api
+ PYTHONPATH=src pytest tests/api -v -m api
 
 test-e2e:
-	PYTHONPATH=src pytest tests/e2e -v -m e2e --timeout=300
+ PYTHONPATH=src pytest tests/e2e -v -m e2e --timeout=300
 
 test-all:
-	PYTHONPATH=src pytest tests -v --cov=src --cov-report=html
+ PYTHONPATH=src pytest tests -v --cov=src --cov-report=html
 
 test-coverage:
-	PYTHONPATH=src pytest tests -v --cov=src --cov-report=html --cov-fail-under=80
+ PYTHONPATH=src pytest tests -v --cov=src --cov-report=html --cov-fail-under=80
 ```
 
 ### 6.3 Coverage Requirements
@@ -534,27 +556,29 @@ test-coverage:
 **Tool:** Locust or k6
 
 **Scenarios:**
+
 ```python
 # tests/performance/locustfile.py
 from locust import HttpUser, task, between
 
 class LabletUser(HttpUser):
     wait_time = between(1, 3)
-    
+
     @task(3)
     def list_definitions(self):
         self.client.get("/api/v1/definitions")
-    
+
     @task(2)
     def get_definition(self):
         self.client.get("/api/v1/definitions/test-def")
-    
+
     @task(1)
     def create_instance(self):
         self.client.post("/api/v1/instances", json={...})
 ```
 
 **Targets:**
+
 | Metric | Target |
 |--------|--------|
 | API response time (p95) | < 200ms |
@@ -564,6 +588,7 @@ class LabletUser(HttpUser):
 ### 7.2 Stress Testing
 
 **Scenarios:**
+
 - 1000 concurrent instance requests
 - 100 simultaneous worker provisioning
 - Scheduler leader failover under load
@@ -573,6 +598,7 @@ class LabletUser(HttpUser):
 **Tools:** Chaos Monkey, Litmus
 
 **Scenarios:**
+
 - etcd leader failure
 - MongoDB connection loss
 - Worker instance termination
@@ -590,7 +616,7 @@ class TestAuthentication:
     async def test_api_requires_authentication(self, client):
         response = await client.get("/api/v1/definitions")
         assert response.status_code == 401
-    
+
     async def test_expired_token_rejected(self, client):
         expired_token = generate_expired_jwt()
         response = await client.get(
@@ -612,7 +638,7 @@ class TestAuthorization:
             headers={"Authorization": f"Bearer {admin_token}"}
         )
         assert response.status_code == 201
-    
+
     async def test_viewer_cannot_create_definition(self, client, viewer_token):
         response = await client.post(
             "/api/v1/definitions",
