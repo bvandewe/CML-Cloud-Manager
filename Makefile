@@ -34,17 +34,25 @@ endif
 
 PROD_COMPOSE := $(PROD_COMPOSE_CMD)
 
+# Microservice directories
+CONTROL_PLANE_DIR := src/control-plane-api
+SCHEDULER_DIR := src/scheduler
+CONTROLLER_DIR := src/controller
+
 # Port settings with defaults (can be overridden in .env)
 APP_PORT ?= 8020
+SCHEDULER_PORT ?= 8081
+CONTROLLER_PORT ?= 8082
 KEYCLOAK_PORT ?= 8021
 MONGODB_PORT ?= 8022
 MONGODB_EXPRESS_PORT ?= 8023
-EVENT_PLAYER_PORT ?= 8025
+EVENT_PLAYER_PORT ?= 8024
+ETCD_PORT ?= 2379
 OTEL_COLLECTOR_PORT_GRPC ?= 4317
 OTEL_COLLECTOR_PORT_HTTP ?= 4318
 
 # Application settings
-APP_SERVICE_NAME := app
+APP_SERVICE_NAME := control-plane-api
 APP_URL := http://localhost:$(APP_PORT)
 API_DOCS_URL := $(APP_URL)/api/docs
 
@@ -53,6 +61,7 @@ MONGO_URL := mongodb://localhost:$(MONGODB_PORT)
 MONGO_EXPRESS_URL := http://localhost:$(MONGODB_EXPRESS_PORT)
 KEYCLOAK_URL := http://localhost:$(KEYCLOAK_PORT)
 EVENT_PLAYER_URL := http://localhost:$(EVENT_PLAYER_PORT)
+ETCD_URL := http://localhost:$(ETCD_PORT)
 
 # Observability settings
 OTEL_GRPC_URL := localhost:$(OTEL_COLLECTOR_PORT_GRPC)
@@ -78,9 +87,9 @@ NC := \033[0m # No Color
 ##@ General
 
 help: ## Display this help message
-	@echo "$(BLUE)Cml Cloud Manager - Development Commands$(NC)"
+	@echo "$(BLUE)CML Cloud Manager - Multi-Service Development Commands$(NC)"
 	@echo ""
-	@awk 'BEGIN {FS = ":.*##"; printf "Usage:\n  make $(GREEN)<target>$(NC)\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  $(GREEN)%-20s$(NC) %s\n", $$1, $$2 } /^##@/ { printf "\n$(YELLOW)%s$(NC)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*##"; printf "Usage:\n  make $(GREEN)<target>$(NC)\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  $(GREEN)%-25s$(NC) %s\n", $$1, $$2 } /^##@/ { printf "\n$(YELLOW)%s$(NC)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 # ==============================================================================
 # DOCKER COMMANDS
@@ -121,11 +130,26 @@ restart: ## Restart all services
 restart-service: ## Restart a single Docker service (usage: make restart-service SERVICE=service_name)
 	@if [ -z "$(SERVICE)" ]; then \
 		echo "$(RED)Please specify SERVICE=<service_name>$(NC)"; \
+		echo "Available services:"; \
+		$(COMPOSE) config --services; \
 		exit 1; \
 	fi
 	@echo "$(BLUE)Restarting Docker service '$(SERVICE)'...$(NC)"
 	$(COMPOSE) up -d --force-recreate $(SERVICE)
 	@echo "$(GREEN)Service '$(SERVICE)' restarted with refreshed environment variables.$(NC)"
+
+rebuild-service: ## Rebuild a single service without cache and restart (usage: make rebuild-service SERVICE=service_name)
+	@if [ -z "$(SERVICE)" ]; then \
+		echo "$(RED)Please specify SERVICE=<service_name>$(NC)"; \
+		echo "Available services:"; \
+		$(COMPOSE) config --services; \
+		exit 1; \
+	fi
+	@echo "$(BLUE)Rebuilding $(SERVICE) without cache...$(NC)"
+	$(COMPOSE) build --no-cache $(SERVICE)
+	@echo "$(BLUE)Restarting $(SERVICE)...$(NC)"
+	$(COMPOSE) up -d --force-recreate $(SERVICE)
+	@echo "$(GREEN)$(SERVICE) rebuilt and restarted!$(NC)"
 
 dev: ## Build and start services with live logs
 	@echo "$(BLUE)Starting development environment...$(NC)"
@@ -140,8 +164,20 @@ rebuild: ## Rebuild services from scratch without cache
 logs: ## Show logs from all services
 	$(COMPOSE) logs -f
 
-logs-app: ## Show logs from the app service only
-	$(COMPOSE) logs -f $(APP_SERVICE_NAME)
+logs-api: ## Show logs from the control-plane-api service
+	$(COMPOSE) logs -f control-plane-api
+
+logs-scheduler: ## Show logs from the scheduler service
+	$(COMPOSE) logs -f scheduler
+
+logs-controller: ## Show logs from the controller service
+	$(COMPOSE) logs -f controller
+
+logs-worker: ## Show logs from the legacy worker service
+	$(COMPOSE) logs -f worker
+
+logs-etcd: ## Show logs from the etcd service
+	$(COMPOSE) logs -f etcd
 
 ps: ## Show running containers
 	$(COMPOSE) ps
@@ -157,97 +193,199 @@ docker-clean: ## Stop services and remove all volumes (WARNING: removes all data
 		echo "$(YELLOW)Cleanup cancelled.$(NC)"; \
 	fi
 
+redis-flush: ## Flush all Redis data (clears sessions, forces re-login)
+	@echo "$(YELLOW)Flushing Redis...$(NC)"
+	$(COMPOSE) exec redis redis-cli FLUSHALL
+	@echo "$(GREEN)Redis flushed!$(NC)"
+
+reset-mongodb: ## Reset MongoDB (clears all data, recreates volume)
+	@echo "$(RED)WARNING: This will delete all MongoDB data!$(NC)"
+	@read -p "Are you sure? [y/N] " -n 1 -r; \
+	echo; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		$(COMPOSE) down mongodb mongo-express; \
+		docker volume rm cml-cloud-manager_mongodb_data 2>/dev/null || true; \
+		$(COMPOSE) up mongodb mongo-express -d; \
+		echo "$(GREEN)MongoDB reset!$(NC)"; \
+	else \
+		echo "$(YELLOW)Reset cancelled.$(NC)"; \
+	fi
+
+reset-keycloak: ## Reset Keycloak database (re-imports realm from export files)
+	@echo "$(YELLOW)Resetting Keycloak database...$(NC)"
+	$(COMPOSE) stop keycloak
+	$(COMPOSE) rm -f keycloak
+	docker volume rm cml-cloud-manager_keycloak_data 2>/dev/null || true
+	$(COMPOSE) up keycloak -d
+	@echo "$(YELLOW)Waiting for Keycloak to start (40s)...$(NC)"
+	@sleep 40
+	@echo "$(YELLOW)Disabling SSL requirement on master and cml-cloud-manager realms...$(NC)"
+	docker exec cml-cloud-manager-keycloak-1 /opt/keycloak/bin/kcadm.sh config credentials --server http://localhost:8080 --realm master --user admin --password admin
+	docker exec cml-cloud-manager-keycloak-1 /opt/keycloak/bin/kcadm.sh update realms/master -s sslRequired=NONE
+	docker exec cml-cloud-manager-keycloak-1 /opt/keycloak/bin/kcadm.sh update realms/cml-cloud-manager -s sslRequired=NONE
+	@echo "$(GREEN)Keycloak database reset and SSL disabled for HTTP access!$(NC)"
+
+reset-etcd: ## Reset etcd data (clears leader election and state)
+	@echo "$(RED)WARNING: This will delete all etcd data!$(NC)"
+	@read -p "Are you sure? [y/N] " -n 1 -r; \
+	echo; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		$(COMPOSE) down etcd; \
+		docker volume rm cml-cloud-manager_etcd_data 2>/dev/null || true; \
+		$(COMPOSE) up etcd -d; \
+		echo "$(GREEN)etcd reset!$(NC)"; \
+	else \
+		echo "$(YELLOW)Reset cancelled.$(NC)"; \
+	fi
+
 urls: ## Display application and service URLs
 	@echo ""
-	@echo "$(YELLOW)Application URLs:$(NC)"
-	@echo "  Main App:        $(APP_URL)"
-	@echo "  API Docs:        $(API_DOCS_URL)"
+	@echo "$(YELLOW)Microservices:$(NC)"
+	@echo "  Control Plane API:     $(APP_URL)"
+	@echo "  API Docs:              $(API_DOCS_URL)"
+	@echo "  Scheduler:             http://localhost:$(SCHEDULER_PORT)"
+	@echo "  Controller:            http://localhost:$(CONTROLLER_PORT)"
 	@echo ""
 	@echo "$(YELLOW)Infrastructure:$(NC)"
-	@echo "  MongoDB:         $(MONGO_URL)"
-	@echo "  MongoDB Express: $(MONGO_EXPRESS_URL)"
-	@echo "  Keycloak Admin:  $(KEYCLOAK_URL) (admin/admin)"
-	@echo "  Event Player:    $(EVENT_PLAYER_URL)"
+	@echo "  etcd:                  $(ETCD_URL)"
+	@echo "  MongoDB:               $(MONGO_URL)"
+	@echo "  MongoDB Express:       $(MONGO_EXPRESS_URL)"
+	@echo "  Keycloak Admin:        $(KEYCLOAK_URL) (admin/admin)"
+	@echo "  Event Player:          $(EVENT_PLAYER_URL)"
 	@echo ""
 	@echo "$(YELLOW)Observability:$(NC)"
-	@echo "  OTEL gRPC:       $(OTEL_GRPC_URL)"
-	@echo "  OTEL HTTP:       $(OTEL_HTTP_URL)"
+	@echo "  OTEL gRPC:             $(OTEL_GRPC_URL)"
+	@echo "  OTEL HTTP:             $(OTEL_HTTP_URL)"
+	@echo ""
+	@echo "$(YELLOW)Debug Ports:$(NC)"
+	@echo "  Control Plane API:     5680"
+	@echo "  Scheduler:             5681"
+	@echo "  Controller:            5682"
+	@echo "  Worker:                5683"
 
 # ==============================================================================
-# LOCAL DEVELOPMENT
+# MICROSERVICE-SPECIFIC COMMANDS
 # ==============================================================================
 
-##@ Local Development
+##@ Control Plane API
 
-install: ## Install Python dependencies with Poetry
-	@echo "$(BLUE)Installing Python dependencies...$(NC)"
-	poetry install
-	@echo "$(GREEN)Python dependencies installed!$(NC)"
+api-install: ## Install control-plane-api dependencies
+	@echo "$(BLUE)Installing control-plane-api dependencies...$(NC)"
+	cd $(CONTROL_PLANE_DIR) && poetry install
+	@echo "$(GREEN)Dependencies installed!$(NC)"
 
-install-ui: ## Install Node.js dependencies for UI
+api-install-ui: ## Install control-plane-api UI dependencies
 	@echo "$(BLUE)Installing UI dependencies...$(NC)"
-	cd src/ui && npm install
+	cd $(CONTROL_PLANE_DIR)/ui && npm install
 	@echo "$(GREEN)UI dependencies installed!$(NC)"
 
-build-ui: ## Build frontend assets
+api-build-ui: ## Build control-plane-api frontend
 	@echo "$(BLUE)Building frontend assets...$(NC)"
-	cd src/ui && npm run build
+	cd $(CONTROL_PLANE_DIR)/ui && npm run build
 	@echo "$(GREEN)Frontend assets built!$(NC)"
 
-dev-ui: ## Start UI development server with hot-reload
-	@echo "$(BLUE)Starting UI development server...$(NC)"
-	cd src/ui && npm run dev
-
-run: build-ui ## Run the application locally (requires build-ui first)
-	@echo "$(BLUE)Starting Cml Cloud Manager application...$(NC)"
+api-run: api-build-ui ## Run control-plane-api locally
+	@echo "$(BLUE)Starting Control Plane API...$(NC)"
 	@echo "$(GREEN)Access at: http://localhost:8000$(NC)"
-	cd src && PYTHONPATH=. poetry run uvicorn main:create_app --factory --host 0.0.0.0 --port 8000 --reload
+	cd $(CONTROL_PLANE_DIR) && PYTHONPATH=. poetry run uvicorn main:create_app --factory --host 0.0.0.0 --port 8000 --reload
 
-run-debug: build-ui ## Run with debug logging
-	@echo "$(BLUE)Starting Cml Cloud Manager with debug logging...$(NC)"
-	cd src && LOG_LEVEL=DEBUG PYTHONPATH=. poetry run uvicorn main:create_app --factory --host 0.0.0.0 --port 8000 --reload --log-level debug
+api-test: ## Run control-plane-api tests
+	@echo "$(BLUE)Running control-plane-api tests...$(NC)"
+	cd $(CONTROL_PLANE_DIR) && poetry run pytest
 
-##@ Testing & Quality
+api-lint: ## Run control-plane-api linting
+	@echo "$(BLUE)Running control-plane-api linting...$(NC)"
+	cd $(CONTROL_PLANE_DIR) && poetry run ruff check .
 
-test: ## Run tests
-	@echo "$(BLUE)Running tests...$(NC)"
-	poetry run pytest
+api-format: ## Format control-plane-api code
+	@echo "$(BLUE)Formatting control-plane-api code...$(NC)"
+	cd $(CONTROL_PLANE_DIR) && poetry run black .
 
-test-unit: ## Run unit tests
+##@ Scheduler Service
+
+scheduler-install: ## Install scheduler dependencies
+	@echo "$(BLUE)Installing scheduler dependencies...$(NC)"
+	cd $(SCHEDULER_DIR) && poetry install
+	@echo "$(GREEN)Dependencies installed!$(NC)"
+
+scheduler-run: ## Run scheduler locally
+	@echo "$(BLUE)Starting Scheduler...$(NC)"
+	cd $(SCHEDULER_DIR) && PYTHONPATH=. poetry run python main.py
+
+scheduler-test: ## Run scheduler tests
+	@echo "$(BLUE)Running scheduler tests...$(NC)"
+	cd $(SCHEDULER_DIR) && poetry run pytest
+
+scheduler-lint: ## Run scheduler linting
+	@echo "$(BLUE)Running scheduler linting...$(NC)"
+	cd $(SCHEDULER_DIR) && poetry run ruff check .
+
+##@ Controller Service
+
+controller-install: ## Install controller dependencies
+	@echo "$(BLUE)Installing controller dependencies...$(NC)"
+	cd $(CONTROLLER_DIR) && poetry install
+	@echo "$(GREEN)Dependencies installed!$(NC)"
+
+controller-run: ## Run controller locally
+	@echo "$(BLUE)Starting Controller...$(NC)"
+	cd $(CONTROLLER_DIR) && PYTHONPATH=. poetry run python main.py
+
+controller-test: ## Run controller tests
+	@echo "$(BLUE)Running controller tests...$(NC)"
+	cd $(CONTROLLER_DIR) && poetry run pytest
+
+controller-lint: ## Run controller linting
+	@echo "$(BLUE)Running controller linting...$(NC)"
+	cd $(CONTROLLER_DIR) && poetry run ruff check .
+
+##@ All Services
+
+install-all: api-install scheduler-install controller-install ## Install dependencies for all services
+	@echo "$(GREEN)All dependencies installed!$(NC)"
+
+test-all: api-test scheduler-test controller-test ## Run tests for all services
+	@echo "$(GREEN)All tests complete!$(NC)"
+
+lint-all: api-lint scheduler-lint controller-lint ## Run linting for all services
+	@echo "$(GREEN)All linting complete!$(NC)"
+
+##@ Testing & Quality (Legacy - use api-test, scheduler-test, controller-test)
+
+test: api-test ## Run control-plane-api tests (default)
+
+test-unit: ## Run unit tests on control-plane-api
 	@echo "$(BLUE)Running unit tests...$(NC)"
-	poetry run pytest -m unit
+	cd $(CONTROL_PLANE_DIR) && poetry run pytest -m unit
 
-test-domain: ## Run domain tests
+test-domain: ## Run domain tests on control-plane-api
 	@echo "$(BLUE)Running domain tests...$(NC)"
-	poetry run pytest tests/domain/ -v
+	cd $(CONTROL_PLANE_DIR) && poetry run pytest tests/domain/ -v
 
-test-command: ## Run command tests
+test-command: ## Run command tests on control-plane-api
 	@echo "$(BLUE)Running command tests...$(NC)"
-	poetry run pytest -m command
+	cd $(CONTROL_PLANE_DIR) && poetry run pytest -m command
 
-test-query: ## Run query tests
+test-query: ## Run query tests on control-plane-api
 	@echo "$(BLUE)Running query tests...$(NC)"
-	poetry run pytest -m query
+	cd $(CONTROL_PLANE_DIR) && poetry run pytest -m query
 
-test-application: ## Run application tests
+test-application: ## Run application tests on control-plane-api
 	@echo "$(BLUE)Running application tests...$(NC)"
-	poetry run pytest tests/application -v
+	cd $(CONTROL_PLANE_DIR) && poetry run pytest tests/application -v
 
-test-cov: ## Run tests with coverage
+test-cov: ## Run tests with coverage on control-plane-api
 	@echo "$(BLUE)Running tests with coverage...$(NC)"
-	poetry run pytest --cov=. --cov-report=html --cov-report=term
+	cd $(CONTROL_PLANE_DIR) && poetry run pytest --cov=. --cov-report=html --cov-report=term
 
-lint: ## Run linting checks
-	@echo "$(BLUE)Running linting checks...$(NC)"
-	poetry run ruff check .
+lint: api-lint ## Run linting on control-plane-api (default)
 
-format: ## Format code with black
-	@echo "$(BLUE)Formatting code...$(NC)"
-	poetry run black .
+format: api-format ## Format control-plane-api code (default)
 
 install-hooks: ## Install pre-commit git hooks
 	@echo "$(BLUE)Installing pre-commit git hooks...$(NC)"
-	poetry run pre-commit install --install-hooks
+	cd $(CONTROL_PLANE_DIR) && poetry run pre-commit install --install-hooks
+	@echo "$(GREEN)Git hooks installed successfully.$(NC)"
 	@echo "$(GREEN)Git hooks installed successfully.$(NC)"
 
 ##@ Cleanup
@@ -315,12 +453,12 @@ docs-config: ## Show current documentation configuration
 
 ##@ Environment Setup
 
-setup: install install-ui build-ui install-hooks ## Complete setup for new developers
+setup: api-install api-install-ui api-build-ui install-hooks scheduler-install controller-install ## Complete setup for new developers
 	@echo "$(GREEN)✅ Setup complete!$(NC)"
 	@echo ""
 	@echo "$(YELLOW)Quick Start:$(NC)"
-	@echo "  make run              - Run locally"
-	@echo "  make docker-up        - Run with Docker"
+	@echo "  make api-run          - Run control-plane-api locally"
+	@echo "  make up               - Run with Docker (all services)"
 	@echo "  make help             - Show all commands"
 
 env-check: ## Check environment requirements
@@ -337,39 +475,29 @@ env-check: ## Check environment requirements
 status: ## Show current status
 	@echo "$(BLUE)System Status:$(NC)"
 	@echo ""
-	@echo "$(YELLOW)Python Environment:$(NC)"
-	@poetry env info || echo "$(RED)Poetry environment not configured$(NC)"
-	@echo ""
 	@echo "$(YELLOW)Docker Services:$(NC)"
 	@docker-compose ps 2>/dev/null || echo "$(RED)Docker services not running$(NC)"
 	@echo ""
 	@echo "$(YELLOW)Service URLs:$(NC)"
-	@echo "  $(GREEN)Local Dev (make run):$(NC)"
-	@echo "    App:           http://localhost:8000"
-	@echo "    API Docs:      http://localhost:8000/api/docs"
-	@echo ""
-	@echo "  $(GREEN)Docker (make docker-up):$(NC)"
-	@echo "    App:           http://localhost:8080"
-	@echo "    API Docs:      http://localhost:8080/api/docs"
-	@echo "    MongoDB:       mongodb://localhost:27017"
-	@echo "    Mongo Express: http://localhost:8081"
-	@echo "    Keycloak:      http://localhost:8090"
-	@echo "    Event Player:  http://localhost:8085"
+	@$(MAKE) urls
 
 info: ## Show project information
-	@echo "$(BLUE)Cml Cloud Manager - Project Information$(NC)"
+	@echo "$(BLUE)CML Cloud Manager - Multi-Service Architecture$(NC)"
 	@echo ""
-	@echo "$(YELLOW)Local Development URLs:$(NC)"
-	@echo "  Main App:        http://localhost:8000"
-	@echo "  API Docs:        http://localhost:8000/api/docs"
+	@echo "$(YELLOW)Microservices:$(NC)"
+	@echo "  📱 Control Plane API  - REST API + UI (MongoDB writer)"
+	@echo "  📅 Scheduler          - LabletInstance placement decisions"
+	@echo "  🎛️  Controller         - Reconciliation + Cloud Provider (AWS EC2)"
 	@echo ""
-	@echo "$(YELLOW)Docker Services URLs:$(NC)"
-	@echo "  Main App:        http://localhost:8080"
-	@echo "  API Docs:        http://localhost:8080/api/docs"
-	@echo "  MongoDB Express: http://localhost:8081"
-	@echo "  Keycloak Admin:  http://localhost:8090 (admin/admin)"
-	@echo "  Event Player:    http://localhost:8085"
-	@echo "  MongoDB:         mongodb://localhost:27017"
+	@echo "$(YELLOW)Docker URLs:$(NC)"
+	@echo "  Control Plane API: http://localhost:8020"
+	@echo "  API Docs:          http://localhost:8020/api/docs"
+	@echo "  Scheduler:         http://localhost:8081"
+	@echo "  Controller:        http://localhost:8082"
+	@echo "  etcd:              http://localhost:2379"
+	@echo "  MongoDB Express:   http://localhost:8023"
+	@echo "  Keycloak Admin:    http://localhost:8021 (admin/admin)"
+	@echo "  Event Player:      http://localhost:8024"
 	@echo ""
 	@echo "$(YELLOW)Test Users:$(NC)"
 	@echo "  admin/admin123     (Admin - Full Access)"
@@ -378,8 +506,7 @@ info: ## Show project information
 	@echo ""
 	@echo "$(YELLOW)Documentation:$(NC)"
 	@echo "  README.md           - Setup and usage guide"
-	@echo "  SETUP_COMPLETE.md   - Quick reference"
-	@echo "  DOCKER_SERVICES.md  - Docker services overview"
+	@echo "  docs/               - Full documentation (MkDocs)"
 
 # ==============================================================================
 # PRODUCTION COMMANDS
