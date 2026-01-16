@@ -6,8 +6,15 @@ The format follows the recommendations of Keep a Changelog (https://keepachangel
 
 ## [Unreleased]
 
+### Changed
+
+- **UI Build**: Changed Parcel output from root `/static` to service-specific `./src/control-plane-api/static/` to support independent UIs per microservice
+- **Docker**: Updated Keycloak to 26+ configuration format with new env vars (`KC_BOOTSTRAP_ADMIN_USERNAME`, `KC_HOSTNAME`, etc.)
+- **Docker**: Removed shared `./static:/app/static` volume mount in favor of service-local static directory
+
 ### Fixed
 
+- **UI**: Fixed `UIController` static_dir path calculation (3 parents instead of 4) to correctly resolve `/app/static` in Docker
 - **Observability**: Fixed MongoDB metrics scraping authorization errors by creating dedicated `otel_monitor` user with `clusterMonitor` role
 - **Observability**: Fixed Tempo "DoBatch: InstancesCount <= 0" warnings by commenting out orphaned `metrics_generator_processors` config
 
