@@ -1,0 +1,94 @@
+{
+    "name": "@neuroglia/ui-core",
+    "version": "0.1.1",
+    "description": "Reusable UI foundation library with EventBus, StateStore, SSEClient, SessionManager, and Web Components",
+    "author": "Neuroglia",
+    "license": "MIT",
+    "type": "module",
+    "main": "dist/index.umd.js",
+    "module": "dist/index.esm.js",
+    "types": "dist/types/index.d.ts",
+    "exports": {
+        ".": {
+            "import": "./dist/index.esm.js",
+            "require": "./dist/index.umd.js",
+            "types": "./dist/types/index.d.ts"
+        },
+        "./core": {
+            "import": "./dist/core/index.esm.js",
+            "require": "./dist/core/index.umd.js",
+            "types": "./dist/types/core/index.d.ts"
+        },
+        "./session": {
+            "import": "./dist/session/index.esm.js",
+            "require": "./dist/session/index.umd.js",
+            "types": "./dist/types/session/index.d.ts"
+        },
+        "./middleware": {
+            "import": "./dist/middleware/index.esm.js",
+            "require": "./dist/middleware/index.umd.js",
+            "types": "./dist/types/middleware/index.d.ts"
+        },
+        "./components": {
+            "import": "./dist/components/index.esm.js",
+            "require": "./dist/components/index.umd.js",
+            "types": "./dist/types/components/index.d.ts"
+        }
+    },
+    "files": [
+        "dist",
+        "README.md"
+    ],
+    "scripts": {
+        "build": "rollup -c",
+        "build:watch": "rollup -c --watch",
+        "typecheck": "tsc --noEmit",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:coverage": "vitest run --coverage",
+        "lint": "eslint src --ext .ts",
+        "lint:fix": "eslint src --ext .ts --fix",
+        "clean": "rm -rf dist node_modules/.cache",
+        "prepublishOnly": "npm run build",
+        "version:patch": "npm version patch --no-git-tag-version && npm run version:tag",
+        "version:minor": "npm version minor --no-git-tag-version && npm run version:tag",
+        "version:major": "npm version major --no-git-tag-version && npm run version:tag",
+        "version:tag": "node -e \"const pkg = require('./package.json'); console.log('Run: git tag ui-core-v' + pkg.version + ' && git push origin ui-core-v' + pkg.version)\"",
+        "release:patch": "npm run version:patch",
+        "release:minor": "npm run version:minor",
+        "release:major": "npm run version:major"
+    },
+    "devDependencies": {
+        "@rollup/plugin-node-resolve": "^15.2.3",
+        "@rollup/plugin-typescript": "^11.1.6",
+        "@types/node": "^20.11.0",
+        "@typescript-eslint/eslint-plugin": "^7.0.0",
+        "@typescript-eslint/parser": "^7.0.0",
+        "eslint": "^8.57.0",
+        "jsdom": "^27.4.0",
+        "rollup": "^4.9.6",
+        "rollup-plugin-dts": "^6.1.0",
+        "tslib": "^2.6.2",
+        "typescript": "^5.3.3",
+        "vitest": "^1.2.2"
+    },
+    "keywords": [
+        "ui",
+        "eventbus",
+        "state-management",
+        "sse",
+        "web-components",
+        "typescript"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/neuroglia-io/lablet-cloud-manager.git",
+        "directory": "src/core/lcm_ui"
+    },
+    "publishConfig": {
+        "registry": "https://npm.pkg.github.com"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    }
+}
