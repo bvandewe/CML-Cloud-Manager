@@ -1,4 +1,4 @@
-# CML Cloud Manager - AI Agent Instructions
+# Lablet Cloud Manager - AI Agent Instructions
 
 ## Quick Start for AI Agents
 
@@ -488,8 +488,8 @@ CML_WORKER_SUBNET_ID
 
 **Keycloak setup**: `deployment/keycloak/` contains realm import JSON
 
-- Default realm: `cml-cloud-manager`
-- Default client: `cml-cloud-manager-public` (public client for Authorization Code Flow)
+- Default realm: `lablet-cloud-manager`
+- Default client: `lablet-cloud-manager-public` (public client for Authorization Code Flow)
 
 ## UI Development
 

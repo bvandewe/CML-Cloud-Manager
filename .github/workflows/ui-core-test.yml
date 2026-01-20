@@ -1,0 +1,95 @@
+name: UI Core - Test & Build
+
+on:
+    push:
+        branches: [main]
+        paths:
+            - 'src/core/lcm_ui/**'
+            - '.github/workflows/ui-core-test.yml'
+    pull_request:
+        branches: [main]
+        paths:
+            - 'src/core/lcm_ui/**'
+            - '.github/workflows/ui-core-test.yml'
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+defaults:
+    run:
+        working-directory: src/core/lcm_ui
+
+jobs:
+    test:
+        name: Test & Build
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+
+        strategy:
+            matrix:
+                node-version: [20, 22]
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js ${{ matrix.node-version }}
+              uses: actions/setup-node@v4
+              with:
+                  node-version: ${{ matrix.node-version }}
+                  cache: 'npm'
+                  cache-dependency-path: src/core/lcm_ui/package-lock.json
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Run type check
+              run: npm run typecheck
+
+            - name: Run tests
+              run: npm run test
+
+            - name: Run tests with coverage
+              run: npm run test:coverage
+              continue-on-error: true
+
+            - name: Build package
+              run: npm run build
+
+            - name: Verify dist output
+              run: |
+                  echo "=== Checking dist directory ==="
+                  ls -la dist/
+                  echo "=== Checking bundle sizes ==="
+                  du -sh dist/*.js dist/**/*.js 2>/dev/null || true
+                  echo "=== Checking types ==="
+                  ls -la dist/types/
+
+            - name: Test package creation
+              run: |
+                  npm pack --dry-run
+                  echo "Package can be created successfully"
+
+    lint:
+        name: Lint
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 20
+                  cache: 'npm'
+                  cache-dependency-path: src/core/lcm_ui/package-lock.json
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Run linting
+              run: npm run lint
+              continue-on-error: true # Don't fail on lint errors for now

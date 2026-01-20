@@ -13,7 +13,7 @@ permissions:
     id-token: write
 
 env:
-    IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/cml-cloud-manager
+    IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/lablet-cloud-manager
     DOCKERFILE_PATH: Dockerfile
     CONTEXT: .
 
